@@ -27,6 +27,18 @@ MVP pattern with `Presenter` + `ViewModel` and `PresenterState` bridges:
 
 Supabase migration is ready at `supabase/migrations/0001_init.sql`.
 
+## Backend Workflow
+
+1. Run `supabase/migrations/0001_init.sql`
+2. Run `supabase/migrations/0002_backend.sql`
+3. Optional seed: `supabase/seed.sql`
+
+Core RPCs:
+- `set_user_subjects(semester_id, subject_ids[])`
+- `start_quiz_attempt(quiz_id)`
+- `finish_quiz_attempt(attempt_id, score, duration_seconds, answers_json)`
+- `search_content(query, limit)`
+
 ## Run
 
 ```bash
