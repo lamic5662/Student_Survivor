@@ -23,6 +23,10 @@ MVP pattern with `Presenter` + `ViewModel` and `PresenterState` bridges:
 - `lib/features/<feature>/`
 - `lib/data/mock_data.dart`
 
+## Database
+
+Supabase migration is ready at `supabase/migrations/0001_init.sql`.
+
 ## Run
 
 ```bash
