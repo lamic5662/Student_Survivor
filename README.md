@@ -48,6 +48,12 @@ flutter run \
   --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
 
+Or create a `.env` (see `.env.example`) and run normally:
+
+```bash
+flutter run
+```
+
 ## Notes
 
 - All data is mocked in `lib/data/mock_data.dart`.

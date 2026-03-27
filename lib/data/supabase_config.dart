@@ -1,19 +1,22 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-
 class SupabaseConfig {
-  static bool get isConfigured =>
-      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+  static String get url =>
+      dotenv.env['SUPABASE_URL'] ?? const String.fromEnvironment('SUPABASE_URL');
+
+  static String get anonKey => dotenv.env['SUPABASE_ANON_KEY'] ??
+      const String.fromEnvironment('SUPABASE_ANON_KEY');
+
+  static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 
   static Future<void> initialize() async {
     if (!isConfigured) {
       return;
     }
     await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
+      url: url,
+      anonKey: anonKey,
     );
   }
 
