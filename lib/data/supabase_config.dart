@@ -2,11 +2,19 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
-  static String get url =>
-      dotenv.env['SUPABASE_URL'] ?? const String.fromEnvironment('SUPABASE_URL');
+  static String get url {
+    final value = _safeDotenv('SUPABASE_URL');
+    return value.isNotEmpty
+        ? value
+        : const String.fromEnvironment('SUPABASE_URL');
+  }
 
-  static String get anonKey => dotenv.env['SUPABASE_ANON_KEY'] ??
-      const String.fromEnvironment('SUPABASE_ANON_KEY');
+  static String get anonKey {
+    final value = _safeDotenv('SUPABASE_ANON_KEY');
+    return value.isNotEmpty
+        ? value
+        : const String.fromEnvironment('SUPABASE_ANON_KEY');
+  }
 
   static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 
@@ -21,4 +29,15 @@ class SupabaseConfig {
   }
 
   static SupabaseClient get client => Supabase.instance.client;
+
+  static String _safeDotenv(String key) {
+    try {
+      if (!dotenv.isInitialized) {
+        return '';
+      }
+      return dotenv.env[key] ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
 }
