@@ -4,8 +4,10 @@ class ProfileEditViewModel {
   final String fullName;
   final String email;
   final List<Semester> semesters;
-  final Semester selectedSemester;
+  final Semester? selectedSemester;
   final Set<String> selectedSubjectIds;
+  final bool isLoading;
+  final String? errorMessage;
 
   const ProfileEditViewModel({
     required this.fullName,
@@ -13,11 +15,14 @@ class ProfileEditViewModel {
     required this.semesters,
     required this.selectedSemester,
     required this.selectedSubjectIds,
+    required this.isLoading,
+    required this.errorMessage,
   });
 
-  List<Subject> get availableSubjects => selectedSemester.subjects;
+  List<Subject> get availableSubjects => selectedSemester?.subjects ?? [];
 
-  bool get canSave => fullName.trim().isNotEmpty && selectedSubjectIds.isNotEmpty;
+  bool get canSave =>
+      !isLoading && selectedSemester != null && selectedSubjectIds.isNotEmpty;
 
   ProfileEditViewModel copyWith({
     String? fullName,
@@ -25,6 +30,8 @@ class ProfileEditViewModel {
     List<Semester>? semesters,
     Semester? selectedSemester,
     Set<String>? selectedSubjectIds,
+    bool? isLoading,
+    String? errorMessage,
   }) {
     return ProfileEditViewModel(
       fullName: fullName ?? this.fullName,
@@ -32,19 +39,23 @@ class ProfileEditViewModel {
       semesters: semesters ?? this.semesters,
       selectedSemester: selectedSemester ?? this.selectedSemester,
       selectedSubjectIds: selectedSubjectIds ?? this.selectedSubjectIds,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
     );
   }
 
-  factory ProfileEditViewModel.fromProfile({
-    required UserProfile profile,
-    required List<Semester> semesters,
+  factory ProfileEditViewModel.initial({
+    required String fullName,
+    required String email,
   }) {
     return ProfileEditViewModel(
-      fullName: profile.name,
-      email: profile.email,
-      semesters: semesters,
-      selectedSemester: profile.semester,
-      selectedSubjectIds: profile.subjects.map((subject) => subject.id).toSet(),
+      fullName: fullName,
+      email: email,
+      semesters: const [],
+      selectedSemester: null,
+      selectedSubjectIds: <String>{},
+      isLoading: true,
+      errorMessage: null,
     );
   }
 }

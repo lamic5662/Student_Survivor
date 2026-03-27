@@ -1,0 +1,50 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/models/app_models.dart';
+
+class ProfileService {
+  final SupabaseClient _client;
+
+  ProfileService(this._client);
+
+  Future<void> updateName(String fullName) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    await _client
+        .from('profiles')
+        .update({'full_name': fullName})
+        .eq('id', user.id);
+  }
+
+  Future<UserProfile?> fetchProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    final data = await _client
+        .from('profiles')
+        .select('id, full_name, email, semester:semesters(id,name,code)')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (data == null) {
+      return null;
+    }
+
+    final semester = data['semester'];
+    final semesterModel = Semester(
+      id: semester?['id']?.toString() ?? '',
+      name: semester?['name']?.toString() ?? 'Semester',
+      subjects: const [],
+    );
+
+    return UserProfile(
+      name: data['full_name']?.toString() ?? (user.email ?? 'Student'),
+      email: data['email']?.toString() ?? (user.email ?? ''),
+      semester: semesterModel,
+      subjects: const [],
+    );
+  }
+}

@@ -52,6 +52,19 @@ class _ProfileEditScreenState
       body: ValueListenableBuilder<ProfileEditViewModel>(
         valueListenable: presenter.state,
         builder: (context, model, _) {
+          if (model.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (model.errorMessage != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(model.errorMessage!),
+              ),
+            );
+          }
+
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
@@ -90,7 +103,8 @@ class _ProfileEditScreenState
                           .map(
                             (semester) => ChoiceChip(
                               label: Text(semester.name),
-                              selected: model.selectedSemester.id == semester.id,
+                              selected:
+                                  model.selectedSemester?.id == semester.id,
                               onSelected: (_) =>
                                   presenter.selectSemester(semester),
                             ),
@@ -134,7 +148,7 @@ class _ProfileEditScreenState
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: presenter.save,
+                  onPressed: model.canSave ? presenter.save : null,
                   child: const Text('Save Changes'),
                 ),
               ),

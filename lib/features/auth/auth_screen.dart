@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
-import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/features/shell/app_shell.dart';
@@ -18,8 +17,19 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState
     extends PresenterState<AuthScreen, AuthView, AuthPresenter>
     implements AuthView {
+  final _formKey = GlobalKey<FormState>();
+  final _identifierController = TextEditingController();
+  final _passwordController = TextEditingController();
+
   @override
   AuthPresenter createPresenter() => AuthPresenter();
+
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   void goToHome() {
@@ -43,55 +53,113 @@ class _AuthScreenState
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionHeader(title: 'Welcome back'),
-                      const SizedBox(height: 12),
-                      _AuthMethodSelector(
-                        selected: model.method,
-                        onChanged: presenter.setAuthMethod,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        decoration: InputDecoration(
-                          labelText: model.method == AuthMethod.email
-                              ? 'Email'
-                              : 'Phone',
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          model.isLogin ? 'Welcome back' : 'Create your account',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      const TextField(
-                        obscureText: true,
-                        decoration: InputDecoration(labelText: 'Password'),
-                      ),
-                      const SizedBox(height: 24),
-                      AppCard(
-                        color: AppColors.accentSoft,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.auto_awesome, size: 28),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Complete your semester + subjects in Profile after login.',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                        const SizedBox(height: 12),
+                        _AuthMethodSelector(
+                          selected: model.method,
+                          onChanged: presenter.setAuthMethod,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _identifierController,
+                          keyboardType: model.method == AuthMethod.email
+                              ? TextInputType.emailAddress
+                              : TextInputType.phone,
+                          decoration: InputDecoration(
+                            labelText: model.method == AuthMethod.email
+                                ? 'Email'
+                                : 'Phone',
+                          ),
+                          validator: (value) {
+                            final input = value?.trim() ?? '';
+                            if (input.isEmpty) {
+                              return model.method == AuthMethod.email
+                                  ? 'Email is required'
+                                  : 'Phone is required';
+                            }
+                            if (model.method == AuthMethod.email &&
+                                !input.contains('@')) {
+                              return 'Enter a valid email';
+                            }
+                            if (model.method == AuthMethod.phone &&
+                                input.length < 8) {
+                              return 'Enter a valid phone number';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(labelText: 'Password'),
+                          validator: (value) {
+                            final input = value?.trim() ?? '';
+                            if (input.isEmpty) {
+                              return 'Password is required';
+                            }
+                            if (input.length < 6) {
+                              return 'Minimum 6 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        AppCard(
+                          color: AppColors.accentSoft,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.auto_awesome, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Complete your semester + subjects in Profile after login.',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: presenter.submit,
-                          child: Text(
-                            model.isLogin ? 'Continue' : 'Create Account',
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: model.isSubmitting
+                                ? null
+                                : () {
+                                    if (_formKey.currentState?.validate() !=
+                                        true) {
+                                      return;
+                                    }
+                                    presenter.submit(
+                                      identifier:
+                                          _identifierController.text.trim(),
+                                      password: _passwordController.text,
+                                    );
+                                  },
+                            child: model.isSubmitting
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    model.isLogin ? 'Continue' : 'Create Account',
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
