@@ -4,7 +4,14 @@ import 'package:student_survivor/models/app_models.dart';
 
 class AppState {
   static final ValueNotifier<UserProfile> profile =
-      ValueNotifier<UserProfile>(MockData.profile);
+      ValueNotifier<UserProfile>(
+    UserProfile(
+      name: MockData.profile.name,
+      email: MockData.profile.email,
+      semester: MockData.semesters.first,
+      subjects: const [],
+    ),
+  );
 
   static void updateProfile(UserProfile updated) {
     profile.value = updated;

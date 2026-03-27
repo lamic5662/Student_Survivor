@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/features/ai/ai_screen.dart';
 import 'package:student_survivor/features/dashboard/dashboard_screen.dart';
 import 'package:student_survivor/features/profile/profile_screen.dart';
+import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_screen.dart';
 import 'package:student_survivor/features/subjects/subjects_screen.dart';
 
@@ -14,6 +16,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
+  bool _profilePrompted = false;
 
   final List<Widget> _screens = const [
     DashboardScreen(),
@@ -25,6 +28,20 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_profilePrompted) {
+      _profilePrompted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        if (AppState.profile.value.subjects.isEmpty) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+          );
+        }
+      });
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
