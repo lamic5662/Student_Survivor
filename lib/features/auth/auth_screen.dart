@@ -66,42 +66,6 @@ class _AuthScreenState
                         decoration: InputDecoration(labelText: 'Password'),
                       ),
                       const SizedBox(height: 24),
-                      const SectionHeader(title: 'Select Semester'),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: model.semesters
-                            .map(
-                              (semester) => ChoiceChip(
-                                label: Text(semester.name),
-                                selected:
-                                    model.selectedSemester?.id == semester.id,
-                                onSelected: (_) =>
-                                    presenter.selectSemester(semester),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 24),
-                      const SectionHeader(title: 'Pick Subjects'),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: model.availableSubjects
-                            .map(
-                              (subject) => FilterChip(
-                                label: Text(subject.name),
-                                selected: model.selectedSubjectIds
-                                    .contains(subject.id),
-                                onSelected: (_) =>
-                                    presenter.toggleSubject(subject.id),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 24),
                       AppCard(
                         color: AppColors.accentSoft,
                         child: Row(
@@ -110,7 +74,7 @@ class _AuthScreenState
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'AI adaptive learning kicks in when you miss a quiz.',
+                                'Complete your semester + subjects in Profile after login.',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ),

@@ -4,7 +4,7 @@ import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/features/subjects/subject_detail_screen.dart';
 import 'package:student_survivor/features/subjects/subjects_presenter.dart';
-import 'package:student_survivor/models/app_models.dart';
+import 'package:student_survivor/features/subjects/subjects_view_model.dart';
 
 class SubjectsScreen extends StatefulWidget {
   const SubjectsScreen({super.key});
@@ -21,26 +21,27 @@ class _SubjectsScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Subjects'),
-            Text(
-              presenter.semesterName,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+    return ValueListenableBuilder<SubjectsViewModel>(
+      valueListenable: presenter.state,
+      builder: (context, model, _) {
+        final subjects = model.subjects;
+        return Scaffold(
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Subjects'),
+                Text(
+                  model.semesterName,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-      body: ValueListenableBuilder<List<Subject>>(
-        valueListenable: presenter.state,
-        builder: (context, subjects, _) {
-          return ListView.builder(
+          ),
+          body: ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: subjects.length,
             itemBuilder: (context, index) {
@@ -65,7 +66,8 @@ class _SubjectsScreenState
                               width: 44,
                               height: 44,
                               decoration: BoxDecoration(
-                                color: subject.accentColor.withValues(alpha: 0.15),
+                                color:
+                                    subject.accentColor.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(Icons.menu_book,
@@ -117,9 +119,9 @@ class _SubjectsScreenState
                 ),
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

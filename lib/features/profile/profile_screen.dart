@@ -3,6 +3,7 @@ import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
+import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/profile/profile_presenter.dart';
 import 'package:student_survivor/features/progress/progress_screen.dart';
 import 'package:student_survivor/features/search/search_screen.dart';
@@ -53,38 +54,59 @@ class _ProfileScreenState
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          profile.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          profile.email,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          profile.semester.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                      ],
-                    )
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            profile.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            profile.email,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.mutedInk),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            profile.semester.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.mutedInk),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton.outlined(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileEditScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
+              if (profile.subjects.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: profile.subjects
+                      .map((subject) => Chip(label: Text(subject.name)))
+                      .toList(),
+                ),
+              if (profile.subjects.isNotEmpty) const SizedBox(height: 16),
               _ProfileItem(
                 icon: Icons.search,
                 label: 'Search',
