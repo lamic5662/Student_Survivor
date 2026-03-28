@@ -143,6 +143,14 @@ class AdminService {
     await _client.from('notes').delete().eq('id', noteId);
   }
 
+  Future<int> fetchPendingNoteSubmissionCount() async {
+    final data = await _client
+        .from('note_submissions')
+        .select('id')
+        .eq('status', 'pending');
+    return (data as List<dynamic>).length;
+  }
+
   Future<List<AdminNoteSubmission>> fetchPendingNoteSubmissions({
     String? chapterId,
   }) async {

@@ -98,6 +98,7 @@ class NoteSubmission {
   final String detailedAnswer;
   final List<String> tags;
   final String status;
+  final String? adminFeedback;
   final DateTime? createdAt;
 
   const NoteSubmission({
@@ -108,6 +109,7 @@ class NoteSubmission {
     required this.detailedAnswer,
     required this.tags,
     required this.status,
+    this.adminFeedback,
     this.createdAt,
   });
 }

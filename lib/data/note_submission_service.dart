@@ -36,7 +36,7 @@ class NoteSubmissionService {
     final data = await _client
         .from('note_submissions')
         .select(
-          'id,chapter_id,title,short_answer,detailed_answer,tags,status,created_at',
+          'id,chapter_id,title,short_answer,detailed_answer,tags,status,admin_feedback,created_at',
         )
         .eq('user_id', user.id)
         .eq('chapter_id', chapterId)
@@ -61,7 +61,12 @@ class NoteSubmissionService {
       detailedAnswer: map['detailed_answer']?.toString() ?? '',
       tags: tags,
       status: map['status']?.toString() ?? 'pending',
+      adminFeedback: map['admin_feedback']?.toString(),
       createdAt: createdAt == null ? null : DateTime.tryParse(createdAt),
     );
+  }
+
+  Future<void> deleteSubmission(String submissionId) async {
+    await _client.from('note_submissions').delete().eq('id', submissionId);
   }
 }

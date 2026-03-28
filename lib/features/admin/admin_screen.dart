@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/data/ai_notes_service.dart';
+import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/admin_service.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/subject_service.dart';
@@ -34,6 +36,8 @@ class AdminScreen extends StatefulWidget {
 class _AdminScreenState extends State<AdminScreen> {
   late final SubjectService _subjectService;
   late final AdminService _adminService;
+  late final AiNotesService _aiNotesService;
+  late final AiQuizService _aiQuizService;
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -57,6 +61,9 @@ class _AdminScreenState extends State<AdminScreen> {
   bool _showNotePublisher = false;
   bool _isUploadingSyllabus = false;
   bool _isNotesLoading = false;
+  bool _isAiNoteLoading = false;
+  bool _isAiQuestionLoading = false;
+  bool _isAiQuizQuestionLoading = false;
   String? _notesError;
   bool _isPendingLoading = false;
   String? _pendingError;
@@ -107,6 +114,8 @@ class _AdminScreenState extends State<AdminScreen> {
     super.initState();
     _subjectService = SubjectService(SupabaseConfig.client);
     _adminService = AdminService(SupabaseConfig.client);
+    _aiNotesService = AiNotesService(SupabaseConfig.client);
+    _aiQuizService = AiQuizService(SupabaseConfig.client);
     _load();
   }
 
@@ -268,6 +277,124 @@ class _AdminScreenState extends State<AdminScreen> {
         _pendingError = 'Failed to load submissions: $error';
         _isPendingLoading = false;
       });
+    }
+  }
+
+  Future<void> _generateAdminNoteDraft() async {
+    if (_isAiNoteLoading) return;
+    final subject = _noteSubject;
+    final chapter = _noteChapter ??
+        (_noteChapters.isNotEmpty ? _noteChapters.first : null);
+    if (subject == null || chapter == null) {
+      _show('Select a subject and chapter first.');
+      return;
+    }
+    setState(() {
+      _isAiNoteLoading = true;
+      _showNotePublisher = true;
+    });
+    try {
+      final draft = await _aiNotesService.generateNote(
+        subject: subject,
+        chapter: chapter,
+      );
+      if (draft == null) {
+        _show('AI unavailable. Configure Ollama or LM Studio.');
+        return;
+      }
+      _noteTitle.text = draft.title;
+      _noteShort.text = draft.shortAnswer;
+      _noteDetailed.text = draft.detailedAnswer;
+      _show('AI draft ready.');
+    } catch (error) {
+      _show('AI generate failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAiNoteLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _generateAdminQuestionPrompt() async {
+    if (_isAiQuestionLoading) return;
+    final subject = _qaSubject;
+    final chapter = _qaChapter;
+    if (subject == null || chapter == null) {
+      _show('Select a subject and chapter first.');
+      return;
+    }
+    setState(() {
+      _isAiQuestionLoading = true;
+    });
+    try {
+      final questions = await _aiQuizService.generateQuestions(
+        quizId: 'admin-draft',
+        subject: subject,
+        chapter: chapter,
+        count: 1,
+        baseDifficulty: QuizDifficulty.easy,
+      );
+      if (questions.isEmpty) {
+        _show('AI could not generate a question.');
+        return;
+      }
+      final q = questions.first;
+      _questionPrompt.text = q.prompt;
+      if (_questionMarks.text.trim().isEmpty) {
+        _questionMarks.text = '5';
+      }
+      _show('AI question ready.');
+    } catch (error) {
+      _show('AI generate failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAiQuestionLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _generateAdminQuizQuestion() async {
+    if (_isAiQuizQuestionLoading) return;
+    final subject = _qaSubject;
+    final chapter = _qaChapter;
+    if (subject == null || chapter == null) {
+      _show('Select a subject and chapter first.');
+      return;
+    }
+    setState(() {
+      _isAiQuizQuestionLoading = true;
+    });
+    try {
+      final questions = await _aiQuizService.generateQuestions(
+        quizId: _qaSelectedQuiz?.id ?? 'admin-draft',
+        subject: subject,
+        chapter: chapter,
+        count: 1,
+        baseDifficulty: QuizDifficulty.easy,
+      );
+      if (questions.isEmpty) {
+        _show('AI could not generate a quiz question.');
+        return;
+      }
+      final q = questions.first;
+      _quizQuestionPrompt.text = q.prompt;
+      _quizQuestionOptions.text = q.options.join('\n');
+      _quizQuestionCorrect.text = (q.correctIndex + 1).toString();
+      _quizQuestionExplanation.text = q.explanation ?? '';
+      _quizQuestionTopic.text = q.topic ?? '';
+      _show('AI quiz question ready.');
+    } catch (error) {
+      _show('AI generate failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAiQuizQuestionLoading = false;
+        });
+      }
     }
   }
 
@@ -765,11 +892,26 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Future<void> _rejectSubmission(AdminNoteSubmission submission) async {
+    final feedbackController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reject submission?'),
-        content: const Text('This will mark the note as rejected.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('This will mark the note as rejected.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: feedbackController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Admin feedback (optional)',
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -782,12 +924,17 @@ class _AdminScreenState extends State<AdminScreen> {
         ],
       ),
     );
+    final feedback = feedbackController.text.trim();
+    feedbackController.dispose();
     if (confirmed != true || !mounted) return;
     setState(() {
       _reviewingSubmissionId = submission.id;
     });
     try {
-      await _adminService.rejectNoteSubmission(submission);
+      await _adminService.rejectNoteSubmission(
+        submission,
+        feedback: feedback.isEmpty ? null : feedback,
+      );
       await _loadPendingSubmissions();
       if (!mounted) return;
       _show('Submission rejected.');
@@ -1511,6 +1658,17 @@ class _AdminScreenState extends State<AdminScreen> {
                     ),
                   ),
                   TextButton(
+                    onPressed:
+                        _isAiNoteLoading ? null : _generateAdminNoteDraft,
+                    child: _isAiNoteLoading
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('AI Draft'),
+                  ),
+                  TextButton(
                     onPressed: () {
                       setState(() {
                         _showNotePublisher = !_showNotePublisher;
@@ -1990,9 +2148,27 @@ class _AdminScreenState extends State<AdminScreen> {
         AppCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
-            title: Text(
-              'Publish Question',
-              style: Theme.of(context).textTheme.titleMedium,
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Publish Question',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isAiQuestionLoading
+                      ? null
+                      : _generateAdminQuestionPrompt,
+                  child: _isAiQuestionLoading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('AI Suggest'),
+                ),
+              ],
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
@@ -2163,9 +2339,27 @@ class _AdminScreenState extends State<AdminScreen> {
         AppCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
-            title: Text(
-              'Add Quiz Question',
-              style: Theme.of(context).textTheme.titleMedium,
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Add Quiz Question',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isAiQuizQuestionLoading
+                      ? null
+                      : _generateAdminQuizQuestion,
+                  child: _isAiQuizQuestionLoading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('AI Generate'),
+                ),
+              ],
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [

@@ -291,6 +291,40 @@ class _NotesTabState extends State<_NotesTab> {
     }
   }
 
+  Future<void> _deleteSubmission(NoteSubmission submission) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete submission?'),
+        content: const Text('This will remove your pending submission.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _noteSubmissionService.deleteSubmission(submission.id);
+      await _loadSubmissions();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Submission deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $error')),
+      );
+    }
+  }
+
   List<String> _parseTags(String raw) {
     return raw
         .split(',')
@@ -1074,6 +1108,12 @@ class _NotesTabState extends State<_NotesTab> {
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),
+                          if (submission.status == 'pending')
+                            IconButton(
+                              tooltip: 'Delete',
+                              onPressed: () => _deleteSubmission(submission),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -1102,6 +1142,21 @@ class _NotesTabState extends State<_NotesTab> {
                         const SizedBox(height: 6),
                         Text(
                           submission.shortAnswer,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if ((submission.adminFeedback ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Admin feedback:',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(color: AppColors.mutedInk),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          submission.adminFeedback!,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],

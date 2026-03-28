@@ -27,6 +27,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String? _deletingNoteId;
   String? _deletingQuestionId;
   String? _clearingSyllabusId;
+  int _pendingSubmissionCount = 0;
+  bool _isPendingCountLoading = false;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final client = SupabaseConfig.client;
     _adminService = AdminService(client);
     _subjectService = SubjectService(client);
+    _loadPendingCount();
   }
 
   void _openSyllabus(BuildContext context) {
@@ -90,6 +93,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         isAdmin: profile.isAdmin,
       ),
     );
+  }
+
+  Future<void> _loadPendingCount() async {
+    setState(() {
+      _isPendingCountLoading = true;
+    });
+    try {
+      final count = await _adminService.fetchPendingNoteSubmissionCount();
+      if (!mounted) return;
+      setState(() {
+        _pendingSubmissionCount = count;
+        _isPendingCountLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isPendingCountLoading = false;
+      });
+    }
   }
 
   void _showMessage(String message) {
@@ -208,6 +230,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _loadPendingCount,
+            icon: _isPendingCountLoading
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+          ),
           if (widget.onLogout != null)
             IconButton(
               tooltip: 'Logout',
@@ -302,6 +335,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             value: syllabusCount,
                             icon: Icons.auto_stories,
                             color: AppColors.secondary,
+                          ),
+                          _StatTile(
+                            label: 'Pending Notes',
+                            value: _isPendingCountLoading
+                                ? 0
+                                : _pendingSubmissionCount,
+                            icon: Icons.pending_actions,
+                            color: AppColors.warning,
                           ),
                         ],
                       ),
