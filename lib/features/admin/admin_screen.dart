@@ -5,11 +5,25 @@ import 'package:student_survivor/data/admin_service.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
+import 'package:student_survivor/features/admin/admin_breadcrumb.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class AdminScreen extends StatefulWidget {
-  const AdminScreen({super.key});
+  final VoidCallback? onLogout;
+  final int initialTabIndex;
+  final bool showTabs;
+  final String? title;
+  final String? breadcrumbLabel;
+
+  const AdminScreen({
+    super.key,
+    this.onLogout,
+    this.initialTabIndex = 0,
+    this.showTabs = true,
+    this.title,
+    this.breadcrumbLabel,
+  });
 
   @override
   State<AdminScreen> createState() => _AdminScreenState();
@@ -696,32 +710,79 @@ class _AdminScreenState extends State<AdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTitle = widget.title ?? 'Admin';
+    final appBar = AppBar(
+      title: Text(resolvedTitle),
+      actions: [
+        if (widget.onLogout != null)
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: widget.onLogout,
+            icon: const Icon(Icons.logout),
+          ),
+      ],
+      bottom: widget.showTabs
+          ? const TabBar(
+              tabs: [
+                Tab(text: 'Syllabus'),
+                Tab(text: 'Notes'),
+                Tab(text: 'Questions & Quizzes'),
+              ],
+            )
+          : null,
+    );
+
+    final baseBody = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _errorMessage != null
+            ? Center(child: Text(_errorMessage!))
+            : widget.showTabs
+                ? const TabBarView(
+                    children: [
+                      _SyllabusTab(),
+                      _NotesTab(),
+                      _QuestionsTab(),
+                    ],
+                  )
+                : _buildBodyByIndex(widget.initialTabIndex);
+
+    final body = !widget.showTabs && widget.breadcrumbLabel != null
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdminBreadcrumb(label: widget.breadcrumbLabel!),
+              const SizedBox(height: 8),
+              Expanded(child: baseBody),
+            ],
+          )
+        : baseBody;
+
+    final scaffold = Scaffold(
+      appBar: appBar,
+      body: body,
+    );
+
+    if (!widget.showTabs) {
+      return scaffold;
+    }
+
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Admin'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Syllabus'),
-              Tab(text: 'Notes'),
-              Tab(text: 'Questions & Quizzes'),
-            ],
-          ),
-        ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _errorMessage != null
-                ? Center(child: Text(_errorMessage!))
-                : TabBarView(
-                    children: [
-                      _buildSyllabusTab(),
-                      _buildNotesTab(),
-                      _buildQuestionsTab(),
-                    ],
-                  ),
-      ),
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+      child: scaffold,
     );
+  }
+
+  Widget _buildBodyByIndex(int index) {
+    switch (index) {
+      case 0:
+        return _buildSyllabusTab();
+      case 1:
+        return _buildNotesTab();
+      case 2:
+      default:
+        return _buildQuestionsTab();
+    }
   }
 
   Widget _buildSyllabusTab() {
@@ -1554,5 +1615,44 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
       ],
     );
+  }
+}
+
+class _SyllabusTab extends StatelessWidget {
+  const _SyllabusTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.findAncestorStateOfType<_AdminScreenState>();
+    if (state == null) {
+      return const SizedBox.shrink();
+    }
+    return state._buildSyllabusTab();
+  }
+}
+
+class _NotesTab extends StatelessWidget {
+  const _NotesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.findAncestorStateOfType<_AdminScreenState>();
+    if (state == null) {
+      return const SizedBox.shrink();
+    }
+    return state._buildNotesTab();
+  }
+}
+
+class _QuestionsTab extends StatelessWidget {
+  const _QuestionsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.findAncestorStateOfType<_AdminScreenState>();
+    if (state == null) {
+      return const SizedBox.shrink();
+    }
+    return state._buildQuestionsTab();
   }
 }
