@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/features/admin/admin_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/profile/profile_presenter.dart';
@@ -98,15 +99,6 @@ class _ProfileScreenState
                 ),
               ),
               const SizedBox(height: 24),
-              if (profile.subjects.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: profile.subjects
-                      .map((subject) => Chip(label: Text(subject.name)))
-                      .toList(),
-                ),
-              if (profile.subjects.isNotEmpty) const SizedBox(height: 16),
               _ProfileItem(
                 icon: Icons.search,
                 label: 'Search',
@@ -143,6 +135,16 @@ class _ProfileScreenState
                   );
                 },
               ),
+              if (profile.isAdmin)
+                _ProfileItem(
+                  icon: Icons.admin_panel_settings,
+                  label: 'Admin',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AdminScreen()),
+                    );
+                  },
+                ),
             ],
           );
         },

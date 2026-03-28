@@ -14,8 +14,16 @@ class AiAssistantScreen extends StatefulWidget {
 class _AiAssistantScreenState
     extends PresenterState<AiAssistantScreen, AiView, AiPresenter>
     implements AiView {
+  final _controller = TextEditingController();
+
   @override
   AiPresenter createPresenter() => AiPresenter();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +70,14 @@ class _AiAssistantScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (model.errorMessage != null)
+                      Text(
+                        model.errorMessage!,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.danger),
+                      ),
                     Text(
                       'Try asking:',
                       style: Theme.of(context)
@@ -77,7 +93,13 @@ class _AiAssistantScreenState
                           .map(
                             (suggestion) => ActionChip(
                               label: Text(suggestion),
-                              onPressed: () {},
+                              onPressed: () {
+                                _controller.text = '${suggestion.trim()}: ';
+                                _controller.selection =
+                                    TextSelection.fromPosition(
+                                  TextPosition(offset: _controller.text.length),
+                                );
+                              },
                             ),
                           )
                           .toList(),
@@ -93,17 +115,33 @@ class _AiAssistantScreenState
                 ),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: TextField(
-                        decoration: InputDecoration(
+                        controller: _controller,
+                        decoration: const InputDecoration(
                           hintText: 'Ask anything about your subject...',
                         ),
+                        onSubmitted: (value) {
+                          presenter.sendMessage(value);
+                          _controller.clear();
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
                     IconButton.filled(
-                      onPressed: () {},
-                      icon: const Icon(Icons.send),
+                      onPressed: model.isLoading
+                          ? null
+                          : () {
+                              presenter.sendMessage(_controller.text);
+                              _controller.clear();
+                            },
+                      icon: model.isLoading
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
                     ),
                   ],
                 ),

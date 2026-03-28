@@ -5,7 +5,6 @@ import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/profile_service.dart';
 import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
-import 'package:student_survivor/data/user_subject_service.dart';
 import 'package:student_survivor/features/profile/profile_edit_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -23,14 +22,12 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
       ),
     );
     _subjectService = SubjectService(SupabaseConfig.client);
-    _userSubjectService = UserSubjectService(SupabaseConfig.client);
     _profileService = ProfileService(SupabaseConfig.client);
     _load();
   }
 
   late final ValueNotifier<ProfileEditViewModel> state;
   late final SubjectService _subjectService;
-  late final UserSubjectService _userSubjectService;
   late final ProfileService _profileService;
 
   Future<void> _load() async {
@@ -52,16 +49,9 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
         orElse: () => semesters.first,
       );
 
-      final selectedIds = profile.subjects
-          .map((subject) => subject.id)
-          .where((id) => preferredSemester.subjects
-              .any((subject) => subject.id == id))
-          .toSet();
-
       state.value = state.value.copyWith(
         semesters: semesters,
         selectedSemester: preferredSemester,
-        selectedSubjectIds: selectedIds,
         isLoading: false,
         errorMessage: null,
       );
@@ -78,27 +68,12 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
   }
 
   void selectSemester(Semester semester) {
-    final validIds = semester.subjects.map((subject) => subject.id).toSet();
-    final retained = state.value.selectedSubjectIds.intersection(validIds);
-    state.value = state.value.copyWith(
-      selectedSemester: semester,
-      selectedSubjectIds: retained,
-    );
-  }
-
-  void toggleSubject(String subjectId) {
-    final updated = Set<String>.from(state.value.selectedSubjectIds);
-    if (updated.contains(subjectId)) {
-      updated.remove(subjectId);
-    } else {
-      updated.add(subjectId);
-    }
-    state.value = state.value.copyWith(selectedSubjectIds: updated);
+    state.value = state.value.copyWith(selectedSemester: semester);
   }
 
   Future<void> save() async {
     if (!state.value.canSave) {
-      view?.showMessage('Select at least one subject.');
+      view?.showMessage('Select a semester.');
       return;
     }
 
@@ -108,22 +83,20 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
       return;
     }
 
-    final selectedSubjects = semester.subjects
-        .where((subject) => state.value.selectedSubjectIds.contains(subject.id))
-        .toList();
-
     try {
       await _profileService.updateName(state.value.fullName.trim());
-      await _userSubjectService.setUserSubjects(
-        semesterId: semester.id,
-        subjectIds: selectedSubjects.map((subject) => subject.id).toList(),
+      await _profileService.updateSemester(semester.id);
+      final fullSubjects = await _subjectService.fetchSubjectsForSemester(
+        semester.id,
+        includeContent: true,
       );
 
       final updatedProfile = UserProfile(
         name: state.value.fullName.trim(),
         email: state.value.email,
         semester: semester,
-        subjects: selectedSubjects,
+        subjects: fullSubjects,
+        isAdmin: AppState.profile.value.isAdmin,
       );
 
       AppState.updateProfile(updatedProfile);

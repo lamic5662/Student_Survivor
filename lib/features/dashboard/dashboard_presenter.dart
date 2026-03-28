@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/base_view.dart';
 import 'package:student_survivor/core/mvp/presenter.dart';
 import 'package:student_survivor/data/app_state.dart';
-import 'package:student_survivor/data/mock_data.dart';
+import 'package:student_survivor/data/dashboard_service.dart';
+import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/dashboard/dashboard_view_model.dart';
 
 abstract class DashboardView extends BaseView {
@@ -14,26 +15,43 @@ abstract class DashboardView extends BaseView {
 
 class DashboardPresenter extends Presenter<DashboardView> {
   DashboardPresenter() {
-    state = ValueNotifier(_fromProfile());
-    _listener = () => state.value = _fromProfile();
+    state = ValueNotifier(DashboardViewModel.initial(AppState.profile.value));
+    _listener = () => _refreshFromProfile();
     AppState.profile.addListener(_listener);
+    _dashboardService = DashboardService(SupabaseConfig.client);
+    _load();
   }
 
   late final ValueNotifier<DashboardViewModel> state;
   late final VoidCallback _listener;
+  late final DashboardService _dashboardService;
 
-  DashboardViewModel _fromProfile() {
-    final profile = AppState.profile.value;
-    return DashboardViewModel(
-      profile: profile,
-      progress: 0.62,
-      xp: 1240,
-      gamesPlayed: 18,
-      weakTopics: MockData.weakTopics,
-      recommendedNotes: MockData.networkingChapters.first.notes,
-      planner: MockData.planner,
-      latestAttempt: MockData.sampleAttempt,
-    );
+  void _refreshFromProfile() {
+    state.value = state.value.copyWith(profile: AppState.profile.value);
+    _load();
+  }
+
+  Future<void> _load() async {
+    state.value = state.value.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final data = await _dashboardService.fetchDashboard(
+        subjects: AppState.profile.value.subjects,
+      );
+      state.value = state.value.copyWith(
+        isLoading: false,
+        progress: data.progress,
+        xp: data.xp,
+        gamesPlayed: data.gamesPlayed,
+        weakTopics: data.weakTopics,
+        recommendedNotes: data.recommendedNotes,
+        latestAttempt: data.latestAttempt,
+      );
+    } catch (error) {
+      state.value = state.value.copyWith(
+        isLoading: false,
+        errorMessage: 'Failed to load dashboard: $error',
+      );
+    }
   }
 
   void onSearch() => view?.openSearch();

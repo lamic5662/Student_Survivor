@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
-import 'package:student_survivor/data/mock_data.dart';
+import 'package:student_survivor/data/planner_service.dart';
+import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class PlannerScreen extends StatefulWidget {
@@ -12,16 +13,37 @@ class PlannerScreen extends StatefulWidget {
 }
 
 class _PlannerScreenState extends State<PlannerScreen> {
-  late final Set<String> _doneTasks;
+  late final PlannerService _plannerService;
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<StudyPlanDay> _days = const [];
 
   @override
   void initState() {
     super.initState();
-    _doneTasks = {
-      for (final day in MockData.planner)
-        for (final task in day.tasks)
-          if (task.isDone) task.title,
-    };
+    _plannerService = PlannerService(SupabaseConfig.client);
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final plan = await _plannerService.fetchPlan();
+      if (!mounted) return;
+      setState(() {
+        _days = plan;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to load plan: $error';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -32,8 +54,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        children: MockData.planner
-            .map(
+        children: [
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_errorMessage != null)
+            Text(_errorMessage!)
+          else if (_days.isEmpty)
+            const Text('No study tasks yet. Create a plan to get started.')
+          else
+            ..._days.map(
               (day) => Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: AppCard(
@@ -48,25 +77,35 @@ class _PlannerScreenState extends State<PlannerScreen> {
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 12),
-                      ...day.tasks.map((task) => _TaskTile(
-                            task: task,
-                            isDone: _doneTasks.contains(task.title),
-                            onChanged: (value) {
-                              setState(() {
-                                if (value == true) {
-                                  _doneTasks.add(task.title);
-                                } else {
-                                  _doneTasks.remove(task.title);
-                                }
-                              });
-                            },
-                          )),
-                    ],
-                  ),
+                    ...day.tasks.map(
+                      (task) => _TaskTile(
+                        task: task,
+                        isDone: task.isDone,
+                        onChanged: (value) async {
+                          final done = value == true;
+                          setState(() {
+                            day.tasks[day.tasks.indexOf(task)] = StudyTask(
+                              id: task.id,
+                              title: task.title,
+                              subject: task.subject,
+                              isDone: done,
+                            );
+                          });
+                          if (task.id.isNotEmpty) {
+                            await _plannerService.setTaskDone(
+                              taskId: task.id,
+                              isDone: done,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            )
-            .toList(),
+            ),
+            ),
+        ],
       ),
     );
   }

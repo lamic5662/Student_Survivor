@@ -11,13 +11,17 @@ class UserProfile {
   final String email;
   final Semester semester;
   final List<Subject> subjects;
+  final bool? _isAdmin;
 
   const UserProfile({
     required this.name,
     required this.email,
     required this.semester,
     required this.subjects,
-  });
+    bool? isAdmin,
+  }) : _isAdmin = isAdmin;
+
+  bool get isAdmin => _isAdmin ?? false;
 }
 
 class Semester {
@@ -37,6 +41,8 @@ class Subject {
   final String name;
   final String code;
   final Color accentColor;
+  final String? syllabusUrl;
+  final List<PastPaper> pastPapers;
   final List<Chapter> chapters;
 
   const Subject({
@@ -44,6 +50,8 @@ class Subject {
     required this.name,
     required this.code,
     required this.accentColor,
+    this.syllabusUrl,
+    this.pastPapers = const [],
     required this.chapters,
   });
 }
@@ -71,8 +79,36 @@ class Note {
   final String title;
   final String shortAnswer;
   final String detailedAnswer;
+  final String? fileUrl;
 
   const Note({
+    required this.id,
+    required this.title,
+    required this.shortAnswer,
+    required this.detailedAnswer,
+    this.fileUrl,
+  });
+}
+
+class NoteDraft {
+  final String title;
+  final String shortAnswer;
+  final String detailedAnswer;
+
+  const NoteDraft({
+    required this.title,
+    required this.shortAnswer,
+    required this.detailedAnswer,
+  });
+}
+
+class UserNote {
+  final String id;
+  final String title;
+  final String shortAnswer;
+  final String detailedAnswer;
+
+  const UserNote({
     required this.id,
     required this.title,
     required this.shortAnswer,
@@ -84,11 +120,15 @@ class Question {
   final String id;
   final String prompt;
   final int marks;
+  final String kind;
+  final int? year;
 
   const Question({
     required this.id,
     required this.prompt,
     required this.marks,
+    this.kind = 'important',
+    this.year,
   });
 }
 
@@ -110,6 +150,16 @@ class Quiz {
   });
 }
 
+class QuizCardItem {
+  final Quiz quiz;
+  final Subject subject;
+
+  const QuizCardItem({
+    required this.quiz,
+    required this.subject,
+  });
+}
+
 class QuizAttempt {
   final Quiz quiz;
   final int score;
@@ -128,6 +178,25 @@ class QuizAttempt {
   bool get isPass => score >= (total * 0.6);
 }
 
+class QuizAnswerReview {
+  final String prompt;
+  final List<String> options;
+  final int correctIndex;
+  final int? selectedIndex;
+  final String? explanation;
+
+  const QuizAnswerReview({
+    required this.prompt,
+    required this.options,
+    required this.correctIndex,
+    required this.selectedIndex,
+    this.explanation,
+  });
+
+  bool get isCorrect =>
+      selectedIndex != null && selectedIndex == correctIndex;
+}
+
 class WeakTopic {
   final String name;
   final String reason;
@@ -138,12 +207,28 @@ class WeakTopic {
   });
 }
 
+class PastPaper {
+  final String id;
+  final String title;
+  final int? year;
+  final String fileUrl;
+
+  const PastPaper({
+    required this.id,
+    required this.title,
+    required this.fileUrl,
+    this.year,
+  });
+}
+
 class StudyTask {
+  final String id;
   final String title;
   final String subject;
   final bool isDone;
 
   const StudyTask({
+    this.id = '',
     required this.title,
     required this.subject,
     required this.isDone,

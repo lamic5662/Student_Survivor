@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/features/subjects/chapter_detail_screen.dart';
+import 'package:student_survivor/features/subjects/subject_study_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class SubjectDetailScreen extends StatelessWidget {
@@ -49,8 +51,93 @@ class SubjectDetailScreen extends StatelessWidget {
                       '${subject.chapters.length} chapters',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
+                    if ((subject.syllabusUrl ?? '').trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: TextButton.icon(
+                          onPressed: () => _openSyllabus(
+                            context,
+                            subject.name,
+                            subject.syllabusUrl!,
+                          ),
+                          icon: const Icon(Icons.description_rounded, size: 18),
+                          label: const Text('Open syllabus'),
+                        ),
+                      ),
                   ],
                 )
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (subject.pastPapers.isNotEmpty) ...[
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Past Question Papers',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  ...subject.pastPapers.map(
+                    (paper) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              paper.year == null
+                                  ? paper.title
+                                  : '${paper.title} (${paper.year})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _openSyllabus(
+                              context,
+                              paper.title,
+                              paper.fileUrl,
+                            ),
+                            child: const Text('Open'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Study the Whole Subject',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Generate AI notes, subject-level questions, and flashcards.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SubjectStudyScreen(subject: subject),
+                      ),
+                    );
+                  },
+                  child: const Text('Open Subject Study'),
+                ),
               ],
             ),
           ),
@@ -104,6 +191,21 @@ class SubjectDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openSyllabus(BuildContext context, String title, String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid syllabus link.')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SyllabusWebViewScreen(title: title, url: uri.toString()),
       ),
     );
   }

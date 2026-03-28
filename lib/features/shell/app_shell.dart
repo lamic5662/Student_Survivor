@@ -34,7 +34,7 @@ class _AppShellState extends State<AppShell> {
         if (!mounted) {
           return;
         }
-        if (AppState.profile.value.subjects.isEmpty) {
+        if (AppState.profile.value.semester.id.isEmpty) {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
           );

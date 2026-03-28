@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
-import 'package:student_survivor/features/quiz/quiz_detail_screen.dart';
+import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_presenter.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_view_model.dart';
+import 'package:student_survivor/features/subjects/subject_detail_screen.dart';
+import 'package:student_survivor/models/app_models.dart';
 
 class QuizHubScreen extends StatefulWidget {
   const QuizHubScreen({super.key});
@@ -28,6 +30,39 @@ class _QuizHubScreenState
       body: ValueListenableBuilder<QuizHubViewModel>(
         valueListenable: presenter.state,
         builder: (context, model, _) {
+          if (model.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (model.errorMessage != null) {
+            return Center(child: Text(model.errorMessage!));
+          }
+          if (model.semesterName.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Select a semester to start playing.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileEditScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Choose Semester'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
@@ -37,29 +72,30 @@ class _QuizHubScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pick your game mode',
+                      'Play by semester',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: const [
-                        _ModeChip(label: 'MCQ Quiz', icon: Icons.checklist),
-                        _ModeChip(label: 'Time Attack', icon: Icons.timer),
-                        _ModeChip(label: 'Level Mode', icon: Icons.trending_up),
-                      ],
+                    Text(
+                      model.semesterName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.mutedInk),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                'Available Quizzes',
+                'Select a subject',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
-              ...model.quizzes.map((item) => _QuizCard(item: item)),
+              if (model.subjects.isEmpty)
+                const Text('No subjects available for this semester yet.')
+              else
+                ...model.subjects.map((subject) => _SubjectCard(subject: subject)),
             ],
           );
         },
@@ -68,33 +104,17 @@ class _QuizHubScreenState
   }
 }
 
-class _ModeChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
+class _SubjectCard extends StatelessWidget {
+  final Subject subject;
 
-  const _ModeChip({
-    required this.label,
-    required this.icon,
-  });
+  const _SubjectCard({required this.subject});
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 18, color: AppColors.secondary),
-      label: Text(label),
+    final quizCount = subject.chapters.fold<int>(
+      0,
+      (sum, chapter) => sum + chapter.quizzes.length,
     );
-  }
-}
-
-class _QuizCard extends StatelessWidget {
-  final QuizCardItem item;
-
-  const _QuizCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final quiz = item.quiz;
-    final subject = item.subject;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: AppCard(
@@ -115,12 +135,12 @@ class _QuizCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    quiz.title,
+                    subject.name,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${subject.name} • ${quiz.questionCount} questions',
+                    '${subject.chapters.length} chapters • $quizCount quizzes',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -133,14 +153,11 @@ class _QuizCard extends StatelessWidget {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => QuizDetailScreen(
-                      quiz: quiz,
-                      subject: subject,
-                    ),
+                    builder: (_) => SubjectDetailScreen(subject: subject),
                   ),
                 );
               },
-              child: const Text('Play'),
+              child: const Text('Choose'),
             ),
           ],
         ),

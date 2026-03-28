@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:student_survivor/data/mock_data.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class AppState {
+  static final Semester _emptySemester = Semester(
+    id: '',
+    name: 'Select semester',
+    subjects: const [],
+  );
+
   static final ValueNotifier<UserProfile> profile =
       ValueNotifier<UserProfile>(
     UserProfile(
-      name: MockData.profile.name,
-      email: MockData.profile.email,
-      semester: MockData.semesters.first,
-      subjects: const [],
+      name: 'Student',
+      email: '',
+      semester: _emptySemester,
+      subjects: [],
+      isAdmin: false,
     ),
   );
 
@@ -26,8 +32,9 @@ class AppState {
     profile.value = UserProfile(
       name: displayName ?? (user.email ?? 'Student'),
       email: user.email ?? '',
-      semester: MockData.semesters.first,
+      semester: _emptySemester,
       subjects: const [],
+      isAdmin: false,
     );
   }
 }

@@ -17,6 +17,17 @@ class ProfileService {
         .eq('id', user.id);
   }
 
+  Future<void> updateSemester(String semesterId) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    await _client
+        .from('profiles')
+        .update({'semester_id': semesterId})
+        .eq('id', user.id);
+  }
+
   Future<UserProfile?> fetchProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -25,7 +36,7 @@ class ProfileService {
 
     final data = await _client
         .from('profiles')
-        .select('id, full_name, email, semester:semesters(id,name,code)')
+        .select('id, full_name, email, is_admin, semester:semesters(id,name,code)')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -45,6 +56,7 @@ class ProfileService {
       email: data['email']?.toString() ?? (user.email ?? ''),
       semester: semesterModel,
       subjects: const [],
+      isAdmin: data['is_admin'] as bool? ?? false,
     );
   }
 }

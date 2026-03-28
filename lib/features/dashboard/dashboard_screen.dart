@@ -69,6 +69,12 @@ class _DashboardScreenState
       body: ValueListenableBuilder<DashboardViewModel>(
         valueListenable: presenter.state,
         builder: (context, model, _) {
+          if (model.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (model.errorMessage != null) {
+            return Center(child: Text(model.errorMessage!));
+          }
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
@@ -108,35 +114,38 @@ class _DashboardScreenState
               const SizedBox(height: 24),
               const SectionHeader(title: 'Recommended Notes'),
               const SizedBox(height: 12),
-              ...model.recommendedNotes.map(
-                (note) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          note.title,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          note.shortAnswer,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                        const SizedBox(height: 12),
-                        const Tag(label: 'AI pick'),
-                      ],
+              if (model.recommendedNotes.isEmpty)
+                const Text('No recommendations yet.')
+              else
+                ...model.recommendedNotes.map(
+                  (note) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            note.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            note.shortAnswer,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: AppColors.mutedInk),
+                          ),
+                          const SizedBox(height: 12),
+                          const Tag(label: 'AI pick'),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -190,12 +199,15 @@ class _HeroCard extends StatelessWidget {
             children: [
               const Tag(label: 'AI Adaptive'),
               const SizedBox(width: 8),
-              Tag(
-                label: model.latestAttempt.isPass ? 'Pass' : 'Fail',
-                color: model.latestAttempt.isPass
-                    ? AppColors.success
-                    : AppColors.danger,
-              ),
+              if (model.latestAttempt != null)
+                Tag(
+                  label: model.latestAttempt!.isPass ? 'Pass' : 'Fail',
+                  color: model.latestAttempt!.isPass
+                      ? AppColors.success
+                      : AppColors.danger,
+                )
+              else
+                const Tag(label: 'No attempts'),
             ],
           ),
         ],
@@ -292,6 +304,9 @@ class _WeakTopics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (topics.isEmpty) {
+      return const Text('No weak topics detected yet.');
+    }
     return Column(
       children: topics
           .map(

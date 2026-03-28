@@ -4,6 +4,7 @@ import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/features/profile/profile_edit_presenter.dart';
 import 'package:student_survivor/features/profile/profile_edit_view_model.dart';
+import 'package:student_survivor/models/app_models.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -96,49 +97,29 @@ class _ProfileEditScreenState
                   children: [
                     const SectionHeader(title: 'Semester'),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: model.semesters
+                    DropdownButtonFormField<Semester>(
+                      value: model.selectedSemester,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Select semester',
+                      ),
+                      items: model.semesters
                           .map(
-                            (semester) => ChoiceChip(
-                              label: Text(semester.name),
-                              selected:
-                                  model.selectedSemester?.id == semester.id,
-                              onSelected: (_) =>
-                                  presenter.selectSemester(semester),
+                            (semester) => DropdownMenuItem(
+                              value: semester,
+                              child: Text(semester.name),
                             ),
                           )
                           .toList(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(title: 'Subjects'),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: model.availableSubjects
-                          .map(
-                            (subject) => FilterChip(
-                              label: Text(subject.name),
-                              selected: model.selectedSubjectIds
-                                  .contains(subject.id),
-                              onSelected: (_) =>
-                                  presenter.toggleSubject(subject.id),
-                            ),
-                          )
-                          .toList(),
+                      onChanged: (Semester? semester) {
+                        if (semester != null) {
+                          presenter.selectSemester(semester);
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Select at least one subject to personalize your plan.',
+                      'All subjects in this semester will be available in Play.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],

@@ -5,7 +5,6 @@ class ProfileEditViewModel {
   final String email;
   final List<Semester> semesters;
   final Semester? selectedSemester;
-  final Set<String> selectedSubjectIds;
   final bool isLoading;
   final String? errorMessage;
 
@@ -14,22 +13,17 @@ class ProfileEditViewModel {
     required this.email,
     required this.semesters,
     required this.selectedSemester,
-    required this.selectedSubjectIds,
     required this.isLoading,
     required this.errorMessage,
   });
 
-  List<Subject> get availableSubjects => selectedSemester?.subjects ?? [];
-
-  bool get canSave =>
-      !isLoading && selectedSemester != null && selectedSubjectIds.isNotEmpty;
+  bool get canSave => !isLoading && selectedSemester != null;
 
   ProfileEditViewModel copyWith({
     String? fullName,
     String? email,
     List<Semester>? semesters,
     Semester? selectedSemester,
-    Set<String>? selectedSubjectIds,
     bool? isLoading,
     String? errorMessage,
   }) {
@@ -38,7 +32,6 @@ class ProfileEditViewModel {
       email: email ?? this.email,
       semesters: semesters ?? this.semesters,
       selectedSemester: selectedSemester ?? this.selectedSemester,
-      selectedSubjectIds: selectedSubjectIds ?? this.selectedSubjectIds,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
     );
@@ -53,7 +46,6 @@ class ProfileEditViewModel {
       email: email,
       semesters: const [],
       selectedSemester: null,
-      selectedSubjectIds: <String>{},
       isLoading: true,
       errorMessage: null,
     );

@@ -5,6 +5,7 @@ import 'package:student_survivor/core/mvp/presenter.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/auth_service.dart';
 import 'package:student_survivor/data/profile_service.dart';
+import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -18,11 +19,13 @@ class AuthPresenter extends Presenter<AuthView> {
     state = ValueNotifier(AuthViewModel.initial());
     _authService = AuthService(SupabaseConfig.client);
     _profileService = ProfileService(SupabaseConfig.client);
+    _subjectService = SubjectService(SupabaseConfig.client);
   }
 
   late final ValueNotifier<AuthViewModel> state;
   late final AuthService _authService;
   late final ProfileService _profileService;
+  late final SubjectService _subjectService;
 
   void toggleMode() {
     state.value = state.value.copyWith(isLogin: !state.value.isLogin);
@@ -38,6 +41,11 @@ class AuthPresenter extends Presenter<AuthView> {
   }) async {
     if (!SupabaseConfig.isConfigured) {
       view?.showMessage('Supabase config missing.');
+      return;
+    }
+
+    if (identifier.trim().isEmpty || password.trim().isEmpty) {
+      view?.showMessage('Email/phone and password are required.');
       return;
     }
 
@@ -63,12 +71,39 @@ class AuthPresenter extends Presenter<AuthView> {
         );
       }
 
-      final user = response.user ?? Supabase.instance.client.auth.currentUser;
+      final user = response.user;
+      final session = response.session;
+      if (user == null) {
+        view?.showMessage('Authentication failed. Please try again.');
+        return;
+      }
+      if (session == null) {
+        if (state.value.isLogin) {
+          view?.showMessage('Invalid credentials. Please try again.');
+        } else {
+          view?.showMessage(
+            'Check your email/phone to verify your account, then login.',
+          );
+        }
+        return;
+      }
       AppState.updateFromAuth(user);
 
       final profile = await _profileService.fetchProfile();
       if (profile != null) {
-        AppState.updateProfile(profile);
+        final subjects = await _subjectService.fetchSubjectsForSemester(
+          profile.semester.id,
+          includeContent: true,
+        );
+        AppState.updateProfile(
+          UserProfile(
+            name: profile.name,
+            email: profile.email,
+            semester: profile.semester,
+            subjects: subjects,
+            isAdmin: profile.isAdmin,
+          ),
+        );
       }
 
       view?.goToHome();
