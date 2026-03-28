@@ -975,7 +975,8 @@ class _NotesTabState extends State<_NotesTab> {
                   else
                     TextButton(
                       onPressed: _generateNote,
-                      child: const Text('Generate'),
+                      child:
+                          Text(_draft == null ? 'Generate' : 'Regenerate'),
                     ),
                 ],
               ),

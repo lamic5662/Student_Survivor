@@ -1666,7 +1666,12 @@ class _AdminScreenState extends State<AdminScreen> {
                             width: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('AI Draft'),
+                        : Text(
+                            _noteTitle.text.trim().isNotEmpty ||
+                                    _noteDetailed.text.trim().isNotEmpty
+                                ? 'Regenerate'
+                                : 'AI Draft',
+                          ),
                   ),
                   TextButton(
                     onPressed: () {
@@ -2166,7 +2171,11 @@ class _AdminScreenState extends State<AdminScreen> {
                           width: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('AI Suggest'),
+                      : Text(
+                          _questionPrompt.text.trim().isNotEmpty
+                              ? 'Regenerate'
+                              : 'AI Suggest',
+                        ),
                 ),
               ],
             ),
@@ -2357,7 +2366,11 @@ class _AdminScreenState extends State<AdminScreen> {
                           width: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('AI Generate'),
+                      : Text(
+                          _quizQuestionPrompt.text.trim().isNotEmpty
+                              ? 'Regenerate'
+                              : 'AI Generate',
+                        ),
                 ),
               ],
             ),
