@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:postgrest/postgrest.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
@@ -44,7 +43,6 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
 
   int _myScore = 0;
   int _opponentScore = 0;
-  String? _opponentId;
   List<_BattleQuestion> _questions = const [];
   int _currentIndex = 0;
 
@@ -78,7 +76,6 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
       _currentIndex = 0;
       _myScore = 0;
       _opponentScore = 0;
-      _opponentId = null;
       _isHost = false;
     });
   }
@@ -325,14 +322,12 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
     if (user == null) return;
     _myScore = 0;
     _opponentScore = 0;
-    _opponentId = null;
     for (final row in players as List<dynamic>) {
       final uid = row['user_id']?.toString() ?? '';
       final score = (row['score'] as num?)?.toInt() ?? 0;
       if (uid == user.id) {
         _myScore = score;
       } else if (uid.isNotEmpty) {
-        _opponentId = uid;
         _opponentScore = score;
       }
     }
@@ -736,7 +731,7 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                 Expanded(
                                   child: ListView.separated(
                                     itemCount: question.options.length,
-                                    separatorBuilder: (_, __) =>
+                                    separatorBuilder: (context, index) =>
                                         const SizedBox(height: 8),
                                     itemBuilder: (context, index) {
                                       final option = question.options[index];

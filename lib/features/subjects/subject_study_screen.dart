@@ -385,10 +385,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         _errorMessage = 'Failed to generate note: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _generatingChapters.remove(chapter.id);
-      });
+      if (mounted) {
+        setState(() {
+          _generatingChapters.remove(chapter.id);
+        });
+      }
     }
   }
 
@@ -428,10 +429,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       });
       return;
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _savingChapters.remove(chapter.id);
-      });
+      if (mounted) {
+        setState(() {
+          _savingChapters.remove(chapter.id);
+        });
+      }
     }
 
     if (!mounted) return;
@@ -883,10 +885,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         _errorMessage = 'Failed to delete note: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _deletingNoteId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _deletingNoteId = null;
+        });
+      }
     }
   }
 
@@ -896,7 +899,51 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     required String detailedAnswer,
     Widget? trailing,
     VoidCallback? onTap,
+    bool collapsible = false,
   }) {
+    if (collapsible) {
+      final summaryText = shortAnswer.trim();
+      final detailText = detailedAnswer.trim();
+      return AppCard(
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text(
+            title,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          subtitle: summaryText.isEmpty
+              ? null
+              : Text(
+                  summaryText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+          trailing: trailing,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          children: [
+            if (detailText.isNotEmpty && detailText != summaryText) ...[
+              Text(
+                detailText,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ] else if (summaryText.isNotEmpty) ...[
+              Text(
+                summaryText,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     final card = AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +960,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
-              if (trailing != null) trailing,
+              ...?(trailing == null ? null : [trailing]),
             ],
           ),
           const SizedBox(height: 8),
@@ -958,115 +1005,150 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          SectionHeader(
-            title: 'AI Chapter Notes',
-            actionLabel: _isGeneratingAll ? null : 'Generate All',
-            onAction: _isGeneratingAll ? null : _generateAllNotes,
-          ),
-          const SizedBox(height: 12),
-          if (_chapters.isEmpty)
-            const Text('No chapters found for this subject.')
-          else
-            ..._chapters.map(
-              (chapter) {
-                final draft = _draftsByChapter[chapter.id];
-                final isGenerating = _generatingChapters.contains(chapter.id);
-                final isSaving = _savingChapters.contains(chapter.id);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                chapter.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            if (isGenerating)
-                              const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        if (draft == null)
-                          const Text('No AI note yet for this chapter.')
-                        else
-                          _noteCard(
-                            title: draft.title,
-                            shortAnswer: draft.shortAnswer,
-                            detailedAnswer: draft.detailedAnswer,
-                            onTap: () => _showTextNoteDetails(
-                              title: draft.title,
-                              shortAnswer: draft.shortAnswer,
-                              detailedAnswer: draft.detailedAnswer,
-                            ),
-                          ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ElevatedButton(
-                              onPressed: isGenerating
-                                  ? null
-                                  : () => _generateChapterNote(chapter),
-                              child: Text(
-                                draft == null ? 'Generate' : 'Regenerate',
-                              ),
-                            ),
-                            if (draft != null)
-                              OutlinedButton(
-                                onPressed:
-                                    isSaving ? null : () => _saveChapterDraft(chapter),
-                                child: isSaving
-                                    ? const SizedBox(
-                                        height: 16,
-                                        width: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text('Save to My Notes'),
-                              ),
-                            if (draft != null)
-                              TextButton(
-                                onPressed: isSaving
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          _draftsByChapter.remove(chapter.id);
-                                        });
-                                      },
-                                child: const Text('Discard'),
-                              ),
-                          ],
-                        ),
-                      ],
+          AppCard(
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              initiallyExpanded: false,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'AI Chapter Notes',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                );
-              },
+                  if (_isGeneratingAll)
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    TextButton(
+                      onPressed: _generateAllNotes,
+                      child: const Text('Generate All'),
+                    ),
+                ],
+              ),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
+                if (_chapters.isEmpty)
+                  const Text('No chapters found for this subject.')
+                else
+                  ..._chapters.map(
+                    (chapter) {
+                      final draft = _draftsByChapter[chapter.id];
+                      final isGenerating =
+                          _generatingChapters.contains(chapter.id);
+                      final isSaving = _savingChapters.contains(chapter.id);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      chapter.title,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  if (isGenerating)
+                                    const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (draft == null)
+                                const Text('No AI note yet for this chapter.')
+                              else
+                                _noteCard(
+                                  title: draft.title,
+                                  shortAnswer: draft.shortAnswer,
+                                  detailedAnswer: draft.detailedAnswer,
+                                  collapsible: true,
+                                  trailing: IconButton(
+                                    tooltip: 'Open',
+                                    onPressed: () => _showTextNoteDetails(
+                                      title: draft.title,
+                                      shortAnswer: draft.shortAnswer,
+                                      detailedAnswer: draft.detailedAnswer,
+                                    ),
+                                    icon: const Icon(Icons.open_in_new),
+                                  ),
+                                ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: isGenerating
+                                        ? null
+                                        : () => _generateChapterNote(chapter),
+                                    child: Text(
+                                      draft == null ? 'Generate' : 'Regenerate',
+                                    ),
+                                  ),
+                                  if (draft != null)
+                                    OutlinedButton(
+                                      onPressed: isSaving
+                                          ? null
+                                          : () =>
+                                              _saveChapterDraft(chapter),
+                                      child: isSaving
+                                          ? const SizedBox(
+                                              height: 16,
+                                              width: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Save to My Notes'),
+                                    ),
+                                  if (draft != null)
+                                    TextButton(
+                                      onPressed: isSaving
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _draftsByChapter
+                                                    .remove(chapter.id);
+                                              });
+                                            },
+                                      child: const Text('Discard'),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.danger),
+                  ),
+                ],
+              ],
             ),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.danger),
-            ),
-          ],
+          ),
           const SizedBox(height: 24),
           SectionHeader(
             title: 'My Notes',
@@ -1086,10 +1168,15 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  onTap: () => _showUserNoteDetails(note),
+                  collapsible: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: 'Open',
+                        onPressed: () => _showUserNoteDetails(note),
+                        icon: const Icon(Icons.open_in_new),
+                      ),
                       IconButton(
                         tooltip: 'Delete',
                         onPressed: _deletingNoteId == note.id
@@ -1122,10 +1209,15 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   title: '${entry.note.title} • ${entry.chapterTitle}',
                   shortAnswer: entry.note.shortAnswer,
                   detailedAnswer: entry.note.detailedAnswer,
-                  onTap: () => _showTextNoteDetails(
-                    title: '${entry.note.title} (${entry.chapterTitle})',
-                    shortAnswer: entry.note.shortAnswer,
-                    detailedAnswer: entry.note.detailedAnswer,
+                  collapsible: true,
+                  trailing: IconButton(
+                    tooltip: 'Open',
+                    onPressed: () => _showTextNoteDetails(
+                      title: '${entry.note.title} (${entry.chapterTitle})',
+                      shortAnswer: entry.note.shortAnswer,
+                      detailedAnswer: entry.note.detailedAnswer,
+                    ),
+                    icon: const Icon(Icons.open_in_new),
                   ),
                 ),
               ),

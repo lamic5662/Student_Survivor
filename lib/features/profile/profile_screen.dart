@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/data/app_state.dart';
+import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/admin/admin_screen.dart';
+import 'package:student_survivor/features/auth/auth_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/profile/profile_presenter.dart';
@@ -23,6 +26,37 @@ class _ProfileScreenState
     implements ProfileView {
   @override
   ProfilePresenter createPresenter() => ProfilePresenter();
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirm) return;
+
+    await SupabaseConfig.client.auth.signOut();
+    AppState.reset();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +179,12 @@ class _ProfileScreenState
                     );
                   },
                 ),
+              const SizedBox(height: 8),
+              _ProfileItem(
+                icon: Icons.logout,
+                label: 'Logout',
+                onTap: _handleLogout,
+              ),
             ],
           );
         },

@@ -377,11 +377,21 @@ class _AdminScreenState extends State<AdminScreen> {
       chapterId = await _adminService.ensureGeneralChapter(subject.id);
     }
     final title = _noteTitle.text.trim();
-    final short = _noteShort.text.trim();
-    final detailed = _noteDetailed.text.trim();
-    if (title.isEmpty || short.isEmpty || detailed.isEmpty) {
-      _show('Title, short, and detailed answer required.');
+    var short = _noteShort.text.trim();
+    var detailed = _noteDetailed.text.trim();
+    if (title.isEmpty) {
+      _show('Title required.');
       return;
+    }
+    if (short.isEmpty && detailed.isEmpty) {
+      _show('Add note content.');
+      return;
+    }
+    if (detailed.isEmpty) {
+      detailed = short;
+    }
+    if (short.isEmpty) {
+      short = _deriveShortFromDetailed(detailed);
     }
     String? fileUrl;
     if (_noteAttachment != null) {
@@ -407,6 +417,26 @@ class _AdminScreenState extends State<AdminScreen> {
     });
     await _refreshProfileContent();
     _show('Note added.');
+  }
+
+  String _deriveShortFromDetailed(String detailed) {
+    final lines = detailed
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length >= 5) {
+      return lines.take(5).join('\n');
+    }
+    final sentences = detailed
+        .split(RegExp(r'(?<=[.!?])\s+'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (sentences.isNotEmpty) {
+      return sentences.take(5).join('\n');
+    }
+    return detailed;
   }
 
   Future<void> _pickNoteAttachment() async {
@@ -627,6 +657,36 @@ class _AdminScreenState extends State<AdminScreen> {
         .toList();
   }
 
+  Subject? _matchSubject(List<Subject> subjects, Subject? selected) {
+    if (selected == null) return null;
+    for (final subject in subjects) {
+      if (subject.id == selected.id) {
+        return subject;
+      }
+    }
+    return null;
+  }
+
+  Chapter? _matchChapter(List<Chapter> chapters, Chapter? selected) {
+    if (selected == null) return null;
+    for (final chapter in chapters) {
+      if (chapter.id == selected.id) {
+        return chapter;
+      }
+    }
+    return null;
+  }
+
+  Quiz? _matchQuiz(List<Quiz> quizzes, Quiz? selected) {
+    if (selected == null) return null;
+    for (final quiz in quizzes) {
+      if (quiz.id == selected.id) {
+        return quiz;
+      }
+    }
+    return null;
+  }
+
   void _show(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -665,6 +725,11 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildSyllabusTab() {
+    final chapterSubjects = _subjectSemester?.subjects ?? const <Subject>[];
+    final chapterSubjectValue = _matchSubject(
+      chapterSubjects,
+      _chapterSubject,
+    );
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -780,11 +845,14 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Add Semester',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text('Add Semester', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
               TextField(
                 controller: _semesterName,
                 decoration: const InputDecoration(labelText: 'Name'),
@@ -794,11 +862,19 @@ class _AdminScreenState extends State<AdminScreen> {
                 controller: _semesterCode,
                 decoration: const InputDecoration(labelText: 'Code'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _semesterSort,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Sort order'),
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Advanced options'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  TextField(
+                    controller: _semesterSort,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: 'Sort order'),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               ElevatedButton(
@@ -810,11 +886,14 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Add Subject',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text('Add Subject', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
               DropdownButtonFormField<Semester>(
                 key: ValueKey(_subjectSemester?.id ?? ''),
                 initialValue: _subjectSemester,
@@ -843,21 +922,31 @@ class _AdminScreenState extends State<AdminScreen> {
                 controller: _subjectCode,
                 decoration: const InputDecoration(labelText: 'Code'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _subjectDesc,
-                decoration: const InputDecoration(labelText: 'Description'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _subjectColor,
-                decoration: const InputDecoration(labelText: 'Accent color (#hex)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _subjectSort,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Sort order'),
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Advanced options'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  TextField(
+                    controller: _subjectDesc,
+                    decoration:
+                        const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _subjectColor,
+                    decoration: const InputDecoration(
+                      labelText: 'Accent color (#hex)',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _subjectSort,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Sort order'),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               ElevatedButton(
@@ -869,24 +958,26 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Add Chapter',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text('Add Chapter', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
               DropdownButtonFormField<Subject>(
-                key: ValueKey(_chapterSubject?.id ?? ''),
-                initialValue: _chapterSubject,
+                key: ValueKey(chapterSubjectValue?.id ?? ''),
+                initialValue: chapterSubjectValue,
                 decoration: const InputDecoration(labelText: 'Subject'),
-                items: _subjectSemester?.subjects
-                        .map(
-                          (s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(s.name),
-                          ),
-                        )
-                        .toList() ??
-                    [],
+                items: chapterSubjects
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s.name),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _chapterSubject = value;
@@ -900,16 +991,23 @@ class _AdminScreenState extends State<AdminScreen> {
                 controller: _chapterTitle,
                 decoration: const InputDecoration(labelText: 'Title'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _chapterSummary,
-                decoration: const InputDecoration(labelText: 'Summary'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _chapterSort,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Sort order'),
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Advanced options'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  TextField(
+                    controller: _chapterSummary,
+                    decoration: const InputDecoration(labelText: 'Summary'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _chapterSort,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Sort order'),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               ElevatedButton(
@@ -924,6 +1022,9 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildNotesTab() {
+    final noteSubjects = _noteSemester?.subjects ?? const <Subject>[];
+    final noteSubjectValue = _matchSubject(noteSubjects, _noteSubject);
+    final noteChapterValue = _matchChapter(_noteChapters, _noteChapter);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -931,7 +1032,15 @@ class _AdminScreenState extends State<AdminScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Add Note', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Publish Note',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Only title and content are required. Short answer and tags '
+                'are optional.',
+              ),
               const SizedBox(height: 12),
               SwitchListTile(
                 value: _noteChapterWise,
@@ -975,22 +1084,21 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Subject>(
-                key: ValueKey(_noteSubject?.id ?? ''),
-                initialValue: _noteSubject,
+                key: ValueKey(noteSubjectValue?.id ?? ''),
+                initialValue: noteSubjectValue,
                 decoration: const InputDecoration(labelText: 'Subject'),
                 isExpanded: true,
-                items: _noteSemester?.subjects
-                        .map(
-                          (s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(
-                              s.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList() ??
-                    [],
+                items: noteSubjects
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          s.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _noteSubject = value;
@@ -1001,8 +1109,8 @@ class _AdminScreenState extends State<AdminScreen> {
               const SizedBox(height: 12),
               if (_noteChapterWise) ...[
                 DropdownButtonFormField<Chapter>(
-                  key: ValueKey(_noteChapter?.id ?? ''),
-                  initialValue: _noteChapter,
+                  key: ValueKey(noteChapterValue?.id ?? ''),
+                  initialValue: noteChapterValue,
                   decoration: const InputDecoration(labelText: 'Chapter'),
                   isExpanded: true,
                   items: _noteChapters
@@ -1030,43 +1138,53 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: _noteShort,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Short answer'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
                 controller: _noteDetailed,
-                maxLines: 5,
-                decoration: const InputDecoration(labelText: 'Detailed answer'),
+                maxLines: 6,
+                decoration: const InputDecoration(labelText: 'Note content'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteTags,
-                decoration:
-                    const InputDecoration(labelText: 'Tags (comma separated)'),
-              ),
-              const SizedBox(height: 12),
-              Row(
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Advanced options'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
-                  Expanded(
-                    child: Text(
-                      _noteAttachment?.name ?? 'No attachment selected',
+                  TextField(
+                    controller: _noteShort,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Short answer (optional)',
                     ),
                   ),
-                  TextButton(
-                    onPressed: _pickNoteAttachment,
-                    child: const Text('Select File'),
-                  ),
-                  if (_noteAttachment != null)
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _noteAttachment = null;
-                        });
-                      },
-                      child: const Text('Clear'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _noteTags,
+                    decoration: const InputDecoration(
+                      labelText: 'Tags (comma separated)',
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _noteAttachment?.name ?? 'No attachment selected',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _pickNoteAttachment,
+                        child: const Text('Select File'),
+                      ),
+                      if (_noteAttachment != null)
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _noteAttachment = null;
+                            });
+                          },
+                          child: const Text('Clear'),
+                        ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1082,6 +1200,10 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildQuestionsTab() {
+    final qaSubjects = _qaSemester?.subjects ?? const <Subject>[];
+    final qaSubjectValue = _matchSubject(qaSubjects, _qaSubject);
+    final qaChapterValue = _matchChapter(_qaChapters, _qaChapter);
+    final qaQuizValue = _matchQuiz(_qaQuizzes, _qaSelectedQuiz);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -1092,6 +1214,10 @@ class _AdminScreenState extends State<AdminScreen> {
               Text(
                 'Select Chapter',
                 style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Pick the chapter first. Everything below will publish to it.',
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Semester>(
@@ -1124,22 +1250,21 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Subject>(
-                key: ValueKey(_qaSubject?.id ?? ''),
-                initialValue: _qaSubject,
+                key: ValueKey(qaSubjectValue?.id ?? ''),
+                initialValue: qaSubjectValue,
                 decoration: const InputDecoration(labelText: 'Subject'),
                 isExpanded: true,
-                items: _qaSemester?.subjects
-                        .map(
-                          (s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(
-                              s.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList() ??
-                    [],
+                items: qaSubjects
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          s.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _qaSubject = value;
@@ -1150,8 +1275,8 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Chapter>(
-                key: ValueKey(_qaChapter?.id ?? ''),
-                initialValue: _qaChapter,
+                key: ValueKey(qaChapterValue?.id ?? ''),
+                initialValue: qaChapterValue,
                 decoration: const InputDecoration(labelText: 'Chapter'),
                 isExpanded: true,
                 items: _qaChapters
@@ -1177,16 +1302,16 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Publish Question',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text(
-                'Add Question',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _questionKind,
+                initialValue: _questionKind,
                 decoration: const InputDecoration(labelText: 'Question type'),
                 items: const [
                   DropdownMenuItem(
@@ -1218,7 +1343,9 @@ class _AdminScreenState extends State<AdminScreen> {
               TextField(
                 controller: _questionMarks,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Marks'),
+                decoration: const InputDecoration(
+                  labelText: 'Marks (default 5)',
+                ),
               ),
               if (_questionKind == 'past') ...[
                 const SizedBox(height: 12),
@@ -1238,14 +1365,14 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Publish Past Paper',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text(
-                'Add Past Question Paper',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
               TextField(
                 controller: _pastPaperTitle,
                 decoration: const InputDecoration(labelText: 'Title'),
@@ -1289,21 +1416,21 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Create Quiz',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text(
-                'Create Quiz',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
               TextField(
                 controller: _quizTitle,
                 decoration: const InputDecoration(labelText: 'Quiz title'),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _quizType,
+                initialValue: _quizType,
                 decoration: const InputDecoration(labelText: 'Quiz type'),
                 items: const [
                   DropdownMenuItem(value: 'mcq', child: Text('MCQ')),
@@ -1318,7 +1445,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _quizDifficulty,
+                initialValue: _quizDifficulty,
                 decoration: const InputDecoration(labelText: 'Difficulty'),
                 items: const [
                   DropdownMenuItem(value: 'easy', child: Text('Easy')),
@@ -1348,20 +1475,20 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 16),
         AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Add Quiz Question',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
-              Text(
-                'Add Quiz Question',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
               if (_qaQuizzes.isEmpty)
                 const Text('Create a quiz first for this chapter.')
               else
                 DropdownButtonFormField<Quiz>(
-                  key: ValueKey(_qaSelectedQuiz?.id ?? ''),
-                  initialValue: _qaSelectedQuiz,
+                  key: ValueKey(qaQuizValue?.id ?? ''),
+                  initialValue: qaQuizValue,
                   decoration: const InputDecoration(labelText: 'Quiz'),
                   isExpanded: true,
                   items: _qaQuizzes

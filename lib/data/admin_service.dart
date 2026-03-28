@@ -366,7 +366,7 @@ class AdminService {
     }
 
     if (matches.isEmpty) {
-      return _MatchResult.none('Skipped ${filename}: no matching subject.');
+      return _MatchResult.none('Skipped $filename: no matching subject.');
     }
 
     matches.sort((a, b) => b.score.compareTo(a.score));
@@ -377,7 +377,7 @@ class AdminService {
           .map((m) => m.subject.code.isNotEmpty ? m.subject.code : m.subject.name)
           .join(', ');
       return _MatchResult.ambiguous(
-        'Skipped ${filename}: matches multiple subjects ($labels).',
+        'Skipped $filename: matches multiple subjects ($labels).',
       );
     }
 
@@ -483,7 +483,9 @@ class _MatchResult {
   final bool ambiguous;
   final String? message;
 
-  const _MatchResult(this.subject, {this.ambiguous = false, this.message});
+  const _MatchResult(this.subject)
+      : ambiguous = false,
+        message = null;
 
   const _MatchResult.none(this.message) : subject = null, ambiguous = false;
 

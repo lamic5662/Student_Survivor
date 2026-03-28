@@ -613,10 +613,11 @@ class _NotesTabState extends State<_NotesTab> {
         _errorMessage = 'Failed to delete note: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _deletingNoteId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _deletingNoteId = null;
+        });
+      }
     }
   }
 
@@ -626,7 +627,51 @@ class _NotesTabState extends State<_NotesTab> {
     required String detailedAnswer,
     Widget? trailing,
     VoidCallback? onTap,
+    bool collapsible = false,
   }) {
+    if (collapsible) {
+      final summaryText = shortAnswer.trim();
+      final detailText = detailedAnswer.trim();
+      return AppCard(
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text(
+            title,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          subtitle: summaryText.isEmpty
+              ? null
+              : Text(
+                  summaryText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+          trailing: trailing,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          children: [
+            if (detailText.isNotEmpty && detailText != summaryText) ...[
+              Text(
+                detailText,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ] else if (summaryText.isNotEmpty) ...[
+              Text(
+                summaryText,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     final card = AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +688,7 @@ class _NotesTabState extends State<_NotesTab> {
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
-              if (trailing != null) trailing,
+              ...?(trailing == null ? null : [trailing]),
             ],
           ),
           const SizedBox(height: 8),
@@ -682,60 +727,85 @@ class _NotesTabState extends State<_NotesTab> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          SectionHeader(
-            title: 'AI Notes',
-            actionLabel: _isGenerating ? null : 'Generate',
-            onAction: _isGenerating ? null : _generateNote,
-          ),
-          const SizedBox(height: 12),
-          if (_isGenerating)
-            const Center(child: CircularProgressIndicator())
-          else if (_draft == null)
-            const Text('Generate a quick AI note for this chapter.'),
-          if (_draft != null) ...[
-            _noteCard(
-              title: _draft!.title,
-              shortAnswer: _draft!.shortAnswer,
-              detailedAnswer: _draft!.detailedAnswer,
-            ),
-            const SizedBox(height: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          AppCard(
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              initiallyExpanded: false,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'AI Notes',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  if (_isGenerating)
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    TextButton(
+                      onPressed: _generateNote,
+                      child: const Text('Generate'),
+                    ),
+                ],
+              ),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
               children: [
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _saveDraft,
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Save to My Notes'),
-                ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: _isSaving
-                      ? null
-                      : () {
-                          setState(() {
-                            _draft = null;
-                          });
-                        },
-                  child: const Text('Discard'),
-                ),
+                if (_draft == null)
+                  const Text('Generate a quick AI note for this chapter.')
+                else ...[
+                  _noteCard(
+                    title: _draft!.title,
+                    shortAnswer: _draft!.shortAnswer,
+                    detailedAnswer: _draft!.detailedAnswer,
+                    collapsible: true,
+                  ),
+                  const SizedBox(height: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _isSaving ? null : _saveDraft,
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Save to My Notes'),
+                      ),
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () {
+                                setState(() {
+                                  _draft = null;
+                                });
+                              },
+                        child: const Text('Discard'),
+                      ),
+                    ],
+                  ),
+                ],
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.danger),
+                  ),
+                ],
               ],
             ),
-          ],
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.danger),
-            ),
-          ],
+          ),
           const SizedBox(height: 24),
           SectionHeader(
             title: 'My Notes',
@@ -755,10 +825,15 @@ class _NotesTabState extends State<_NotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  onTap: () => _showUserNoteDetails(note),
+                  collapsible: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: 'Open',
+                        onPressed: () => _showUserNoteDetails(note),
+                        icon: const Icon(Icons.open_in_new),
+                      ),
                       IconButton(
                         tooltip: 'Delete',
                         onPressed: _deletingNoteId == note.id
@@ -791,10 +866,15 @@ class _NotesTabState extends State<_NotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  onTap: () => _showTextNoteDetails(
-                    title: note.title,
-                    shortAnswer: note.shortAnswer,
-                    detailedAnswer: note.detailedAnswer,
+                  collapsible: true,
+                  trailing: IconButton(
+                    tooltip: 'Open',
+                    onPressed: () => _showTextNoteDetails(
+                      title: note.title,
+                      shortAnswer: note.shortAnswer,
+                      detailedAnswer: note.detailedAnswer,
+                    ),
+                    icon: const Icon(Icons.open_in_new),
                   ),
                 ),
               ),
@@ -855,76 +935,6 @@ class _QuestionsTab extends StatelessWidget {
                             ?.copyWith(color: AppColors.mutedInk),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _QuizzesTab extends StatelessWidget {
-  final Subject subject;
-  final Chapter chapter;
-  final List<Quiz> quizzes;
-
-  const _QuizzesTab({
-    required this.subject,
-    required this.chapter,
-    required this.quizzes,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (quizzes.isEmpty) {
-      return const Center(child: Text('No quizzes yet.'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: quizzes.length,
-      itemBuilder: (context, index) {
-        final quiz = quizzes[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  quiz.title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${quiz.questionCount} questions • ${quiz.duration.inMinutes} min',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => QuizDetailScreen(
-                            quiz: quiz,
-                            subject: subject,
-                            chapter: chapter,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text('Play Quiz'),
                   ),
                 ),
               ],

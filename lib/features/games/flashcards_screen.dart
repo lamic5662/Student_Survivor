@@ -172,8 +172,6 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasCards = _cards.isNotEmpty;
-    final current = hasCards ? _cards[_index] : null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Flashcards'),
@@ -182,138 +180,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         padding: const EdgeInsets.all(20),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : hasCards
-                ? Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _usingAi ? _useNotesCards : null,
-                              child: const Text('Notes Cards'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed:
-                                  _isGeneratingAi ? null : _generateAiCards,
-                              child: _isGeneratingAi
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('AI Cards'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_aiError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _aiError!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.danger),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${_index + 1} / ${_cards.length}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.mutedInk),
-                          ),
-                          Text(
-                            current!.source,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.mutedInk),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _showBack = !_showBack;
-                            });
-                          },
-                          child: AppCard(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 220),
-                              child: _FlashcardFace(
-                                key: ValueKey(_showBack),
-                                title: current!.title,
-                                label: _showBack ? 'Answer' : 'Prompt',
-                                content: _showBack
-                                    ? current!.back
-                                    : current!.front,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _prevCard,
-                              child: const Text('Prev'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _nextCard,
-                              child: const Text('Next'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _shuffleCards,
-                              child: const Text('Shuffle'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _showBack = !_showBack;
-                                });
-                              },
-                              child: Text(_showBack ? 'Show Prompt' : 'Show Answer'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tap the card to flip.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
-                      ),
-                    ],
-                  )
+            : _cards.isNotEmpty
+                ? _buildCardsView(_cards[_index])
                 : _EmptyFlashcards(
                     onRefresh: _loadCards,
                     onGenerateAi: _generateAiCards,
@@ -321,6 +189,137 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                     aiError: _aiError,
                   ),
       ),
+    );
+  }
+
+  Widget _buildCardsView(_FlashcardItem current) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _usingAi ? _useNotesCards : null,
+                child: const Text('Notes Cards'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isGeneratingAi ? null : _generateAiCards,
+                child: _isGeneratingAi
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('AI Cards'),
+              ),
+            ),
+          ],
+        ),
+        if (_aiError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _aiError!,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.danger),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '${_index + 1} / ${_cards.length}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.mutedInk),
+            ),
+            Text(
+              current.source,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.mutedInk),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _showBack = !_showBack;
+              });
+            },
+            child: AppCard(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: _FlashcardFace(
+                  key: ValueKey(_showBack),
+                  title: current.title,
+                  label: _showBack ? 'Answer' : 'Prompt',
+                  content: _showBack ? current.back : current.front,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _prevCard,
+                child: const Text('Prev'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _nextCard,
+                child: const Text('Next'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _shuffleCards,
+                child: const Text('Shuffle'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _showBack = !_showBack;
+                  });
+                },
+                child: Text(_showBack ? 'Show Prompt' : 'Show Answer'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Tap the card to flip.',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: AppColors.mutedInk),
+        ),
+      ],
     );
   }
 }

@@ -116,7 +116,7 @@ class PlannerService {
         'Subject must match one from the list or use "General".';
 
     final userPrompt =
-        'Create a ${days}-day study plan starting today.\n'
+        'Create a $days-day study plan starting today.\n'
         'Dates: ${dateList.join(', ')}\n'
         'Subjects: ${subjectNames.join(', ')}\n'
         'Focus on balanced coverage and upcoming exams.';

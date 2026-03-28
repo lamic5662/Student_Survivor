@@ -98,7 +98,7 @@ class _ProfileEditScreenState
                     const SectionHeader(title: 'Semester'),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<Semester>(
-                      value: model.selectedSemester,
+                      initialValue: model.selectedSemester,
                       isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Select semester',

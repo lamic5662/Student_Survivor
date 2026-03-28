@@ -285,10 +285,9 @@ class AiNotesService {
       }
       if (lower.startsWith('back:') || lower.startsWith('definition:')) {
         final back = line.split(':').skip(1).join(':').trim();
-        if (pendingFront != null &&
-            pendingFront!.isNotEmpty &&
-            back.isNotEmpty) {
-          cards.add(AiFlashcard(front: pendingFront!, back: back));
+        final front = pendingFront;
+        if (front != null && front.isNotEmpty && back.isNotEmpty) {
+          cards.add(AiFlashcard(front: front, back: back));
         }
         pendingFront = null;
         continue;
@@ -299,10 +298,9 @@ class AiNotesService {
       }
       if (lower.startsWith('a:') || lower.startsWith('answer:')) {
         final back = line.split(':').skip(1).join(':').trim();
-        if (pendingFront != null &&
-            pendingFront!.isNotEmpty &&
-            back.isNotEmpty) {
-          cards.add(AiFlashcard(front: pendingFront!, back: back));
+        final front = pendingFront;
+        if (front != null && front.isNotEmpty && back.isNotEmpty) {
+          cards.add(AiFlashcard(front: front, back: back));
         }
         pendingFront = null;
         continue;

@@ -23,7 +23,6 @@ class SubjectDetailScreen extends StatefulWidget {
 class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   late final UserNotesService _userNotesService;
   Map<String, int> _userNoteCounts = const {};
-  bool _isLoadingNotes = true;
 
   @override
   void initState() {
@@ -37,7 +36,6 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     if (chapterIds.isEmpty) {
       setState(() {
         _userNoteCounts = const {};
-        _isLoadingNotes = false;
       });
       return;
     }
@@ -54,13 +52,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
       }
       setState(() {
         _userNoteCounts = counts;
-        _isLoadingNotes = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _userNoteCounts = const {};
-        _isLoadingNotes = false;
       });
     }
   }

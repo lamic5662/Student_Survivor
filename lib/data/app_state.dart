@@ -37,4 +37,14 @@ class AppState {
       isAdmin: false,
     );
   }
+
+  static void reset() {
+    profile.value = UserProfile(
+      name: 'Student',
+      email: '',
+      semester: _emptySemester,
+      subjects: const [],
+      isAdmin: false,
+    );
+  }
 }

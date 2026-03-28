@@ -71,10 +71,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _errorMessage = 'Failed to generate plan: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGenerating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
     }
   }
 
@@ -114,7 +115,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
-                    value: selectedSubject,
+                    initialValue: selectedSubject,
                     decoration: const InputDecoration(
                       labelText: 'Subject (optional)',
                     ),
@@ -247,7 +248,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
-                    value: selectedSubject,
+                    initialValue: selectedSubject,
                     decoration: const InputDecoration(
                       labelText: 'Subject (optional)',
                     ),

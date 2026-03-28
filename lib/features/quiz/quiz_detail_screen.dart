@@ -122,7 +122,7 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<QuizDifficulty>(
-                    value: _aiDifficulty,
+                    initialValue: _aiDifficulty,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       isDense: true,
