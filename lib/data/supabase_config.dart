@@ -1,6 +1,19 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+enum AiFeature {
+  game,
+  notes,
+  tutor,
+  studyPlan,
+  weaknessAnalysis,
+  quizExplanation,
+  topicSummary,
+  promptTesting,
+  modelTesting,
+  debugging,
+}
+
 class SupabaseConfig {
   static String get url {
     final value = _safeDotenv('SUPABASE_URL');
@@ -23,6 +36,53 @@ class SupabaseConfig {
     return value.isNotEmpty
         ? value
         : const String.fromEnvironment('AI_MODE', defaultValue: 'free');
+  }
+
+  static String aiProviderFor(AiFeature feature,
+      {String? message, String? mode}) {
+    final override = aiMode.toLowerCase();
+    final isDebug = _isDebugPrompt(message, mode);
+    final isLmStudioFeature = feature == AiFeature.promptTesting ||
+        feature == AiFeature.modelTesting ||
+        feature == AiFeature.debugging;
+
+    if (override == 'free') {
+      return 'free';
+    }
+    if (override == 'lmstudio') {
+      return 'lmstudio';
+    }
+    if (override == 'ollama') {
+      if (isLmStudioFeature || (feature == AiFeature.tutor && isDebug)) {
+        return 'lmstudio';
+      }
+      return 'ollama';
+    }
+    if (override == 'backend') {
+      if (isLmStudioFeature || (feature == AiFeature.tutor && isDebug)) {
+        return 'lmstudio';
+      }
+      return 'backend';
+    }
+
+    switch (feature) {
+      case AiFeature.promptTesting:
+      case AiFeature.modelTesting:
+      case AiFeature.debugging:
+        return 'lmstudio';
+      case AiFeature.tutor:
+        if (_isDebugPrompt(message, mode)) {
+          return 'lmstudio';
+        }
+        return 'backend';
+      case AiFeature.game:
+      case AiFeature.notes:
+      case AiFeature.studyPlan:
+      case AiFeature.weaknessAnalysis:
+      case AiFeature.quizExplanation:
+      case AiFeature.topicSummary:
+        return 'backend';
+    }
   }
 
   static String get ollamaBaseUrl {
@@ -91,4 +151,23 @@ class SupabaseConfig {
       return '';
     }
   }
+
+  static bool _isDebugPrompt(String? message, String? mode) {
+    final normalizedMode = mode?.toLowerCase() ?? '';
+    if (_debugTokens.any(normalizedMode.contains)) {
+      return true;
+    }
+    final normalized = message?.toLowerCase() ?? '';
+    return _debugTokens.any(normalized.contains);
+  }
+
+  static const List<String> _debugTokens = [
+    'debug',
+    'prompt test',
+    'prompt testing',
+    'model test',
+    'model testing',
+    'diagnose',
+    'trace',
+  ];
 }

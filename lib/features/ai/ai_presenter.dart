@@ -57,7 +57,9 @@ class AiPresenter extends Presenter<AiView> {
   }
 
   Future<String> _send(String message, String? mode) async {
-    final modeKey = SupabaseConfig.aiMode.toLowerCase();
+    final modeKey =
+        SupabaseConfig.aiProviderFor(AiFeature.tutor, message: message, mode: mode)
+            .toLowerCase();
     if (modeKey == 'free') {
       return _freeAiService.answer(message, mode: mode);
     }

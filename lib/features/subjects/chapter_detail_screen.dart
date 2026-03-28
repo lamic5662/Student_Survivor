@@ -8,7 +8,6 @@ import 'package:student_survivor/data/user_notes_service.dart';
 import 'package:student_survivor/features/games/battle_quiz_screen.dart';
 import 'package:student_survivor/features/games/flashcards_screen.dart';
 import 'package:student_survivor/features/quiz/quiz_detail_screen.dart';
-import 'package:student_survivor/features/quiz/quiz_play_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class ChapterDetailScreen extends StatelessWidget {
@@ -24,7 +23,7 @@ class ChapterDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text(chapter.title),
@@ -35,22 +34,15 @@ class ChapterDetailScreen extends StatelessWidget {
               Tab(text: 'Important'),
               Tab(text: 'Past Qs'),
               Tab(text: 'Games'),
-              Tab(text: 'Quizzes'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
             _NotesTab(subject: subject, chapter: chapter),
-            _QuestionsTab(
-              subject: subject,
-              chapter: chapter,
-              questions: chapter.importantQuestions,
-              showAiQuiz: true,
-            ),
+            _QuestionsTab(questions: chapter.importantQuestions),
             _QuestionsTab(questions: chapter.pastQuestions),
-            _GamesTab(subject: subject, chapter: chapter),
-            _QuizzesTab(
+            _GamesTab(
               subject: subject,
               chapter: chapter,
               quizzes: chapter.quizzes,
@@ -815,95 +807,19 @@ class _NotesTabState extends State<_NotesTab> {
 
 class _QuestionsTab extends StatelessWidget {
   final List<Question> questions;
-  final Subject? subject;
-  final Chapter? chapter;
-  final bool showAiQuiz;
 
-  const _QuestionsTab({
-    required this.questions,
-    this.subject,
-    this.chapter,
-    this.showAiQuiz = false,
-  });
-
-  Quiz? _pickAiQuiz(List<Quiz> quizzes) {
-    if (quizzes.isEmpty) return null;
-    for (final quiz in quizzes) {
-      if (quiz.title.toLowerCase().contains('ai')) {
-        return quiz;
-      }
-    }
-    return quizzes.first;
-  }
+  const _QuestionsTab({required this.questions});
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[];
-    if (showAiQuiz && subject != null && chapter != null) {
-      final aiQuiz = _pickAiQuiz(chapter!.quizzes);
-      items.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI Quick Quiz',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Answer AI-generated MCQs based on this chapter.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: aiQuiz == null
-                      ? null
-                      : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => QuizPlayScreen(
-                                quiz: aiQuiz,
-                                subject: subject!,
-                                chapter: chapter,
-                                isAi: true,
-                              ),
-                            ),
-                          );
-                        },
-                  child: Text(
-                    aiQuiz == null ? 'No quiz available' : 'Start AI Quiz',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     if (questions.isEmpty) {
-      items.add(const Text('No questions yet.'));
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: items,
-      );
+      return const Center(child: Text('No questions yet.'));
     }
-
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: items.length + questions.length,
+      itemCount: questions.length,
       itemBuilder: (context, index) {
-        if (index < items.length) {
-          return items[index];
-        }
-        final questionIndex = index - items.length;
-        final question = questions[questionIndex];
+        final question = questions[index];
         final year = question.year;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -1023,10 +939,12 @@ class _QuizzesTab extends StatelessWidget {
 class _GamesTab extends StatelessWidget {
   final Subject subject;
   final Chapter chapter;
+  final List<Quiz> quizzes;
 
   const _GamesTab({
     required this.subject,
     required this.chapter,
+    required this.quizzes,
   });
 
   @override
@@ -1113,6 +1031,54 @@ class _GamesTab extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 24),
+        const SectionHeader(title: 'Quizzes'),
+        const SizedBox(height: 12),
+        if (quizzes.isEmpty)
+          const Text('No quizzes yet.')
+        else
+          ...quizzes.map(
+            (quiz) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      quiz.title,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${quiz.questionCount} questions • ${quiz.duration.inMinutes} min',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => QuizDetailScreen(
+                                quiz: quiz,
+                                subject: subject,
+                                chapter: chapter,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Play Quiz'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

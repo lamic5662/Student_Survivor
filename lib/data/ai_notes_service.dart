@@ -21,8 +21,9 @@ class AiNotesService {
     required Subject subject,
     required Chapter chapter,
   }) async {
-    final mode = SupabaseConfig.aiMode.toLowerCase();
-    if (!_isLocalAi(mode)) {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    if (!_isSupportedAi(mode)) {
       return null;
     }
 
@@ -30,9 +31,11 @@ class AiNotesService {
     final systemPrompt =
         'You are an expert study assistant for BCA students. Return ONLY valid JSON.\n'
         'Schema: {"title":"...","short_answer":"...","detailed_answer":"..."}\n'
-        'Rules: short_answer is 5-7 lines, detailed_answer is 14-22 lines. '
+        'Rules: short_answer is 8-12 lines, detailed_answer is 22-32 lines. '
         'Use \\n to separate each line. No markdown or bullet symbols. '
-        'Include key points, definitions, and 1-2 simple examples. '
+        'Each line must be a complete sentence. Use simple labels like '
+        '"Definition:", "Key Idea:", "Core Concept:", "Example:", "Why it matters:" '
+        'to improve readability. Include key points, definitions, and 2 simple examples. '
         'Use clear, simple language.';
 
     final userPrompt =
@@ -75,8 +78,8 @@ class AiNotesService {
 
     return NoteDraft(
       title: title,
-      shortAnswer: _normalizeLines(shortAnswer, minLines: 5, maxLines: 8),
-      detailedAnswer: _normalizeLines(detailedAnswer, minLines: 14, maxLines: 24),
+      shortAnswer: _normalizeLines(shortAnswer, minLines: 8, maxLines: 12),
+      detailedAnswer: _normalizeLines(detailedAnswer, minLines: 22, maxLines: 32),
     );
   }
 
@@ -84,8 +87,9 @@ class AiNotesService {
     required String word,
     required String context,
   }) async {
-    final mode = SupabaseConfig.aiMode.toLowerCase();
-    if (!_isLocalAi(mode)) {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    if (!_isSupportedAi(mode)) {
       throw Exception('AI unavailable. Enable LM Studio or Ollama.');
     }
 
@@ -133,8 +137,9 @@ class AiNotesService {
     required Chapter chapter,
     int count = 8,
   }) async {
-    final mode = SupabaseConfig.aiMode.toLowerCase();
-    if (!_isLocalAi(mode)) {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (!_isSupportedAi(mode)) {
       throw Exception('AI unavailable. Enable LM Studio or Ollama.');
     }
 
@@ -445,7 +450,8 @@ class AiNotesService {
     return expanded.isEmpty ? lines : expanded;
   }
 
-  bool _isLocalAi(String mode) => mode == 'ollama' || _isLmStudio(mode);
+  bool _isSupportedAi(String mode) =>
+      mode == 'ollama' || _isLmStudio(mode) || mode == 'backend';
 
   bool _isLmStudio(String mode) {
     return mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio';
@@ -516,6 +522,22 @@ class AiNotesService {
       final content =
           (message['message']?['content'] as String?)?.trim() ?? '';
       return content;
+    }
+
+    if (mode == 'backend') {
+      final response = await _client.functions.invoke(
+        'ai-generate',
+        body: {
+          'system_prompt': systemPrompt,
+          'user_prompt': userPrompt,
+        },
+      );
+      final data = response.data as Map<String, dynamic>? ?? {};
+      final reply = data['reply']?.toString().trim() ?? '';
+      if (reply.isEmpty) {
+        throw Exception('AI backend returned empty response.');
+      }
+      return reply;
     }
 
     throw Exception('AI mode not supported.');

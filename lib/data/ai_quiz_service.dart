@@ -18,16 +18,23 @@ class AiQuizService {
     required int count,
     required QuizDifficulty baseDifficulty,
   }) async {
-    final mode = SupabaseConfig.aiMode.toLowerCase();
-    if (mode == 'ollama' || _isLmStudio(mode)) {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
       try {
         final context = await _buildContext(quizId, subject, chapter);
-        final questions = await _generateWithLocalAi(
-          mode: mode,
-          context: context,
-          count: count,
-          baseDifficulty: baseDifficulty,
-        );
+        final questions = mode == 'backend'
+            ? await _generateWithBackend(
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+              )
+            : await _generateWithLocalAi(
+                mode: mode,
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+              );
         if (questions.isNotEmpty) {
           return questions;
         }
@@ -224,17 +231,87 @@ class AiQuizService {
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final choices = data['choices'] as List<dynamic>? ?? [];
-    final raw = choices.isNotEmpty
-        ? (choices.first as Map<String, dynamic>)['message']?['content']
-                as String? ??
-            ''
-        : '';
+    String raw = '';
+    if (choices.isNotEmpty) {
+      final first = choices.first;
+      if (first is Map<String, dynamic>) {
+        final message = first['message'];
+        if (message is Map<String, dynamic>) {
+          final content = message['content'];
+          raw = content?.toString() ?? '';
+        }
+      }
+    }
     final cleaned = raw.trim();
     if (cleaned.isEmpty) {
       return [];
     }
 
     final jsonText = _extractJson(cleaned);
+    final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+    final list = decoded['questions'] as List<dynamic>? ?? [];
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final questions = <QuizQuestionItem>[];
+    for (var i = 0; i < list.length; i += 1) {
+      final item = list[i] as Map<String, dynamic>;
+      var options = _normalizeOptions(item);
+      if (options.length < 2) {
+        continue;
+      }
+      var correctIndex = _normalizeCorrectIndex(item, options);
+      if (options.length > 4) {
+        options = options.take(4).toList();
+        if (correctIndex >= options.length) {
+          correctIndex = 0;
+        }
+      }
+      questions.add(
+        QuizQuestionItem(
+          id: 'ai_${now}_$i',
+          prompt: item['prompt']?.toString() ?? 'Question',
+          options: options,
+          correctIndex: correctIndex,
+          topic: item['topic']?.toString(),
+          difficulty: item['difficulty']?.toString().toLowerCase(),
+          explanation: item['explanation']?.toString(),
+        ),
+      );
+    }
+    return questions;
+  }
+
+  Future<List<QuizQuestionItem>> _generateWithBackend({
+    required String context,
+    required int count,
+    required QuizDifficulty baseDifficulty,
+  }) async {
+    final base = baseDifficulty.name;
+    final mix = _difficultyMix(baseDifficulty);
+    final systemPrompt =
+        'You are an expert quiz generator for BCA students. Return ONLY valid JSON.\n'
+        'Schema: {"questions":[{"prompt":"...","options":["A","B","C","D"],"correct_index":0,"explanation":"...","topic":"...","difficulty":"easy|medium|hard"}]}\n'
+        'Rules: 4 options per question, correct_index is 0-based, no markdown. '
+        'Options must be full answer text, not just labels like A/B/C/D.';
+
+    final userPrompt =
+        'Generate $count unique MCQ questions. Base difficulty: $base. '
+        'Use this mix: $mix. Use the context below.\n\n$context';
+
+    final response = await _client.functions.invoke(
+      'ai-generate',
+      body: {
+        'system_prompt': systemPrompt,
+        'user_prompt': userPrompt,
+      },
+    );
+    final data = response.data as Map<String, dynamic>? ?? {};
+    final raw = data['reply']?.toString().trim() ?? '';
+    if (raw.isEmpty) {
+      return [];
+    }
+
+    final jsonText = _extractJson(raw);
     final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
     final list = decoded['questions'] as List<dynamic>? ?? [];
     final now = DateTime.now().millisecondsSinceEpoch;

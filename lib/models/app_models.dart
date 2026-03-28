@@ -107,12 +107,14 @@ class UserNote {
   final String title;
   final String shortAnswer;
   final String detailedAnswer;
+  final String? chapterId;
 
   const UserNote({
     required this.id,
     required this.title,
     required this.shortAnswer,
     required this.detailedAnswer,
+    this.chapterId,
   });
 }
 

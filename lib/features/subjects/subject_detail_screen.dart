@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/data/supabase_config.dart';
+import 'package:student_survivor/data/user_notes_service.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/features/subjects/chapter_detail_screen.dart';
 import 'package:student_survivor/features/subjects/subject_study_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
-class SubjectDetailScreen extends StatelessWidget {
+class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
 
   const SubjectDetailScreen({
@@ -15,50 +17,104 @@ class SubjectDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<SubjectDetailScreen> createState() => _SubjectDetailScreenState();
+}
+
+class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
+  late final UserNotesService _userNotesService;
+  Map<String, int> _userNoteCounts = const {};
+  bool _isLoadingNotes = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _userNotesService = UserNotesService(SupabaseConfig.client);
+    _loadUserNotes();
+  }
+
+  Future<void> _loadUserNotes() async {
+    final chapterIds = widget.subject.chapters.map((c) => c.id).toList();
+    if (chapterIds.isEmpty) {
+      setState(() {
+        _userNoteCounts = const {};
+        _isLoadingNotes = false;
+      });
+      return;
+    }
+    try {
+      final notes = await _userNotesService.fetchForSubject(chapterIds);
+      if (!mounted) return;
+      final counts = <String, int>{};
+      for (final note in notes) {
+        final chapterId = note.chapterId;
+        if (chapterId == null || chapterId.isEmpty) {
+          continue;
+        }
+        counts[chapterId] = (counts[chapterId] ?? 0) + 1;
+      }
+      setState(() {
+        _userNoteCounts = counts;
+        _isLoadingNotes = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _userNoteCounts = const {};
+        _isLoadingNotes = false;
+      });
+    }
+  }
+
+  int _totalNotesFor(Chapter chapter) {
+    final userNotes = _userNoteCounts[chapter.id] ?? 0;
+    return chapter.notes.length + userNotes;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(subject.name),
+        title: Text(widget.subject.name),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           AppCard(
-            color: subject.accentColor.withValues(alpha: 0.1),
+            color: widget.subject.accentColor.withValues(alpha: 0.1),
             child: Row(
               children: [
                 Container(
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: subject.accentColor.withValues(alpha: 0.2),
+                    color: widget.subject.accentColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(Icons.menu_book, color: subject.accentColor),
+                  child: Icon(Icons.menu_book, color: widget.subject.accentColor),
                 ),
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      subject.code,
+                      widget.subject.code,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: AppColors.mutedInk),
                     ),
                     Text(
-                      '${subject.chapters.length} chapters',
+                      '${widget.subject.chapters.length} chapters',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
-                    if ((subject.syllabusUrl ?? '').trim().isNotEmpty)
+                    if ((widget.subject.syllabusUrl ?? '').trim().isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: TextButton.icon(
                           onPressed: () => _openSyllabus(
                             context,
-                            subject.name,
-                            subject.syllabusUrl!,
+                            widget.subject.name,
+                            widget.subject.syllabusUrl!,
                           ),
                           icon: const Icon(Icons.description_rounded, size: 18),
                           label: const Text('Open syllabus'),
@@ -70,7 +126,7 @@ class SubjectDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          if (subject.pastPapers.isNotEmpty) ...[
+          if (widget.subject.pastPapers.isNotEmpty) ...[
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,7 +136,7 @@ class SubjectDetailScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
-                  ...subject.pastPapers.map(
+                  ...widget.subject.pastPapers.map(
                     (paper) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
@@ -132,7 +188,7 @@ class SubjectDetailScreen extends StatelessWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) =>
-                            SubjectStudyScreen(subject: subject),
+                            SubjectStudyScreen(subject: widget.subject),
                       ),
                     );
                   },
@@ -142,20 +198,22 @@ class SubjectDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          ...subject.chapters.map(
+          ...widget.subject.chapters.map(
             (chapter) => Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: AppCard(
                 child: InkWell(
                   onTap: () {
-                    Navigator.of(context).push(
+                    Navigator.of(context)
+                        .push(
                       MaterialPageRoute(
                         builder: (_) => ChapterDetailScreen(
-                          subject: subject,
+                          subject: widget.subject,
                           chapter: chapter,
                         ),
                       ),
-                    );
+                    )
+                        .then((_) => _loadUserNotes());
                   },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +227,7 @@ class SubjectDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${chapter.notes.length} notes, '
+                        '${_totalNotesFor(chapter)} notes, '
                         '${chapter.importantQuestions.length} important questions, '
                         '${chapter.quizzes.length} quizzes',
                         style: Theme.of(context)
@@ -181,7 +239,7 @@ class SubjectDetailScreen extends StatelessWidget {
                       LinearProgressIndicator(
                         value: 0.35,
                         backgroundColor: AppColors.outline,
-                        color: subject.accentColor,
+                        color: widget.subject.accentColor,
                         minHeight: 6,
                       ),
                     ],

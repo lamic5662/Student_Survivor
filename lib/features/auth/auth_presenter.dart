@@ -87,6 +87,14 @@ class AuthPresenter extends Presenter<AuthView> {
         }
         return;
       }
+
+      if (!state.value.isLogin) {
+        await SupabaseConfig.client.auth.signOut();
+        state.value = state.value.copyWith(isLogin: true);
+        view?.showMessage('Account created. Please login.');
+        return;
+      }
+
       AppState.updateFromAuth(user);
 
       final profile = await _profileService.fetchProfile();

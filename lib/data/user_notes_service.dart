@@ -25,6 +25,7 @@ class UserNotesService {
         title: row['title']?.toString() ?? 'Note',
         shortAnswer: row['short_answer']?.toString() ?? '',
         detailedAnswer: row['detailed_answer']?.toString() ?? '',
+        chapterId: chapterId,
       );
     }).toList();
   }
@@ -48,6 +49,7 @@ class UserNotesService {
         title: row['title']?.toString() ?? 'Note',
         shortAnswer: row['short_answer']?.toString() ?? '',
         detailedAnswer: row['detailed_answer']?.toString() ?? '',
+        chapterId: row['chapter_id']?.toString(),
       );
     }).toList();
   }
