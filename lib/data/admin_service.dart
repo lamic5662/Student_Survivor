@@ -143,6 +143,66 @@ class AdminService {
     await _client.from('notes').delete().eq('id', noteId);
   }
 
+  Future<List<AdminNoteSubmission>> fetchPendingNoteSubmissions({
+    String? chapterId,
+  }) async {
+    final baseQuery = _client
+        .from('note_submissions')
+        .select(
+          'id,user_id,chapter_id,title,short_answer,detailed_answer,tags,status,created_at,'
+          'chapter:chapters(id,title,subject:subjects(id,name))',
+        )
+        .eq('status', 'pending');
+
+    if (chapterId != null && chapterId.isNotEmpty) {
+      final data = await baseQuery
+          .eq('chapter_id', chapterId)
+          .order('created_at', ascending: false);
+      return (data as List<dynamic>)
+          .map((row) => _adminSubmissionFromMap(row as Map<String, dynamic>))
+          .toList();
+    }
+
+    final data = await baseQuery.order('created_at', ascending: false);
+    return (data as List<dynamic>)
+        .map((row) => _adminSubmissionFromMap(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> approveNoteSubmission(AdminNoteSubmission submission) async {
+    await _client.from('notes').insert({
+      'chapter_id': submission.chapterId,
+      'title': submission.title,
+      'short_answer': submission.shortAnswer,
+      'detailed_answer': submission.detailedAnswer,
+      'tags': submission.tags,
+    });
+
+    final adminId = _client.auth.currentUser?.id;
+    await _client.from('note_submissions').update({
+      'status': 'approved',
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      'reviewed_by': adminId,
+    }).eq('id', submission.id);
+  }
+
+  Future<void> rejectNoteSubmission(
+    AdminNoteSubmission submission, {
+    String? feedback,
+  }) async {
+    final adminId = _client.auth.currentUser?.id;
+    await _client.from('note_submissions').update({
+      'status': 'rejected',
+      'admin_feedback': feedback,
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      'reviewed_by': adminId,
+    }).eq('id', submission.id);
+  }
+
+  Future<void> deleteNoteSubmission(String submissionId) async {
+    await _client.from('note_submissions').delete().eq('id', submissionId);
+  }
+
   Future<void> deleteQuestion(String questionId) async {
     await _client.from('questions').delete().eq('id', questionId);
   }
@@ -565,6 +625,34 @@ class AdminNote {
   });
 }
 
+class AdminNoteSubmission {
+  final String id;
+  final String chapterId;
+  final String title;
+  final String shortAnswer;
+  final String detailedAnswer;
+  final List<String> tags;
+  final String status;
+  final String userId;
+  final String chapterTitle;
+  final String? subjectName;
+  final DateTime? createdAt;
+
+  const AdminNoteSubmission({
+    required this.id,
+    required this.chapterId,
+    required this.title,
+    required this.shortAnswer,
+    required this.detailedAnswer,
+    required this.tags,
+    required this.status,
+    required this.userId,
+    required this.chapterTitle,
+    this.subjectName,
+    this.createdAt,
+  });
+}
+
 AdminNote _adminNoteFromMap(Map<String, dynamic> map) {
   final tags = (map['tags'] as List<dynamic>? ?? [])
       .map((tag) => tag.toString())
@@ -578,6 +666,30 @@ AdminNote _adminNoteFromMap(Map<String, dynamic> map) {
     detailedAnswer: map['detailed_answer']?.toString() ?? '',
     tags: tags,
     fileUrl: map['file_url']?.toString(),
+  );
+}
+
+AdminNoteSubmission _adminSubmissionFromMap(Map<String, dynamic> map) {
+  final tags = (map['tags'] as List<dynamic>? ?? [])
+      .map((tag) => tag.toString())
+      .where((tag) => tag.isNotEmpty)
+      .toList();
+  final chapterMap = map['chapter'] as Map<String, dynamic>?;
+  final subjectMap = chapterMap?['subject'] as Map<String, dynamic>?;
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminNoteSubmission(
+    id: map['id']?.toString() ?? '',
+    chapterId: map['chapter_id']?.toString() ?? '',
+    title: map['title']?.toString() ?? 'Note',
+    shortAnswer: map['short_answer']?.toString() ?? '',
+    detailedAnswer: map['detailed_answer']?.toString() ?? '',
+    tags: tags,
+    status: map['status']?.toString() ?? 'pending',
+    userId: map['user_id']?.toString() ?? '',
+    chapterTitle: chapterMap?['title']?.toString() ?? 'Chapter',
+    subjectName: subjectMap?['name']?.toString(),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
   );
 }
 

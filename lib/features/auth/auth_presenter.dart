@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/mvp/base_view.dart';
 import 'package:student_survivor/core/mvp/presenter.dart';
 import 'package:student_survivor/data/app_state.dart';
@@ -7,6 +6,7 @@ import 'package:student_survivor/data/auth_service.dart';
 import 'package:student_survivor/data/profile_service.dart';
 import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -89,7 +89,13 @@ class AuthPresenter extends Presenter<AuthView> {
       }
 
       if (!state.value.isLogin) {
-        await SupabaseConfig.client.auth.signOut();
+        try {
+          await SupabaseConfig.client.auth.signOut(
+            scope: SignOutScope.local,
+          );
+        } catch (_) {
+          // Ignore logout errors; user can login after signup.
+        }
         state.value = state.value.copyWith(isLogin: true);
         view?.showMessage('Account created. Please login.');
         return;

@@ -3,6 +3,7 @@ import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
+import 'package:student_survivor/data/note_submission_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
 import 'package:student_survivor/features/games/battle_quiz_screen.dart';
@@ -70,12 +71,14 @@ class _NotesTab extends StatefulWidget {
 class _NotesTabState extends State<_NotesTab> {
   late final UserNotesService _userNotesService;
   late final AiNotesService _aiNotesService;
+  late final NoteSubmissionService _noteSubmissionService;
   bool _isLoading = true;
   bool _isGenerating = false;
   bool _isSaving = false;
   String? _deletingNoteId;
   String? _errorMessage;
   List<UserNote> _userNotes = const [];
+  List<NoteSubmission> _submissions = const [];
   NoteDraft? _draft;
   final Map<String, String> _definitionCache = {};
 
@@ -84,7 +87,9 @@ class _NotesTabState extends State<_NotesTab> {
     super.initState();
     _userNotesService = UserNotesService(SupabaseConfig.client);
     _aiNotesService = AiNotesService(SupabaseConfig.client);
+    _noteSubmissionService = NoteSubmissionService(SupabaseConfig.client);
     _loadUserNotes();
+    _loadSubmissions();
   }
 
   Future<void> _loadUserNotes() async {
@@ -105,6 +110,20 @@ class _NotesTabState extends State<_NotesTab> {
         _errorMessage = 'Failed to load notes: $error';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadSubmissions() async {
+    try {
+      final submissions = await _noteSubmissionService.fetchMySubmissions(
+        widget.chapter.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _submissions = submissions;
+      });
+    } catch (_) {
+      // Keep silent for now; submissions are optional.
     }
   }
 
@@ -137,6 +156,177 @@ class _NotesTabState extends State<_NotesTab> {
         _errorMessage = 'Failed to generate note: $error';
         _isGenerating = false;
       });
+    }
+  }
+
+  Future<void> _openSubmissionSheet() async {
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
+    final tagsController = TextEditingController();
+    var isSubmitting = false;
+
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Submit Note for Approval',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: contentController,
+                      maxLines: 6,
+                      decoration:
+                          const InputDecoration(labelText: 'Note content'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: tagsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tags (comma separated)',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final title = titleController.text.trim();
+                                final content =
+                                    contentController.text.trim();
+                                if (title.isEmpty || content.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Title and content are required.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() {
+                                  isSubmitting = true;
+                                });
+                                final navigator = Navigator.of(context);
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                try {
+                                  await _noteSubmissionService.submitNote(
+                                    chapterId: widget.chapter.id,
+                                    title: title,
+                                    shortAnswer:
+                                        _deriveShortFromDetailed(content),
+                                    detailedAnswer: content,
+                                    tags:
+                                        _parseTags(tagsController.text),
+                                  );
+                                  if (!mounted) return;
+                                  navigator.pop(true);
+                                } catch (error) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Submit failed: $error',
+                                      ),
+                                    ),
+                                  );
+                                  setSheetState(() {
+                                    isSubmitting = false;
+                                  });
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Submit for Review'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    titleController.dispose();
+    contentController.dispose();
+    tagsController.dispose();
+
+    if (submitted == true) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      await _loadSubmissions();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Submitted for approval.')),
+      );
+    }
+  }
+
+  List<String> _parseTags(String raw) {
+    return raw
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+  }
+
+  String _deriveShortFromDetailed(String detailed) {
+    final lines = detailed
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length >= 3) {
+      return lines.take(3).join('\n');
+    }
+    final sentences = detailed
+        .split(RegExp(r'(?<=[.!?])\s+'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (sentences.isNotEmpty) {
+      return sentences.take(3).join('\n');
+    }
+    return detailed;
+  }
+
+  Color _submissionStatusColor(String status) {
+    switch (status) {
+      case 'approved':
+        return AppColors.success;
+      case 'rejected':
+        return AppColors.danger;
+      default:
+        return AppColors.warning;
     }
   }
 
@@ -723,7 +913,10 @@ class _NotesTabState extends State<_NotesTab> {
   Widget build(BuildContext context) {
     final notes = widget.chapter.notes;
     return RefreshIndicator(
-      onRefresh: _loadUserNotes,
+      onRefresh: () async {
+        await _loadUserNotes();
+        await _loadSubmissions();
+      },
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -848,6 +1041,70 @@ class _NotesTabState extends State<_NotesTab> {
                               )
                             : const Icon(Icons.delete_outline),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+          SectionHeader(
+            title: 'Submit Notes for Approval',
+            actionLabel: 'Submit',
+            onAction: _openSubmissionSheet,
+          ),
+          const SizedBox(height: 12),
+          if (_submissions.isEmpty)
+            const Text('No submissions yet.')
+          else
+            ..._submissions.map(
+              (submission) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              submission.title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _submissionStatusColor(submission.status)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              submission.status.toUpperCase(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color:
+                                        _submissionStatusColor(submission.status),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (submission.shortAnswer.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          submission.shortAnswer,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ],
                   ),
                 ),

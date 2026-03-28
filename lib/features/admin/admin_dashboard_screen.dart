@@ -140,10 +140,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     } catch (error) {
       _showMessage('Delete failed: $error');
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _deletingNoteId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _deletingNoteId = null;
+        });
+      }
     }
   }
 
@@ -164,10 +165,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     } catch (error) {
       _showMessage('Delete failed: $error');
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _deletingQuestionId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _deletingQuestionId = null;
+        });
+      }
     }
   }
 
@@ -192,10 +194,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     } catch (error) {
       _showMessage('Remove failed: $error');
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _clearingSyllabusId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _clearingSyllabusId = null;
+        });
+      }
     }
   }
 
@@ -769,19 +772,17 @@ class _StatTile extends StatelessWidget {
   final int value;
   final IconData icon;
   final Color color;
-  final VoidCallback? onTap;
 
   const _StatTile({
     required this.label,
     required this.value,
     required this.icon,
     required this.color,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tile = Container(
+    return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -824,22 +825,7 @@ class _StatTile extends StatelessWidget {
               ],
             ),
           ),
-          if (onTap != null)
-            const Icon(Icons.chevron_right, color: AppColors.mutedInk),
         ],
-      ),
-    );
-
-    if (onTap == null) {
-      return tile;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: tile,
       ),
     );
   }

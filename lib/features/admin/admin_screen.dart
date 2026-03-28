@@ -49,6 +49,7 @@ class _AdminScreenState extends State<AdminScreen> {
   Chapter? _qaChapter;
   List<Chapter> _noteChapters = const [];
   List<AdminNote> _adminNotes = const [];
+  List<AdminNoteSubmission> _pendingSubmissions = const [];
   List<Chapter> _qaChapters = const [];
   List<Quiz> _qaQuizzes = const [];
   Quiz? _qaSelectedQuiz;
@@ -57,12 +58,15 @@ class _AdminScreenState extends State<AdminScreen> {
   bool _isUploadingSyllabus = false;
   bool _isNotesLoading = false;
   String? _notesError;
+  bool _isPendingLoading = false;
+  String? _pendingError;
   List<String> _syllabusMessages = const [];
   List<String> _syllabusUnmatched = const [];
   List<String> _syllabusAmbiguous = const [];
   PlatformFile? _noteAttachment;
   PlatformFile? _pastPaperFile;
   String? _deletingNoteId;
+  String? _reviewingSubmissionId;
   String _questionKind = 'important';
   String _quizType = 'mcq';
   String _quizDifficulty = 'easy';
@@ -183,6 +187,7 @@ class _AdminScreenState extends State<AdminScreen> {
         _noteChapter = null;
       });
       await _loadAdminNotes();
+      await _loadPendingSubmissions();
       return;
     }
     final chapters = await _adminService.fetchChaptersForSubject(subject.id);
@@ -191,6 +196,7 @@ class _AdminScreenState extends State<AdminScreen> {
       _noteChapter = chapters.isNotEmpty ? chapters.first : null;
     });
     await _loadAdminNotes();
+    await _loadPendingSubmissions();
   }
 
   Future<String?> _resolveNoteChapterId() async {
@@ -229,6 +235,38 @@ class _AdminScreenState extends State<AdminScreen> {
       setState(() {
         _notesError = 'Failed to load notes: $error';
         _isNotesLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadPendingSubmissions() async {
+    final chapterId = _noteChapter?.id;
+    if (chapterId == null || chapterId.isEmpty) {
+      setState(() {
+        _pendingSubmissions = const [];
+        _pendingError = null;
+      });
+      return;
+    }
+    setState(() {
+      _isPendingLoading = true;
+      _pendingError = null;
+    });
+    try {
+      final submissions =
+          await _adminService.fetchPendingNoteSubmissions(
+        chapterId: chapterId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _pendingSubmissions = submissions;
+        _isPendingLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _pendingError = 'Failed to load submissions: $error';
+        _isPendingLoading = false;
       });
     }
   }
@@ -695,10 +733,112 @@ class _AdminScreenState extends State<AdminScreen> {
       if (!mounted) return;
       _show('Delete failed: $error');
     } finally {
+      if (mounted) {
+        setState(() {
+          _deletingNoteId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _approveSubmission(AdminNoteSubmission submission) async {
+    if (_reviewingSubmissionId == submission.id) return;
+    setState(() {
+      _reviewingSubmissionId = submission.id;
+    });
+    try {
+      await _adminService.approveNoteSubmission(submission);
+      await _loadAdminNotes();
+      await _loadPendingSubmissions();
       if (!mounted) return;
-      setState(() {
-        _deletingNoteId = null;
-      });
+      _show('Submission approved.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Approve failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reviewingSubmissionId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectSubmission(AdminNoteSubmission submission) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject submission?'),
+        content: const Text('This will mark the note as rejected.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _reviewingSubmissionId = submission.id;
+    });
+    try {
+      await _adminService.rejectNoteSubmission(submission);
+      await _loadPendingSubmissions();
+      if (!mounted) return;
+      _show('Submission rejected.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Reject failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reviewingSubmissionId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteSubmission(AdminNoteSubmission submission) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete submission?'),
+        content: const Text('This will permanently delete the submission.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _reviewingSubmissionId = submission.id;
+    });
+    try {
+      await _adminService.deleteNoteSubmission(submission.id);
+      await _loadPendingSubmissions();
+      if (!mounted) return;
+      _show('Submission deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Delete failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reviewingSubmissionId = null;
+        });
+      }
     }
   }
 
@@ -1477,12 +1617,14 @@ class _AdminScreenState extends State<AdminScreen> {
                           ),
                         )
                         .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _noteChapter = value;
-                      });
-                    },
-                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _noteChapter = value;
+                    });
+                    _loadAdminNotes();
+                    _loadPendingSubmissions();
+                  },
+                ),
                   const SizedBox(height: 12),
                 ],
                 TextField(
@@ -1625,6 +1767,106 @@ class _AdminScreenState extends State<AdminScreen> {
                         spacing: 6,
                         runSpacing: 6,
                         children: note.tags
+                            .map(
+                              (tag) => Chip(
+                                label: Text(tag),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 24),
+        SectionHeader(
+          title: 'Pending Student Notes',
+          actionLabel: _isPendingLoading ? null : 'Refresh',
+          onAction: _isPendingLoading ? null : _loadPendingSubmissions,
+        ),
+        const SizedBox(height: 12),
+        if (_noteChapter == null)
+          const Text('Select a chapter to review submissions.')
+        else if (_isPendingLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_pendingError != null)
+          Text(
+            _pendingError!,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.danger),
+          )
+        else if (_pendingSubmissions.isEmpty)
+          const Text('No pending submissions for this chapter.')
+        else
+          ..._pendingSubmissions.map(
+            (submission) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            submission.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (_reviewingSubmissionId == submission.id)
+                          const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else ...[
+                          TextButton(
+                            onPressed: () => _approveSubmission(submission),
+                            child: const Text('Approve'),
+                          ),
+                          TextButton(
+                            onPressed: () => _rejectSubmission(submission),
+                            child: const Text('Reject'),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete',
+                            onPressed: () => _deleteSubmission(submission),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      submission.subjectName == null
+                          ? submission.chapterTitle
+                          : '${submission.subjectName} • ${submission.chapterTitle}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                    if (submission.shortAnswer.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        submission.shortAnswer,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    if (submission.tags.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: submission.tags
                             .map(
                               (tag) => Chip(
                                 label: Text(tag),

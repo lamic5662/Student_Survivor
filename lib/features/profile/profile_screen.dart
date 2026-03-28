@@ -4,6 +4,7 @@ import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/features/admin/admin_screen.dart';
 import 'package:student_survivor/features/auth/auth_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
@@ -49,7 +50,13 @@ class _ProfileScreenState
 
     if (!confirm) return;
 
-    await SupabaseConfig.client.auth.signOut();
+    try {
+      await SupabaseConfig.client.auth.signOut(
+        scope: SignOutScope.local,
+      );
+    } catch (_) {
+      // Ignore logout errors; we'll clear local state.
+    }
     AppState.reset();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

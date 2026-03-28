@@ -6,6 +6,7 @@ import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/admin/admin_auth_screen.dart';
 import 'package:student_survivor/features/admin/admin_shell.dart';
 import 'package:student_survivor/models/app_models.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminGate extends StatefulWidget {
   const AdminGate({super.key});
@@ -80,7 +81,13 @@ class _AdminGateState extends State<AdminGate> {
   }
 
   Future<void> _logout() async {
-    await SupabaseConfig.client.auth.signOut();
+    try {
+      await SupabaseConfig.client.auth.signOut(
+        scope: SignOutScope.local,
+      );
+    } catch (_) {
+      // Ignore logout errors; we'll still clear local state.
+    }
     AppState.reset();
     if (!mounted) return;
     setState(() {

@@ -90,6 +90,28 @@ class Note {
   });
 }
 
+class NoteSubmission {
+  final String id;
+  final String chapterId;
+  final String title;
+  final String shortAnswer;
+  final String detailedAnswer;
+  final List<String> tags;
+  final String status;
+  final DateTime? createdAt;
+
+  const NoteSubmission({
+    required this.id,
+    required this.chapterId,
+    required this.title,
+    required this.shortAnswer,
+    required this.detailedAnswer,
+    required this.tags,
+    required this.status,
+    this.createdAt,
+  });
+}
+
 class NoteDraft {
   final String title;
   final String shortAnswer;
