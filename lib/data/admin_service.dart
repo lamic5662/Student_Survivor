@@ -104,6 +104,66 @@ class AdminService {
     await _client.from('notes').insert(payload);
   }
 
+  Future<List<AdminNote>> fetchNotesForChapter(String chapterId) async {
+    if (chapterId.isEmpty) {
+      return [];
+    }
+    final data = await _client
+        .from('notes')
+        .select('id,chapter_id,title,short_answer,detailed_answer,file_url,tags')
+        .eq('chapter_id', chapterId)
+        .order('created_at', ascending: false);
+
+    return (data as List<dynamic>)
+        .map((row) => _adminNoteFromMap(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> updateNote({
+    required String noteId,
+    required String title,
+    required String shortAnswer,
+    required String detailedAnswer,
+    List<String> tags = const [],
+    String? fileUrl,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'short_answer': shortAnswer,
+      'detailed_answer': detailedAnswer,
+      'tags': tags,
+    };
+    if (fileUrl != null && fileUrl.isNotEmpty) {
+      payload['file_url'] = fileUrl;
+    }
+    await _client.from('notes').update(payload).eq('id', noteId);
+  }
+
+  Future<void> deleteNote(String noteId) async {
+    await _client.from('notes').delete().eq('id', noteId);
+  }
+
+  Future<void> deleteQuestion(String questionId) async {
+    await _client.from('questions').delete().eq('id', questionId);
+  }
+
+  Future<void> clearSubjectSyllabus(String subjectId) async {
+    await _client
+        .from('subjects')
+        .update({'syllabus_url': null}).eq('id', subjectId);
+  }
+
+  Future<void> deleteSyllabusFile({
+    required String subjectId,
+    required String syllabusUrl,
+  }) async {
+    final path = _extractStoragePath(syllabusUrl, 'syllabus');
+    if (path != null && path.isNotEmpty) {
+      await _client.storage.from('syllabus').remove([path]);
+    }
+    await clearSubjectSyllabus(subjectId);
+  }
+
   Future<void> addPastPaper({
     required String subjectId,
     required String title,
@@ -388,6 +448,20 @@ class AdminService {
     return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
+  String? _extractStoragePath(String url, String bucket) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      final bucketIndex = segments.indexOf(bucket);
+      if (bucketIndex == -1 || bucketIndex + 1 >= segments.length) {
+        return null;
+      }
+      return segments.sublist(bucketIndex + 1).join('/');
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<String> parseTags(String raw) {
     return raw
         .split(',')
@@ -469,6 +543,42 @@ class AdminService {
         return 'application/octet-stream';
     }
   }
+}
+
+class AdminNote {
+  final String id;
+  final String chapterId;
+  final String title;
+  final String shortAnswer;
+  final String detailedAnswer;
+  final List<String> tags;
+  final String? fileUrl;
+
+  const AdminNote({
+    required this.id,
+    required this.chapterId,
+    required this.title,
+    required this.shortAnswer,
+    required this.detailedAnswer,
+    required this.tags,
+    this.fileUrl,
+  });
+}
+
+AdminNote _adminNoteFromMap(Map<String, dynamic> map) {
+  final tags = (map['tags'] as List<dynamic>? ?? [])
+      .map((tag) => tag.toString())
+      .where((tag) => tag.isNotEmpty)
+      .toList();
+  return AdminNote(
+    id: map['id']?.toString() ?? '',
+    chapterId: map['chapter_id']?.toString() ?? '',
+    title: map['title']?.toString() ?? 'Note',
+    shortAnswer: map['short_answer']?.toString() ?? '',
+    detailedAnswer: map['detailed_answer']?.toString() ?? '',
+    tags: tags,
+    fileUrl: map['file_url']?.toString(),
+  );
 }
 
 class _MatchCandidate {

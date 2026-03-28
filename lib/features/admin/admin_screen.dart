@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/section_header.dart';
+import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/data/admin_service.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/subject_service.dart';
@@ -46,16 +48,21 @@ class _AdminScreenState extends State<AdminScreen> {
   Chapter? _noteChapter;
   Chapter? _qaChapter;
   List<Chapter> _noteChapters = const [];
+  List<AdminNote> _adminNotes = const [];
   List<Chapter> _qaChapters = const [];
   List<Quiz> _qaQuizzes = const [];
   Quiz? _qaSelectedQuiz;
   bool _noteChapterWise = true;
+  bool _showNotePublisher = false;
   bool _isUploadingSyllabus = false;
+  bool _isNotesLoading = false;
+  String? _notesError;
   List<String> _syllabusMessages = const [];
   List<String> _syllabusUnmatched = const [];
   List<String> _syllabusAmbiguous = const [];
   PlatformFile? _noteAttachment;
   PlatformFile? _pastPaperFile;
+  String? _deletingNoteId;
   String _questionKind = 'important';
   String _quizType = 'mcq';
   String _quizDifficulty = 'easy';
@@ -175,6 +182,7 @@ class _AdminScreenState extends State<AdminScreen> {
         _noteChapters = const [];
         _noteChapter = null;
       });
+      await _loadAdminNotes();
       return;
     }
     final chapters = await _adminService.fetchChaptersForSubject(subject.id);
@@ -182,6 +190,47 @@ class _AdminScreenState extends State<AdminScreen> {
       _noteChapters = chapters;
       _noteChapter = chapters.isNotEmpty ? chapters.first : null;
     });
+    await _loadAdminNotes();
+  }
+
+  Future<String?> _resolveNoteChapterId() async {
+    if (_noteChapterWise) {
+      return _noteChapter?.id;
+    }
+    final subject = _noteSubject;
+    if (subject == null) {
+      return null;
+    }
+    return _adminService.ensureGeneralChapter(subject.id);
+  }
+
+  Future<void> _loadAdminNotes() async {
+    setState(() {
+      _isNotesLoading = true;
+      _notesError = null;
+    });
+    try {
+      final chapterId = await _resolveNoteChapterId();
+      if (chapterId == null || chapterId.isEmpty) {
+        setState(() {
+          _adminNotes = const [];
+          _isNotesLoading = false;
+        });
+        return;
+      }
+      final notes = await _adminService.fetchNotesForChapter(chapterId);
+      if (!mounted) return;
+      setState(() {
+        _adminNotes = notes;
+        _isNotesLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _notesError = 'Failed to load notes: $error';
+        _isNotesLoading = false;
+      });
+    }
   }
 
   Future<void> _loadQaChapters() async {
@@ -429,8 +478,228 @@ class _AdminScreenState extends State<AdminScreen> {
     setState(() {
       _noteAttachment = null;
     });
+    await _loadAdminNotes();
     await _refreshProfileContent();
     _show('Note added.');
+  }
+
+  Future<void> _editNote(AdminNote note) async {
+    final titleController = TextEditingController(text: note.title);
+    final shortController = TextEditingController(text: note.shortAnswer);
+    final detailedController = TextEditingController(text: note.detailedAnswer);
+    final tagsController = TextEditingController(text: note.tags.join(', '));
+    PlatformFile? attachment;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit Note',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: detailedController,
+                      maxLines: 6,
+                      decoration:
+                          const InputDecoration(labelText: 'Note content'),
+                    ),
+                    const SizedBox(height: 12),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Advanced options'),
+                      childrenPadding: const EdgeInsets.only(bottom: 8),
+                      children: [
+                        TextField(
+                          controller: shortController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Short answer (optional)',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: tagsController,
+                          decoration: const InputDecoration(
+                            labelText: 'Tags (comma separated)',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                attachment?.name ??
+                                    (note.fileUrl == null
+                                        ? 'No attachment'
+                                        : 'Current attachment'),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final picked =
+                                    await FilePicker.platform.pickFiles(
+                                  type: FileType.custom,
+                                  allowedExtensions: const [
+                                    'pdf',
+                                    'doc',
+                                    'docx',
+                                    'ppt',
+                                    'pptx',
+                                    'xls',
+                                    'xlsx',
+                                    'png',
+                                    'jpg',
+                                    'jpeg',
+                                  ],
+                                  allowMultiple: false,
+                                  withData: true,
+                                );
+                                if (picked != null &&
+                                    picked.files.isNotEmpty) {
+                                  setSheetState(() {
+                                    attachment = picked.files.first;
+                                  });
+                                }
+                              },
+                              child: const Text('Replace File'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Save Changes'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    void disposeControllers() {
+      titleController.dispose();
+      shortController.dispose();
+      detailedController.dispose();
+      tagsController.dispose();
+    }
+
+    if (saved != true) {
+      disposeControllers();
+      return;
+    }
+
+    final title = titleController.text.trim();
+    var short = shortController.text.trim();
+    var detailed = detailedController.text.trim();
+    if (title.isEmpty) {
+      _show('Title required.');
+      disposeControllers();
+      return;
+    }
+    if (short.isEmpty && detailed.isEmpty) {
+      _show('Add note content.');
+      disposeControllers();
+      return;
+    }
+    if (detailed.isEmpty) {
+      detailed = short;
+    }
+    if (short.isEmpty) {
+      short = _deriveShortFromDetailed(detailed);
+    }
+    String? fileUrl;
+    if (attachment != null) {
+      fileUrl = await _adminService.uploadNoteAttachment(
+        chapterId: note.chapterId,
+        file: attachment!,
+      );
+    }
+    await _adminService.updateNote(
+      noteId: note.id,
+      title: title,
+      shortAnswer: short,
+      detailedAnswer: detailed,
+      tags: _adminService.parseTags(tagsController.text),
+      fileUrl: fileUrl,
+    );
+    await _loadAdminNotes();
+    await _refreshProfileContent();
+    _show('Note updated.');
+    disposeControllers();
+  }
+
+  Future<void> _confirmDeleteAdminNote(AdminNote note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete note?'),
+          content: Text('Delete "${note.title}"? This cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    await _deleteAdminNote(note);
+  }
+
+  Future<void> _deleteAdminNote(AdminNote note) async {
+    if (_deletingNoteId == note.id) return;
+    setState(() {
+      _deletingNoteId = note.id;
+    });
+    try {
+      await _adminService.deleteNote(note.id);
+      await _loadAdminNotes();
+      if (!mounted) return;
+      _show('Note deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Delete failed: $error');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _deletingNoteId = null;
+      });
+    }
   }
 
   String _deriveShortFromDetailed(String detailed) {
@@ -1093,93 +1362,63 @@ class _AdminScreenState extends State<AdminScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Publish Note',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showNotePublisher = !_showNotePublisher;
+                      });
+                    },
+                    child: Text(_showNotePublisher ? 'Hide' : 'Add Note'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
               Text(
-                'Publish Note',
-                style: Theme.of(context).textTheme.titleMedium,
+                _showNotePublisher
+                    ? 'Only title and content are required. Short answer and tags '
+                        'are optional.'
+                    : 'Added notes are shown below. Use Add Note when you want to publish.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.mutedInk),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Only title and content are required. Short answer and tags '
-                'are optional.',
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                value: _noteChapterWise,
-                onChanged: (value) {
-                  setState(() {
-                    _noteChapterWise = value;
-                  });
-                },
-                title: const Text('Chapter-wise notes'),
-                subtitle:
-                    const Text('Turn off to add notes directly to subject.'),
-                contentPadding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<Semester>(
-                key: ValueKey(_noteSemester?.id ?? ''),
-                initialValue: _noteSemester,
-                decoration: const InputDecoration(labelText: 'Semester'),
-                isExpanded: true,
-                items: _semesters
-                    .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          s.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _noteSemester = value;
-                    _noteSubject = value?.subjects.isNotEmpty == true
-                        ? value!.subjects.first
-                        : null;
-                    _noteChapter = null;
-                  });
-                  _loadNoteChapters();
-                },
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<Subject>(
-                key: ValueKey(noteSubjectValue?.id ?? ''),
-                initialValue: noteSubjectValue,
-                decoration: const InputDecoration(labelText: 'Subject'),
-                isExpanded: true,
-                items: noteSubjects
-                    .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          s.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _noteSubject = value;
-                  });
-                  _loadNoteChapters();
-                },
-              ),
-              const SizedBox(height: 12),
-              if (_noteChapterWise) ...[
-                DropdownButtonFormField<Chapter>(
-                  key: ValueKey(noteChapterValue?.id ?? ''),
-                  initialValue: noteChapterValue,
-                  decoration: const InputDecoration(labelText: 'Chapter'),
+              if (_showNotePublisher) ...[
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  value: _noteChapterWise,
+                  onChanged: (value) {
+                    setState(() {
+                      _noteChapterWise = value;
+                    });
+                    _loadNoteChapters();
+                  },
+                  title: const Text('Chapter-wise notes'),
+                  subtitle: const Text(
+                    'Turn off to add notes directly to subject.',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<Semester>(
+                  key: ValueKey(_noteSemester?.id ?? ''),
+                  initialValue: _noteSemester,
+                  decoration: const InputDecoration(labelText: 'Semester'),
                   isExpanded: true,
-                  items: _noteChapters
+                  items: _semesters
                       .map(
-                        (c) => DropdownMenuItem(
-                          value: c,
+                        (s) => DropdownMenuItem(
+                          value: s,
                           child: Text(
-                            c.title,
+                            s.name,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -1187,75 +1426,219 @@ class _AdminScreenState extends State<AdminScreen> {
                       .toList(),
                   onChanged: (value) {
                     setState(() {
-                      _noteChapter = value;
+                      _noteSemester = value;
+                      _noteSubject = value?.subjects.isNotEmpty == true
+                          ? value!.subjects.first
+                          : null;
+                      _noteChapter = null;
                     });
+                    _loadNoteChapters();
                   },
                 ),
                 const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: _noteTitle,
-                decoration: const InputDecoration(labelText: 'Title'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteDetailed,
-                maxLines: 6,
-                decoration: const InputDecoration(labelText: 'Note content'),
-              ),
-              const SizedBox(height: 8),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('Advanced options'),
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                children: [
-                  TextField(
-                    controller: _noteShort,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Short answer (optional)',
-                    ),
+                DropdownButtonFormField<Subject>(
+                  key: ValueKey(noteSubjectValue?.id ?? ''),
+                  initialValue: noteSubjectValue,
+                  decoration: const InputDecoration(labelText: 'Subject'),
+                  isExpanded: true,
+                  items: noteSubjects
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(
+                            s.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _noteSubject = value;
+                    });
+                    _loadNoteChapters();
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (_noteChapterWise) ...[
+                  DropdownButtonFormField<Chapter>(
+                    key: ValueKey(noteChapterValue?.id ?? ''),
+                    initialValue: noteChapterValue,
+                    decoration: const InputDecoration(labelText: 'Chapter'),
+                    isExpanded: true,
+                    items: _noteChapters
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(
+                              c.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _noteChapter = value;
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _noteTags,
-                    decoration: const InputDecoration(
-                      labelText: 'Tags (comma separated)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _noteAttachment?.name ?? 'No attachment selected',
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _pickNoteAttachment,
-                        child: const Text('Select File'),
-                      ),
-                      if (_noteAttachment != null)
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _noteAttachment = null;
-                            });
-                          },
-                          child: const Text('Clear'),
-                        ),
-                    ],
-                  ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _addNote,
-                child: const Text('Save Note'),
-              ),
+                TextField(
+                  controller: _noteTitle,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteDetailed,
+                  maxLines: 6,
+                  decoration: const InputDecoration(labelText: 'Note content'),
+                ),
+                const SizedBox(height: 8),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Advanced options'),
+                  childrenPadding: const EdgeInsets.only(bottom: 8),
+                  children: [
+                    TextField(
+                      controller: _noteShort,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Short answer (optional)',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _noteTags,
+                      decoration: const InputDecoration(
+                        labelText: 'Tags (comma separated)',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _noteAttachment?.name ?? 'No attachment selected',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _pickNoteAttachment,
+                          child: const Text('Select File'),
+                        ),
+                        if (_noteAttachment != null)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _noteAttachment = null;
+                              });
+                            },
+                            child: const Text('Clear'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: _addNote,
+                  child: const Text('Save Note'),
+                ),
+              ],
             ],
           ),
         ),
+        const SizedBox(height: 20),
+        SectionHeader(
+          title: 'Manage Notes',
+          actionLabel: _isNotesLoading ? null : 'Refresh',
+          onAction: _isNotesLoading ? null : _loadAdminNotes,
+        ),
+        const SizedBox(height: 12),
+        if (_isNotesLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_notesError != null)
+          Text(
+            _notesError!,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.danger),
+          )
+        else if (_adminNotes.isEmpty)
+          const Text('No notes found for the selected chapter.')
+        else
+          ..._adminNotes.map(
+            (note) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            note.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => _editNote(note),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: _deletingNoteId == note.id
+                              ? null
+                              : () => _confirmDeleteAdminNote(note),
+                          icon: _deletingNoteId == note.id
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                    if (note.shortAnswer.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        note.shortAnswer,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
+                    if (note.tags.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: note.tags
+                            .map(
+                              (tag) => Chip(
+                                label: Text(tag),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
