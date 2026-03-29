@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/features/quiz/quiz_play_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -8,12 +9,14 @@ class QuizDetailScreen extends StatefulWidget {
   final Quiz quiz;
   final Subject subject;
   final Chapter? chapter;
+  final bool useGameZoneTheme;
 
   const QuizDetailScreen({
     super.key,
     required this.quiz,
     required this.subject,
     this.chapter,
+    this.useGameZoneTheme = false,
   });
 
   @override
@@ -32,18 +35,27 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.quiz.title),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          AppCard(
-            color: widget.subject.accentColor.withValues(alpha: 0.1),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    final appBar = AppBar(
+      title: Text(widget.quiz.title),
+      backgroundColor:
+          widget.useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      elevation: widget.useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
+      surfaceTintColor:
+          widget.useGameZoneTheme ? Colors.transparent : null,
+    );
+
+    final body = ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        AppCard(
+          color: widget.useGameZoneTheme
+              ? AppColors.surface
+              : widget.subject.accentColor.withValues(alpha: 0.1),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 Text(
                   widget.subject.name,
                   style: Theme.of(context).textTheme.titleMedium,
@@ -186,6 +198,7 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                       subject: widget.subject,
                       chapter: widget.chapter,
                       isAi: _useAi,
+                      useGameZoneTheme: widget.useGameZoneTheme,
                     ),
                   ),
                 );
@@ -194,7 +207,19 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
             ),
           ),
         ],
-      ),
+      );
+
+    if (widget.useGameZoneTheme) {
+      return GameZoneScaffold(
+        appBar: appBar,
+        body: body,
+        useSafeArea: false,
+      );
+    }
+
+    return Scaffold(
+      appBar: appBar,
+      body: body,
     );
   }
 

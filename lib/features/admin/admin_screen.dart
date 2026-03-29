@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
@@ -54,6 +55,7 @@ class _AdminScreenState extends State<AdminScreen> {
   List<Chapter> _noteChapters = const [];
   List<AdminNote> _adminNotes = const [];
   List<AdminNoteSubmission> _pendingSubmissions = const [];
+  List<AdminCommunityQuestion> _pendingCommunityQuestions = const [];
   List<Chapter> _qaChapters = const [];
   List<Quiz> _qaQuizzes = const [];
   Quiz? _qaSelectedQuiz;
@@ -67,6 +69,8 @@ class _AdminScreenState extends State<AdminScreen> {
   String? _notesError;
   bool _isPendingLoading = false;
   String? _pendingError;
+  bool _isCommunityPendingLoading = false;
+  String? _communityPendingError;
   List<String> _syllabusMessages = const [];
   List<String> _syllabusUnmatched = const [];
   List<String> _syllabusAmbiguous = const [];
@@ -74,6 +78,7 @@ class _AdminScreenState extends State<AdminScreen> {
   PlatformFile? _pastPaperFile;
   String? _deletingNoteId;
   String? _reviewingSubmissionId;
+  String? _reviewingCommunityQuestionId;
   String _questionKind = 'important';
   String _quizType = 'mcq';
   String _quizDifficulty = 'easy';
@@ -180,6 +185,7 @@ class _AdminScreenState extends State<AdminScreen> {
       });
       await _loadNoteChapters();
       await _loadQaChapters();
+      await _loadPendingCommunityQuestions();
     } catch (error) {
       setState(() {
         _errorMessage = 'Failed to load data: $error';
@@ -278,6 +284,37 @@ class _AdminScreenState extends State<AdminScreen> {
         _isPendingLoading = false;
       });
     }
+  }
+
+  Future<void> _loadPendingCommunityQuestions() async {
+    setState(() {
+      _isCommunityPendingLoading = true;
+      _communityPendingError = null;
+    });
+    try {
+      final pending =
+          await _adminService.fetchPendingCommunityQuestions();
+      if (!mounted) return;
+      setState(() {
+        _pendingCommunityQuestions = pending;
+        _isCommunityPendingLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _communityPendingError =
+            'Failed to load community questions: $error';
+        _isCommunityPendingLoading = false;
+      });
+    }
+  }
+
+  Future<void> _copyToClipboard(String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Link copied to clipboard.')),
+    );
   }
 
   Future<void> _generateAdminNoteDraft() async {
@@ -945,6 +982,95 @@ class _AdminScreenState extends State<AdminScreen> {
       if (mounted) {
         setState(() {
           _reviewingSubmissionId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _approveCommunityQuestion(
+    AdminCommunityQuestion question,
+  ) async {
+    if (_reviewingCommunityQuestionId == question.id) return;
+    setState(() {
+      _reviewingCommunityQuestionId = question.id;
+    });
+    try {
+      await _adminService.approveCommunityQuestion(question);
+      await _loadPendingCommunityQuestions();
+      if (!mounted) return;
+      _show('Question approved.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Approve failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reviewingCommunityQuestionId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectCommunityQuestion(
+    AdminCommunityQuestion question,
+  ) async {
+    final feedbackController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject question?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('This will keep the question hidden.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: feedbackController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Admin reason (optional)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      feedbackController.dispose();
+      return;
+    }
+    if (_reviewingCommunityQuestionId == question.id) return;
+    setState(() {
+      _reviewingCommunityQuestionId = question.id;
+    });
+    try {
+      await _adminService.rejectCommunityQuestion(
+        question,
+        adminReason: feedbackController.text.trim(),
+      );
+      await _loadPendingCommunityQuestions();
+      if (!mounted) return;
+      _show('Question rejected.');
+    } catch (error) {
+      if (!mounted) return;
+      _show('Reject failed: $error');
+    } finally {
+      feedbackController.dispose();
+      if (mounted) {
+        setState(() {
+          _reviewingCommunityQuestionId = null;
         });
       }
     }
@@ -2037,6 +2163,111 @@ class _AdminScreenState extends State<AdminScreen> {
                               ),
                             )
                             .toList(),
+                      ),
+                    ],
+                    if ((submission.fileUrl ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.attach_file,
+                            size: 16,
+                            color: AppColors.mutedInk,
+                          ),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text('Attachment submitted'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _copyToClipboard(submission.fileUrl!),
+                            child: const Text('Copy link'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 24),
+        SectionHeader(
+          title: 'Pending Community Questions',
+          actionLabel:
+              _isCommunityPendingLoading ? null : 'Refresh',
+          onAction: _isCommunityPendingLoading
+              ? null
+              : _loadPendingCommunityQuestions,
+        ),
+        const SizedBox(height: 12),
+        if (_isCommunityPendingLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_communityPendingError != null)
+          Text(
+            _communityPendingError!,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.danger),
+          )
+        else if (_pendingCommunityQuestions.isEmpty)
+          const Text('No pending community questions.')
+        else
+          ..._pendingCommunityQuestions.map(
+            (question) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            question.question,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (_reviewingCommunityQuestionId == question.id)
+                          const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else ...[
+                          TextButton(
+                            onPressed: () =>
+                                _approveCommunityQuestion(question),
+                            child: const Text('Approve'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _rejectCommunityQuestion(question),
+                            child: const Text('Reject'),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      question.subjectName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                    if ((question.aiReason ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'AI: ${question.aiReason}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
                       ),
                     ],
                   ],

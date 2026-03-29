@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -12,6 +14,7 @@ class QuizPlayScreen extends StatefulWidget {
   final Subject subject;
   final Chapter? chapter;
   final bool isAi;
+  final bool useGameZoneTheme;
 
   const QuizPlayScreen({
     super.key,
@@ -19,6 +22,7 @@ class QuizPlayScreen extends StatefulWidget {
     required this.subject,
     this.chapter,
     this.isAi = false,
+    this.useGameZoneTheme = false,
   });
 
   @override
@@ -216,6 +220,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
             attempt: attempt,
             quizId: widget.quiz.id,
             reviews: reviews,
+            useGameZoneTheme: widget.useGameZoneTheme,
           ),
         ),
       );
@@ -306,19 +311,21 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return _wrapScaffold(
+        body: const Center(child: CircularProgressIndicator()),
+        safeArea: true,
       );
     }
     if (_errorMessage != null) {
-      return Scaffold(
-        appBar: AppBar(title: Text(widget.quiz.title)),
+      return _wrapScaffold(
+        appBar: _buildAppBar(),
         body: Center(child: Text(_errorMessage!)),
+        safeArea: false,
       );
     }
     if (_questions.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text(widget.quiz.title)),
+      return _wrapScaffold(
+        appBar: _buildAppBar(),
         body: Center(
           child: Text(
             _isAiMode
@@ -326,17 +333,45 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
                 : 'No questions available yet.',
           ),
         ),
+        safeArea: false,
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.quiz.title),
-      ),
+    return _wrapScaffold(
+      appBar: _buildAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: _isLevelMode ? _buildLevelMode(context) : _buildListMode(context),
       ),
+      safeArea: false,
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(widget.quiz.title),
+      backgroundColor:
+          widget.useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      elevation: widget.useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
+      surfaceTintColor:
+          widget.useGameZoneTheme ? Colors.transparent : null,
+    );
+  }
+
+  Widget _wrapScaffold({
+    PreferredSizeWidget? appBar,
+    required Widget body,
+    required bool safeArea,
+  }) {
+    if (!widget.useGameZoneTheme) {
+      return Scaffold(appBar: appBar, body: body);
+    }
+    return GameZoneScaffold(
+      appBar: appBar,
+      body: body,
+      useSafeArea: safeArea,
     );
   }
 

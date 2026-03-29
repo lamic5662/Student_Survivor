@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:student_survivor/app.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 
@@ -8,6 +9,7 @@ Future<void> main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {}
+  await Hive.initFlutter();
   await SupabaseConfig.initialize();
 
   if (!SupabaseConfig.isConfigured) {

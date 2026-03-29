@@ -1,11 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
+import 'package:student_survivor/data/notes_cache_service.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class SubjectService {
   final SupabaseClient _client;
+  final NotesCacheService _notesCache;
 
-  SubjectService(this._client);
+  SubjectService(this._client) : _notesCache = NotesCacheService();
 
   Future<List<Semester>> fetchSemesters() async {
     final data = await _client
@@ -32,16 +34,30 @@ class SubjectService {
             '))'
         : 'subject:subjects(id,name,code,accent_color,syllabus_url)';
 
-    final data = await _client
-        .from('user_subjects')
-        .select(select)
-        .eq('user_id', user.id);
+    try {
+      final data = await _client
+          .from('user_subjects')
+          .select(select)
+          .eq('user_id', user.id);
 
-    return (data as List<dynamic>)
-        .map((row) => row['subject'])
-        .where((value) => value != null)
-        .map(_subjectFromMap)
-        .toList();
+      final subjects = (data as List<dynamic>)
+          .map((row) => row['subject'])
+          .where((value) => value != null)
+          .map(_subjectFromMap)
+          .toList();
+      if (includeContent && subjects.isNotEmpty) {
+        await _notesCache.cacheUserSubjects(subjects);
+      }
+      return subjects;
+    } catch (error) {
+      if (includeContent) {
+        final cached = await _notesCache.loadUserSubjects();
+        if (cached.isNotEmpty) {
+          return cached;
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<List<Subject>> fetchSubjectsForSemester(
@@ -62,13 +78,35 @@ class SubjectService {
             ')'
         : 'id,name,code,accent_color,syllabus_url';
 
-    final data = await _client
-        .from('subjects')
-        .select(select)
-        .eq('semester_id', semesterId)
-        .order('sort_order');
+    try {
+      final data = await _client
+          .from('subjects')
+          .select(select)
+          .eq('semester_id', semesterId)
+          .order('sort_order');
 
-    return (data as List<dynamic>).map(_subjectFromMap).toList();
+      final subjects =
+          (data as List<dynamic>).map(_subjectFromMap).toList();
+      if (includeContent && subjects.isNotEmpty) {
+        await _notesCache.cacheSemesterSubjects(
+          semesterId,
+          subjects,
+          includeContent: true,
+        );
+      }
+      return subjects;
+    } catch (error) {
+      if (includeContent) {
+        final cached = await _notesCache.loadSemesterSubjects(
+          semesterId,
+          includeContent: true,
+        );
+        if (cached.isNotEmpty) {
+          return cached;
+        }
+      }
+      rethrow;
+    }
   }
 
   Semester _semesterFromMap(dynamic raw) {

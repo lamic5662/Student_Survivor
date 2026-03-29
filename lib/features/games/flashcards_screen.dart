@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
@@ -172,83 +173,101 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Flashcards'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _cards.isNotEmpty
-                ? _buildCardsView(_cards[_index])
-                : _EmptyFlashcards(
-                    onRefresh: _loadCards,
-                    onGenerateAi: _generateAiCards,
-                    isGeneratingAi: _isGeneratingAi,
-                    aiError: _aiError,
-                  ),
-      ),
+    final appBar = AppBar(
+      title: const Text('Flashcards'),
+      backgroundColor: AppColors.paper,
+      foregroundColor: AppColors.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
+    final body = Padding(
+      padding: const EdgeInsets.all(20),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _cards.isNotEmpty
+              ? _buildCardsView(_cards[_index])
+              : _EmptyFlashcards(
+                  onRefresh: _loadCards,
+                  onGenerateAi: _generateAiCards,
+                  isGeneratingAi: _isGeneratingAi,
+                  aiError: _aiError,
+                ),
+    );
+    return GameZoneScaffold(
+      appBar: appBar,
+      body: body,
+      useSafeArea: false,
     );
   }
 
   Widget _buildCardsView(_FlashcardItem current) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _usingAi ? _useNotesCards : null,
-                child: const Text('Notes Cards'),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose deck',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isGeneratingAi ? null : _generateAiCards,
-                child: _isGeneratingAi
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text('AI Cards'),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonal(
+                      onPressed: _usingAi ? _useNotesCards : null,
+                      child: const Text('Notes Cards'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.tonal(
+                      onPressed: _isGeneratingAi ? null : _generateAiCards,
+                      child: _isGeneratingAi
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('AI Cards'),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-        if (_aiError != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _aiError!,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.danger),
+              if (_aiError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _aiError!,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.danger),
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
         const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${_index + 1} / ${_cards.length}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
-            ),
-            Text(
-              current.source,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
-            ),
-          ],
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              _InfoPill(
+                icon: Icons.layers_rounded,
+                label: '${_index + 1} / ${_cards.length}',
+              ),
+              const SizedBox(width: 8),
+              _InfoPill(
+                icon: Icons.bookmark_rounded,
+                label: current.source,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -275,14 +294,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 onPressed: _prevCard,
                 child: const Text('Prev'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: OutlinedButton(
+              child: FilledButton(
                 onPressed: _nextCard,
                 child: const Text('Next'),
               ),
@@ -293,14 +312,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 onPressed: _shuffleCards,
                 child: const Text('Shuffle'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 onPressed: () {
                   setState(() {
                     _showBack = !_showBack;
@@ -320,6 +339,41 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
               ?.copyWith(color: AppColors.mutedInk),
         ),
       ],
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.secondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: AppColors.secondary),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -404,36 +458,49 @@ class _EmptyFlashcards extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.style_outlined, size: 48, color: AppColors.mutedInk),
-          const SizedBox(height: 12),
-          Text(
-            'No flashcards yet.',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add notes or generate AI notes to create flashcards.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: onRefresh,
-            child: const Text('Refresh'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: isGeneratingAi ? null : onGenerateAi,
-            child: isGeneratingAi
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Generate AI Cards'),
+          AppCard(
+            child: Column(
+              children: [
+                const Icon(Icons.style_outlined,
+                    size: 48, color: AppColors.mutedInk),
+                const SizedBox(height: 12),
+                Text(
+                  'No flashcards yet.',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add notes or generate AI notes to create flashcards.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonal(
+                    onPressed: onRefresh,
+                    child: const Text('Refresh'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: isGeneratingAi ? null : onGenerateAi,
+                    child: isGeneratingAi
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Generate AI Cards'),
+                  ),
+                ),
+              ],
+            ),
           ),
           if (aiError != null) ...[
             const SizedBox(height: 8),

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
@@ -201,128 +202,214 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
   Widget build(BuildContext context) {
     final hasCards = _cards.isNotEmpty;
     final current = hasCards ? _cards[_index] : null;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Subject Flashcards'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : hasCards
-                ? Column(
-                    children: [
-                      Row(
+    final appBar = AppBar(
+      title: const Text('Subject Flashcards'),
+      backgroundColor: AppColors.paper,
+      foregroundColor: AppColors.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
+    final body = Padding(
+      padding: const EdgeInsets.all(20),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : hasCards
+              ? Column(
+                  children: [
+                    AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _usingAi ? _useNotesCards : null,
-                              child: const Text('Notes Cards'),
-                            ),
+                          Text(
+                            'Choose deck',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed:
-                                  _isGeneratingAi ? null : _generateAiCards,
-                              child: Text(
-                                _isGeneratingAi
-                                    ? 'Generating...'
-                                    : 'AI Cards',
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.tonal(
+                                  onPressed: _usingAi ? _useNotesCards : null,
+                                  child: const Text('Notes Cards'),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton.tonal(
+                                  onPressed:
+                                      _isGeneratingAi ? null : _generateAiCards,
+                                  child: Text(
+                                    _isGeneratingAi
+                                        ? 'Generating...'
+                                        : 'AI Cards',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: AppCard(
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _showBack = !_showBack;
-                              });
-                            },
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _showBack
-                                      ? current?.back ?? ''
-                                      : current?.front ?? '',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _showBack
-                                      ? 'Tap to show question'
-                                      : 'Tap to show answer',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: AppColors.mutedInk),
-                                ),
-                              ],
-                            ),
+                    ),
+                    const SizedBox(height: 12),
+                    AppCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          _InfoPill(
+                            icon: Icons.layers_rounded,
+                            label: '${_index + 1} / ${_cards.length}',
+                          ),
+                          const SizedBox(width: 8),
+                          _InfoPill(
+                            icon: Icons.bookmark_rounded,
+                            label: current?.source ?? 'Deck',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: AppCard(
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _showBack = !_showBack;
+                            });
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _showBack
+                                    ? current?.back ?? ''
+                                    : current?.front ?? '',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _showBack
+                                    ? 'Tap to show question'
+                                    : 'Tap to show answer',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.mutedInk),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          IconButton(
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonal(
                             onPressed: _prevCard,
-                            icon: const Icon(Icons.chevron_left),
+                            child: const Text('Prev'),
                           ),
-                          Expanded(
-                            child: Text(
-                              '${_index + 1} / ${_cards.length}',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          IconButton(
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
                             onPressed: _nextCard,
-                            icon: const Icon(Icons.chevron_right),
+                            child: const Text('Next'),
                           ),
-                          IconButton(
-                            onPressed: _shuffleCards,
-                            icon: const Icon(Icons.shuffle),
-                          ),
-                        ],
-                      ),
-                      if (_aiError != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _aiError!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonal(
+                        onPressed: _shuffleCards,
+                        child: const Text('Shuffle'),
+                      ),
+                    ),
+                    if (_aiError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _aiError!,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
                     ],
-                  )
-                : Center(
+                  ],
+                )
+              : Center(
+                  child: AppCard(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(Icons.style, size: 48),
                         const SizedBox(height: 12),
                         const Text('No flashcards yet.'),
                         const SizedBox(height: 8),
-                        OutlinedButton(
-                          onPressed: _isGeneratingAi ? null : _generateAiCards,
-                          child: const Text('Generate AI Flashcards'),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed:
+                                _isGeneratingAi ? null : _generateAiCards,
+                            child: const Text('Generate AI Flashcards'),
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ),
+    );
+    return GameZoneScaffold(
+      appBar: appBar,
+      body: body,
+      useSafeArea: false,
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.secondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: AppColors.secondary),
+          ),
+        ],
       ),
     );
   }

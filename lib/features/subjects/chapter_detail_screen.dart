@@ -1,56 +1,88 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/note_submission_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
-import 'package:student_survivor/features/games/battle_quiz_screen.dart';
-import 'package:student_survivor/features/games/flashcards_screen.dart';
-import 'package:student_survivor/features/quiz/quiz_detail_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class ChapterDetailScreen extends StatelessWidget {
   final Subject subject;
   final Chapter chapter;
+  final bool useGameZoneTheme;
+  final bool openSubmitSheet;
 
   const ChapterDetailScreen({
     super.key,
     required this.subject,
     required this.chapter,
+    this.useGameZoneTheme = false,
+    this.openSubmitSheet = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final tabBar = TabBar(
+      isScrollable: true,
+      labelColor: useGameZoneTheme ? AppColors.ink : null,
+      unselectedLabelColor: useGameZoneTheme ? AppColors.mutedInk : null,
+      indicatorColor: useGameZoneTheme ? AppColors.secondary : null,
+      tabs: const [
+        Tab(text: 'Notes'),
+        Tab(text: 'Important'),
+        Tab(text: 'Past Qs'),
+      ],
+    );
+
+    final appBar = AppBar(
+      title: Text(chapter.title),
+      backgroundColor: useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: useGameZoneTheme ? AppColors.ink : null,
+      elevation: useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: useGameZoneTheme ? 0 : null,
+      surfaceTintColor: useGameZoneTheme ? Colors.transparent : null,
+      bottom: tabBar,
+    );
+
+    final body = TabBarView(
+      children: [
+        _NotesTab(
+          subject: subject,
+          chapter: chapter,
+          openSubmitSheet: openSubmitSheet,
+        ),
+        _QuestionsTab(
+          title: 'Important Questions',
+          subject: subject,
+          chapter: chapter,
+          questions: chapter.importantQuestions,
+        ),
+        _QuestionsTab(
+          title: 'Past Questions',
+          subject: subject,
+          chapter: chapter,
+          questions: chapter.pastQuestions,
+        ),
+      ],
+    );
+
     return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(chapter.title),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Notes'),
-              Tab(text: 'Important'),
-              Tab(text: 'Past Qs'),
-              Tab(text: 'Games'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _NotesTab(subject: subject, chapter: chapter),
-            _QuestionsTab(questions: chapter.importantQuestions),
-            _QuestionsTab(questions: chapter.pastQuestions),
-            _GamesTab(
-              subject: subject,
-              chapter: chapter,
-              quizzes: chapter.quizzes,
+      length: 3,
+      child: useGameZoneTheme
+          ? GameZoneScaffold(
+              appBar: appBar,
+              body: body,
+              useSafeArea: false,
+            )
+          : Scaffold(
+              appBar: appBar,
+              body: body,
             ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -58,10 +90,12 @@ class ChapterDetailScreen extends StatelessWidget {
 class _NotesTab extends StatefulWidget {
   final Subject subject;
   final Chapter chapter;
+  final bool openSubmitSheet;
 
   const _NotesTab({
     required this.subject,
     required this.chapter,
+    this.openSubmitSheet = false,
   });
 
   @override
@@ -90,6 +124,12 @@ class _NotesTabState extends State<_NotesTab> {
     _noteSubmissionService = NoteSubmissionService(SupabaseConfig.client);
     _loadUserNotes();
     _loadSubmissions();
+    if (widget.openSubmitSheet) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _openSubmissionSheet();
+      });
+    }
   }
 
   Future<void> _loadUserNotes() async {
@@ -160,125 +200,34 @@ class _NotesTabState extends State<_NotesTab> {
   }
 
   Future<void> _openSubmissionSheet() async {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
-    final tagsController = TextEditingController();
-    var isSubmitting = false;
-
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: StatefulBuilder(
-            builder: (context, setSheetState) {
-              return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Submit Note for Approval',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: titleController,
-                      decoration: const InputDecoration(labelText: 'Title'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: contentController,
-                      maxLines: 6,
-                      decoration:
-                          const InputDecoration(labelText: 'Note content'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: tagsController,
-                      decoration: const InputDecoration(
-                        labelText: 'Tags (comma separated)',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: isSubmitting
-                            ? null
-                            : () async {
-                                final title = titleController.text.trim();
-                                final content =
-                                    contentController.text.trim();
-                                if (title.isEmpty || content.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Title and content are required.',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                setSheetState(() {
-                                  isSubmitting = true;
-                                });
-                                final navigator = Navigator.of(context);
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
-                                try {
-                                  await _noteSubmissionService.submitNote(
-                                    chapterId: widget.chapter.id,
-                                    title: title,
-                                    shortAnswer:
-                                        _deriveShortFromDetailed(content),
-                                    detailedAnswer: content,
-                                    tags:
-                                        _parseTags(tagsController.text),
-                                  );
-                                  if (!mounted) return;
-                                  navigator.pop(true);
-                                } catch (error) {
-                                  messenger.showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Submit failed: $error',
-                                      ),
-                                    ),
-                                  );
-                                  setSheetState(() {
-                                    isSubmitting = false;
-                                  });
-                                }
-                              },
-                        child: isSubmitting
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Submit for Review'),
-                      ),
-                    ),
-                  ],
-                ),
+        return _NoteSubmissionSheet(
+          onUploadAttachment: (file) =>
+              _noteSubmissionService.uploadSubmissionAttachment(
+                chapterId: widget.chapter.id,
+                file: file,
+              ),
+          onSubmit: (title, content, tags, fileUrl) async {
+            try {
+              await _noteSubmissionService.submitNote(
+                chapterId: widget.chapter.id,
+                title: title,
+                shortAnswer: _deriveShortFromDetailed(content),
+                detailedAnswer: content,
+                fileUrl: fileUrl,
+                tags: tags,
               );
-            },
-          ),
+              return null;
+            } catch (error) {
+              return 'Submit failed: $error';
+            }
+          },
         );
       },
     );
-
-    titleController.dispose();
-    contentController.dispose();
-    tagsController.dispose();
 
     if (submitted == true) {
       if (!mounted) return;
@@ -325,14 +274,6 @@ class _NotesTabState extends State<_NotesTab> {
     }
   }
 
-  List<String> _parseTags(String raw) {
-    return raw
-        .split(',')
-        .map((tag) => tag.trim())
-        .where((tag) => tag.isNotEmpty)
-        .toList();
-  }
-
   String _deriveShortFromDetailed(String detailed) {
     final lines = detailed
         .split('\n')
@@ -362,6 +303,14 @@ class _NotesTabState extends State<_NotesTab> {
       default:
         return AppColors.warning;
     }
+  }
+
+  Future<void> _copyToClipboard(String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Link copied to clipboard.')),
+    );
   }
 
   Future<void> _saveDraft() async {
@@ -954,12 +903,46 @@ class _NotesTabState extends State<_NotesTab> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          _ChapterHero(
+            subject: widget.subject,
+            chapter: widget.chapter,
+            title: 'Chapter Notes',
+            subtitle: 'AI notes, your notes, and official references.',
+            chips: [
+              _InfoChip(
+                icon: Icons.menu_book_rounded,
+                label: '${notes.length} official',
+              ),
+              _InfoChip(
+                icon: Icons.bookmark_rounded,
+                label: '${_userNotes.length} my notes',
+                color: AppColors.accent,
+              ),
+              _InfoChip(
+                icon: Icons.upload_file_rounded,
+                label: '${_submissions.length} submitted',
+                color: AppColors.warning,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           AppCard(
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
               initiallyExpanded: false,
               title: Row(
                 children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: AppColors.secondary),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'AI Notes',
@@ -973,10 +956,9 @@ class _NotesTabState extends State<_NotesTab> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   else
-                    TextButton(
+                    FilledButton.tonal(
                       onPressed: _generateNote,
-                      child:
-                          Text(_draft == null ? 'Generate' : 'Regenerate'),
+                      child: Text(_draft == null ? 'Generate' : 'Regenerate'),
                     ),
                 ],
               ),
@@ -995,7 +977,7 @@ class _NotesTabState extends State<_NotesTab> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ElevatedButton(
+                      FilledButton(
                         onPressed: _isSaving ? null : _saveDraft,
                         child: _isSaving
                             ? const SizedBox(
@@ -1146,6 +1128,27 @@ class _NotesTabState extends State<_NotesTab> {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
+                      if ((submission.fileUrl ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.attach_file,
+                              size: 16,
+                              color: AppColors.mutedInk,
+                            ),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text('Attachment submitted'),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  _copyToClipboard(submission.fileUrl!),
+                              child: const Text('Copy link'),
+                            ),
+                          ],
+                        ),
+                      ],
                       if ((submission.adminFeedback ?? '').isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -1198,76 +1201,221 @@ class _NotesTabState extends State<_NotesTab> {
   }
 }
 
-class _QuestionsTab extends StatelessWidget {
-  final List<Question> questions;
+class _NoteSubmissionSheet extends StatefulWidget {
+  final Future<String?> Function(
+    String title,
+    String content,
+    List<String> tags,
+    String? fileUrl,
+  ) onSubmit;
+  final Future<String> Function(PlatformFile file)? onUploadAttachment;
 
-  const _QuestionsTab({required this.questions});
+  const _NoteSubmissionSheet({
+    required this.onSubmit,
+    this.onUploadAttachment,
+  });
+
+  @override
+  State<_NoteSubmissionSheet> createState() => _NoteSubmissionSheetState();
+}
+
+class _NoteSubmissionSheetState extends State<_NoteSubmissionSheet> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _contentController;
+  late final TextEditingController _tagsController;
+  PlatformFile? _attachment;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _contentController = TextEditingController();
+    _tagsController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    _tagsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    if (title.isEmpty || content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title and content are required.')),
+      );
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+    });
+    String? fileUrl;
+    if (_attachment != null && widget.onUploadAttachment != null) {
+      try {
+        fileUrl = await widget.onUploadAttachment!(_attachment!);
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Attachment upload failed: $error')),
+        );
+        setState(() {
+          _isSubmitting = false;
+        });
+        return;
+      }
+    }
+    final tags = _tagsController.text
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+    final error = await widget.onSubmit(title, content, tags, fileUrl);
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error)),
+    );
+    setState(() {
+      _isSubmitting = false;
+    });
+  }
+
+  Future<void> _pickAttachment() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const [
+        'pdf',
+        'doc',
+        'docx',
+        'ppt',
+        'pptx',
+        'xls',
+        'xlsx',
+        'png',
+        'jpg',
+        'jpeg',
+      ],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final picked = result.files.first;
+    if (picked.bytes == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to read the selected file.')),
+      );
+      return;
+    }
+    setState(() {
+      _attachment = picked;
+    });
+  }
+
+  void _clearAttachment() {
+    setState(() {
+      _attachment = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (questions.isEmpty) {
-      return const Center(child: Text('No questions yet.'));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: questions.length,
-      itemBuilder: (context, index) {
-        final question = questions[index];
-        final year = question.year;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: AppCard(
-            child: Row(
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Submit Note for Approval',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _contentController,
+              maxLines: 6,
+              decoration: const InputDecoration(labelText: 'Note content'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                labelText: 'Tags (comma separated)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.help_outline, color: AppColors.secondary),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        question.prompt,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        year == null
-                            ? '${question.marks} marks'
-                            : '${question.marks} marks • $year',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
-                      ),
-                    ],
+                  child: Text(
+                    _attachment?.name ?? 'No attachment selected',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
+                ),
+                if (_attachment != null)
+                  IconButton(
+                    tooltip: 'Remove',
+                    onPressed: _isSubmitting ? null : _clearAttachment,
+                    icon: const Icon(Icons.close),
+                  ),
+                TextButton(
+                  onPressed: _isSubmitting ? null : _pickAttachment,
+                  child: Text(_attachment == null ? 'Attach file' : 'Change'),
                 ),
               ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Submit for Review'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _GamesTab extends StatelessWidget {
+class _QuestionsTab extends StatelessWidget {
+  final String title;
   final Subject subject;
   final Chapter chapter;
-  final List<Quiz> quizzes;
+  final List<Question> questions;
 
-  const _GamesTab({
+  const _QuestionsTab({
+    required this.title,
     required this.subject,
     required this.chapter,
-    required this.quizzes,
+    required this.questions,
   });
 
   @override
@@ -1275,134 +1423,253 @@ class _GamesTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Flashcards',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Flip cards based on official notes and your saved notes.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FlashcardsScreen(
-                          subject: subject,
-                          chapter: chapter,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Play Flashcards'),
-                ),
-              ),
-            ],
-          ),
+        _ChapterHero(
+          subject: subject,
+          chapter: chapter,
+          title: title,
+          subtitle: 'Review and revise key questions.',
+          chips: [
+            _InfoChip(
+              icon: Icons.help_outline_rounded,
+              label: '${questions.length} questions',
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Battle Quiz',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Answer questions to attack and level up. Difficulty increases.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => BattleQuizScreen(
-                          subject: subject,
-                          chapter: chapter,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Start Battle'),
+        const SizedBox(height: 20),
+        if (questions.isEmpty)
+          AppCard(
+            child: Column(
+              children: [
+                const Icon(Icons.quiz_outlined,
+                    size: 48, color: AppColors.mutedInk),
+                const SizedBox(height: 12),
+                Text(
+                  'No questions yet.',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        const SectionHeader(title: 'Quizzes'),
-        const SizedBox(height: 12),
-        if (quizzes.isEmpty)
-          const Text('No quizzes yet.')
+                const SizedBox(height: 6),
+                Text(
+                  'Questions will appear once content is added.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
+            ),
+          )
         else
-          ...quizzes.map(
-            (quiz) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: AppCard(
+          ...questions.asMap().entries.map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _QuestionCard(
+                    index: entry.key + 1,
+                    question: entry.value,
+                  ),
+                ),
+              ),
+      ],
+    );
+  }
+}
+
+class _ChapterHero extends StatelessWidget {
+  final Subject subject;
+  final Chapter chapter;
+  final String title;
+  final String subtitle;
+  final List<Widget> chips;
+
+  const _ChapterHero({
+    required this.subject,
+    required this.chapter,
+    required this.title,
+    required this.subtitle,
+    required this.chips,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            subject.accentColor.withValues(alpha: 0.16),
+            AppColors.secondary.withValues(alpha: 0.12),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: subject.accentColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.menu_book_rounded,
+                    color: subject.accentColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      quiz.title,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
-                      '${quiz.questionCount} questions • ${quiz.duration.inMinutes} min',
+                      chapter.title,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: AppColors.mutedInk),
                     ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => QuizDetailScreen(
-                                quiz: quiz,
-                                subject: subject,
-                                chapter: chapter,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('Play Quiz'),
-                      ),
-                    ),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            subtitle,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.mutedInk),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: chips,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = color ?? AppColors.secondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: resolved.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: resolved),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: resolved),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuestionCard extends StatelessWidget {
+  final int index;
+  final Question question;
+
+  const _QuestionCard({
+    required this.index,
+    required this.question,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final year = question.year;
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: Text(
+                '#$index',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelMedium
+                    ?.copyWith(color: AppColors.secondary),
+              ),
             ),
           ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  question.prompt,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _InfoChip(
+                      icon: Icons.stars_rounded,
+                      label: '${question.marks} marks',
+                      color: AppColors.accent,
+                    ),
+                    if (year != null)
+                      _InfoChip(
+                        icon: Icons.calendar_today_rounded,
+                        label: year.toString(),
+                        color: AppColors.warning,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

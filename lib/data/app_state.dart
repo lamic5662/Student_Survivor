@@ -24,6 +24,12 @@ class AppState {
     profile.value = updated;
   }
 
+  static final ValueNotifier<int> gameHubVisits = ValueNotifier<int>(0);
+
+  static void notifyGameHub() {
+    gameHubVisits.value = gameHubVisits.value + 1;
+  }
+
   static void updateFromAuth(User? user) {
     if (user == null) {
       return;

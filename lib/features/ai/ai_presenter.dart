@@ -61,11 +61,49 @@ class AiPresenter extends Presenter<AiView> {
         SupabaseConfig.aiProviderFor(AiFeature.tutor, message: message, mode: mode)
             .toLowerCase();
     if (modeKey == 'free') {
-      return _freeAiService.answer(message, mode: mode);
+      final conversationId = await _aiService.ensureConversationId(
+        _conversationId,
+      );
+      if (conversationId != null) {
+        _conversationId = conversationId;
+        await _aiService.logMessage(
+          conversationId: conversationId,
+          role: 'user',
+          content: message,
+        );
+      }
+      final reply = await _freeAiService.answer(message, mode: mode);
+      if (conversationId != null && reply.isNotEmpty) {
+        await _aiService.logMessage(
+          conversationId: conversationId,
+          role: 'assistant',
+          content: reply,
+        );
+      }
+      return reply;
     }
     if (modeKey == 'ollama') {
       try {
-        return await _ollamaService.answer(message, mode: mode);
+        final conversationId = await _aiService.ensureConversationId(
+          _conversationId,
+        );
+        if (conversationId != null) {
+          _conversationId = conversationId;
+          await _aiService.logMessage(
+            conversationId: conversationId,
+            role: 'user',
+            content: message,
+          );
+        }
+        final reply = await _ollamaService.answer(message, mode: mode);
+        if (conversationId != null && reply.isNotEmpty) {
+          await _aiService.logMessage(
+            conversationId: conversationId,
+            role: 'assistant',
+            content: reply,
+          );
+        }
+        return reply;
       } catch (_) {
         final fallback = await _freeAiService.answer(message, mode: mode);
         return 'Ollama not reachable, using local AI.\n\n$fallback';
@@ -75,16 +113,39 @@ class AiPresenter extends Presenter<AiView> {
         modeKey == 'lm-studio' ||
         modeKey == 'lm_studio') {
       try {
-        return await _lmStudioService.answer(message, mode: mode);
+        final conversationId = await _aiService.ensureConversationId(
+          _conversationId,
+        );
+        if (conversationId != null) {
+          _conversationId = conversationId;
+          await _aiService.logMessage(
+            conversationId: conversationId,
+            role: 'user',
+            content: message,
+          );
+        }
+        final reply = await _lmStudioService.answer(message, mode: mode);
+        if (conversationId != null && reply.isNotEmpty) {
+          await _aiService.logMessage(
+            conversationId: conversationId,
+            role: 'assistant',
+            content: reply,
+          );
+        }
+        return reply;
       } catch (_) {
         final fallback = await _freeAiService.answer(message, mode: mode);
         return 'LM Studio not reachable, using local AI.\n\n$fallback';
       }
     }
 
-    _conversationId ??= await _aiService.createConversation();
+    _conversationId ??= await _aiService.ensureConversationId(_conversationId);
+    final conversationId = _conversationId;
+    if (conversationId == null || conversationId.isEmpty) {
+      throw Exception('Please sign in to use AI chat.');
+    }
     return _aiService.sendMessage(
-      conversationId: _conversationId!,
+      conversationId: conversationId,
       message: message,
       mode: mode,
     );

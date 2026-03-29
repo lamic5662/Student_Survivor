@@ -98,6 +98,7 @@ class NoteSubmission {
   final String detailedAnswer;
   final List<String> tags;
   final String status;
+  final String? fileUrl;
   final String? adminFeedback;
   final DateTime? createdAt;
 
@@ -109,6 +110,7 @@ class NoteSubmission {
     required this.detailedAnswer,
     required this.tags,
     required this.status,
+    this.fileUrl,
     this.adminFeedback,
     this.createdAt,
   });
@@ -123,6 +125,16 @@ class NoteDraft {
     required this.title,
     required this.shortAnswer,
     required this.detailedAnswer,
+  });
+}
+
+class AiHistoryItem {
+  final String text;
+  final DateTime? createdAt;
+
+  const AiHistoryItem({
+    required this.text,
+    this.createdAt,
   });
 }
 
@@ -252,12 +264,14 @@ class StudyTask {
   final String title;
   final String subject;
   final bool isDone;
+  final String? dueDate;
 
   const StudyTask({
     this.id = '',
     required this.title,
     required this.subject,
     required this.isDone,
+    this.dueDate,
   });
 }
 
@@ -268,6 +282,44 @@ class StudyPlanDay {
   const StudyPlanDay({
     required this.label,
     required this.tasks,
+  });
+}
+
+class CommunityQuestion {
+  final String id;
+  final String subjectId;
+  final String userId;
+  final String question;
+  final String status;
+  final bool aiValid;
+  final String? aiReason;
+  final DateTime? createdAt;
+
+  const CommunityQuestion({
+    required this.id,
+    required this.subjectId,
+    required this.userId,
+    required this.question,
+    required this.status,
+    required this.aiValid,
+    this.aiReason,
+    this.createdAt,
+  });
+}
+
+class CommunityAnswer {
+  final String id;
+  final String questionId;
+  final String userId;
+  final String answer;
+  final DateTime? createdAt;
+
+  const CommunityAnswer({
+    required this.id,
+    required this.questionId,
+    required this.userId,
+    required this.answer,
+    this.createdAt,
   });
 }
 

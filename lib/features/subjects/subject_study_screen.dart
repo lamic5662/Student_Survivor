@@ -3,21 +3,29 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
-import 'package:student_survivor/features/games/subject_flashcards_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
+
+enum SubjectNotesSection { myNotes, officialNotes }
 
 class SubjectStudyScreen extends StatefulWidget {
   final Subject subject;
+  final bool useGameZoneTheme;
+  final int initialTabIndex;
+  final SubjectNotesSection? initialNotesSection;
 
   const SubjectStudyScreen({
     super.key,
     required this.subject,
+    this.useGameZoneTheme = false,
+    this.initialTabIndex = 0,
+    this.initialNotesSection,
   });
 
   @override
@@ -151,30 +159,52 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tabBar = TabBar(
+      labelColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      unselectedLabelColor: widget.useGameZoneTheme ? AppColors.mutedInk : null,
+      indicatorColor: widget.useGameZoneTheme ? AppColors.secondary : null,
+      tabs: const [
+        Tab(text: 'Notes'),
+        Tab(text: 'Questions'),
+      ],
+    );
+
+    final appBar = AppBar(
+      title: Text(widget.subject.name),
+      backgroundColor:
+          widget.useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      elevation: widget.useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
+      surfaceTintColor:
+          widget.useGameZoneTheme ? Colors.transparent : null,
+      bottom: tabBar,
+    );
+
+    final body = TabBarView(
+      children: [
+        _SubjectNotesTab(
+          subject: widget.subject,
+          subjectChapter: _subjectChapter,
+          initialSection: widget.initialNotesSection,
+        ),
+        _buildQuestionsTab(),
+      ],
+    );
+
     return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.subject.name),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Notes'),
-              Tab(text: 'Questions'),
-              Tab(text: 'Games'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _SubjectNotesTab(
-              subject: widget.subject,
-              subjectChapter: _subjectChapter,
+      length: 2,
+      initialIndex: widget.initialTabIndex,
+      child: widget.useGameZoneTheme
+          ? GameZoneScaffold(
+              appBar: appBar,
+              body: body,
+              useSafeArea: false,
+            )
+          : Scaffold(
+              appBar: appBar,
+              body: body,
             ),
-            _buildQuestionsTab(),
-            _buildGamesTab(),
-          ],
-        ),
-      ),
     );
   }
 
@@ -256,53 +286,17 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
     );
   }
 
-  Widget _buildGamesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Subject Flashcards',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Practice flashcards across all chapters in this subject.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          SubjectFlashcardsScreen(subject: widget.subject),
-                    ),
-                  );
-                },
-                child: const Text('Open Flashcards'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _SubjectNotesTab extends StatefulWidget {
   final Subject subject;
   final Chapter subjectChapter;
+  final SubjectNotesSection? initialSection;
 
   const _SubjectNotesTab({
     required this.subject,
     required this.subjectChapter,
+    this.initialSection,
   });
 
   @override
@@ -323,6 +317,8 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
   final Map<String, String> _definitionCache = {};
   late final List<Chapter> _chapters;
   late final List<String> _chapterIds;
+  final GlobalKey _myNotesKey = GlobalKey();
+  final GlobalKey _officialNotesKey = GlobalKey();
 
   @override
   void initState() {
@@ -335,6 +331,25 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         .where((id) => id.isNotEmpty)
         .toList();
     _loadUserNotes();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSection());
+  }
+
+  void _scrollToSection() {
+    final targetKey = widget.initialSection == SubjectNotesSection.officialNotes
+        ? _officialNotesKey
+        : widget.initialSection == SubjectNotesSection.myNotes
+            ? _myNotesKey
+            : null;
+    final context = targetKey?.currentContext;
+    if (context == null) {
+      return;
+    }
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+      alignment: 0.1,
+    );
   }
 
   Future<void> _loadUserNotes() async {
@@ -1150,10 +1165,13 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeader(
-            title: 'My Notes',
-            actionLabel: _isLoading ? null : 'Refresh',
-            onAction: _isLoading ? null : _loadUserNotes,
+          KeyedSubtree(
+            key: _myNotesKey,
+            child: SectionHeader(
+              title: 'My Notes',
+              actionLabel: _isLoading ? null : 'Refresh',
+              onAction: _isLoading ? null : _loadUserNotes,
+            ),
           ),
           const SizedBox(height: 12),
           if (_isLoading)
@@ -1197,7 +1215,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               ),
             ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Official Notes'),
+          KeyedSubtree(
+            key: _officialNotesKey,
+            child: const SectionHeader(title: 'Official Notes'),
+          ),
           const SizedBox(height: 12),
           if (officialNotes.isEmpty)
             const Text('No official notes yet.')

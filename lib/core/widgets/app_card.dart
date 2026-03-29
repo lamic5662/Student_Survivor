@@ -24,7 +24,13 @@ class AppCard extends StatelessWidget {
         borderRadius: borderRadius,
         border: Border.all(color: AppColors.outline),
       ),
-      child: child,
+      child: IconTheme.merge(
+        data: const IconThemeData(color: AppColors.ink),
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(color: AppColors.ink),
+          child: child,
+        ),
+      ),
     );
   }
 }

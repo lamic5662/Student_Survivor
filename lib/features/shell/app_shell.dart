@@ -50,6 +50,9 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (value) {
+          if (value == 2) {
+            AppState.notifyGameHub();
+          }
           setState(() => _currentIndex = value);
         },
         destinations: const [

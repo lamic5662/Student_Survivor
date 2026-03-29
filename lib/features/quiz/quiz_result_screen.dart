@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/core/widgets/tag.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -12,12 +13,14 @@ class QuizResultScreen extends StatefulWidget {
   final QuizAttempt attempt;
   final String quizId;
   final List<QuizAnswerReview> reviews;
+  final bool useGameZoneTheme;
 
   const QuizResultScreen({
     super.key,
     required this.attempt,
     required this.quizId,
     this.reviews = const [],
+    this.useGameZoneTheme = false,
   });
 
   @override
@@ -108,6 +111,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
           subject: practiceContext.subject,
           chapter: practiceContext.chapter,
           isAi: true,
+          useGameZoneTheme: widget.useGameZoneTheme,
         ),
       ),
     );
@@ -115,127 +119,134 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quiz Result'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _isLoading ? null : _load,
-            icon: const Icon(Icons.refresh),
+    final appBar = AppBar(
+      title: const Text('Quiz Result'),
+      backgroundColor: widget.useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      elevation: widget.useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
+      surfaceTintColor: widget.useGameZoneTheme ? Colors.transparent : null,
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: _isLoading ? null : _load,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+
+    final content = RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          AppCard(
+            color: widget.useGameZoneTheme
+                ? AppColors.surface
+                : widget.attempt.isPass
+                    ? AppColors.success.withValues(alpha: 0.1)
+                    : AppColors.danger.withValues(alpha: 0.08),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.attempt.isPass ? 'Pass' : 'Fail',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: widget.attempt.isPass
+                            ? AppColors.success
+                            : AppColors.danger,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Score: ${widget.attempt.score}/${widget.attempt.total}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '+${widget.attempt.xpEarned} XP earned',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            AppCard(
-              color: widget.attempt.isPass
-                  ? AppColors.success.withValues(alpha: 0.1)
-                  : AppColors.danger.withValues(alpha: 0.08),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.attempt.isPass ? 'Pass' : 'Fail',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: widget.attempt.isPass
-                              ? AppColors.success
-                              : AppColors.danger,
-                        ),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'AI Adaptive Learning'),
+          const SizedBox(height: 12),
+          if (widget.attempt.weakTopics.isEmpty)
+            const Text('Great job! No weak topics detected.')
+          else
+            ...widget.attempt.weakTopics.map(
+              (topic) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        topic.name,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        topic.reason,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                      const SizedBox(height: 8),
+                      const Tag(label: 'Needs revision'),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Score: ${widget.attempt.score}/${widget.attempt.total}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '+${widget.attempt.xpEarned} XP earned',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.mutedInk),
-                  ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            const SectionHeader(title: 'AI Adaptive Learning'),
-            const SizedBox(height: 12),
-            if (widget.attempt.weakTopics.isEmpty)
-              const Text('Great job! No weak topics detected.')
-            else
-              ...widget.attempt.weakTopics.map(
-                (topic) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          topic.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          topic.reason,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                        const SizedBox(height: 8),
-                        const Tag(label: 'Needs revision'),
-                      ],
-                    ),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'Recommended Notes'),
+          const SizedBox(height: 12),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_errorMessage != null)
+            Text(_errorMessage!)
+          else if (_recommendedNotes.isEmpty)
+            const Text('No recommendations yet.')
+          else
+            ..._recommendedNotes.map(
+              (note) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        note.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        note.shortAnswer,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
-            const SectionHeader(title: 'Recommended Notes'),
-            const SizedBox(height: 12),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_errorMessage != null)
-              Text(_errorMessage!)
-            else if (_recommendedNotes.isEmpty)
-              const Text('No recommendations yet.')
-            else
-              ..._recommendedNotes.map(
-                (note) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          note.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          note.shortAnswer,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
+            ),
+          const SizedBox(height: 24),
           const SectionHeader(title: 'Important Questions'),
           const SizedBox(height: 12),
           if (_isLoading)
@@ -244,21 +255,21 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
             const Text('No important questions added yet.')
           else
             ..._importantQuestions.map(
-                (question) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: Row(
-                      children: [
-                        const Icon(Icons.help_outline, color: AppColors.secondary),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(question.prompt),
-                        ),
-                        Tag(label: '${question.marks} marks'),
-                      ],
-                    ),
+              (question) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.help_outline, color: AppColors.secondary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(question.prompt),
+                      ),
+                      Tag(label: '${question.marks} marks'),
+                    ],
                   ),
                 ),
+              ),
             ),
           const SizedBox(height: 24),
           const SectionHeader(title: 'Answer Review'),
@@ -337,49 +348,60 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
             ),
           const SizedBox(height: 24),
           const SectionHeader(title: 'More Practice'),
-            const SizedBox(height: 12),
-            if (_isPracticeLoading)
-              const Center(child: CircularProgressIndicator())
-            else
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'AI Practice Questions',
-                      style: Theme.of(context).textTheme.titleSmall,
+          const SizedBox(height: 12),
+          if (_isPracticeLoading)
+            const Center(child: CircularProgressIndicator())
+          else
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Practice Questions',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Practice more questions based on your quiz performance.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.mutedInk),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.mutedInk),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _practiceContext == null ? null : _startPractice,
+                      child: const Text('Start AI Practice'),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Practice more questions based on your quiz performance.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed:
-                            _practiceContext == null ? null : _startPractice,
-                        child: const Text('Start AI Practice'),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
       ),
+    );
+
+    if (widget.useGameZoneTheme) {
+      return GameZoneScaffold(
+        appBar: appBar,
+        body: content,
+        useSafeArea: false,
+      );
+    }
+
+    return Scaffold(
+      appBar: appBar,
+      body: content,
     );
   }
 }

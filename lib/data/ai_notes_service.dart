@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/data/notes_cache_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -14,8 +15,9 @@ class AiFlashcard {
 
 class AiNotesService {
   final SupabaseClient _client;
+  final NotesCacheService _cache;
 
-  AiNotesService(this._client);
+  AiNotesService(this._client) : _cache = NotesCacheService();
 
   Future<NoteDraft?> generateNote({
     required Subject subject,
@@ -23,8 +25,12 @@ class AiNotesService {
   }) async {
     final mode =
         SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    final cached = await _cache.loadAiDraft(
+      subjectId: subject.id,
+      chapterId: chapter.id,
+    );
     if (!_isSupportedAi(mode)) {
-      return null;
+      return cached;
     }
 
     final context = _buildContext(subject, chapter);
@@ -41,46 +47,56 @@ class AiNotesService {
     final userPrompt =
         'Create a concise study note for the chapter below. Use the context to be accurate.\n\n$context';
 
-    final raw = await _sendChat(
-      mode: mode,
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
-    );
-    if (raw.isEmpty) {
-      return null;
-    }
-
-    Map<String, dynamic>? decoded;
     try {
-      final jsonText = _extractJson(raw);
-      decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+      final raw = await _sendChat(
+        mode: mode,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+      );
+      if (raw.isEmpty) {
+        return cached;
+      }
+
+      Map<String, dynamic>? decoded;
+      try {
+        final jsonText = _extractJson(raw);
+        decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+      } catch (_) {
+        decoded = _attemptLooseParse(raw);
+      }
+
+      if (decoded == null) {
+        return cached;
+      }
+
+      final title = decoded['title']?.toString().trim();
+      var shortAnswer = decoded['short_answer']?.toString().trim();
+      var detailedAnswer = decoded['detailed_answer']?.toString().trim();
+
+      if (title == null ||
+          title.isEmpty ||
+          shortAnswer == null ||
+          shortAnswer.isEmpty ||
+          detailedAnswer == null ||
+          detailedAnswer.isEmpty) {
+        return cached;
+      }
+
+      final draft = NoteDraft(
+        title: title,
+        shortAnswer: _normalizeLines(shortAnswer, minLines: 8, maxLines: 12),
+        detailedAnswer:
+            _normalizeLines(detailedAnswer, minLines: 22, maxLines: 32),
+      );
+      await _cache.cacheAiDraft(
+        subjectId: subject.id,
+        chapterId: chapter.id,
+        draft: draft,
+      );
+      return draft;
     } catch (_) {
-      decoded = _attemptLooseParse(raw);
+      return cached;
     }
-
-    if (decoded == null) {
-      throw Exception('AI response format invalid. Please try again.');
-    }
-
-    final title = decoded['title']?.toString().trim();
-    var shortAnswer = decoded['short_answer']?.toString().trim();
-    var detailedAnswer = decoded['detailed_answer']?.toString().trim();
-
-    if (title == null || title.isEmpty) {
-      return null;
-    }
-    if (shortAnswer == null || shortAnswer.isEmpty) {
-      return null;
-    }
-    if (detailedAnswer == null || detailedAnswer.isEmpty) {
-      return null;
-    }
-
-    return NoteDraft(
-      title: title,
-      shortAnswer: _normalizeLines(shortAnswer, minLines: 8, maxLines: 12),
-      detailedAnswer: _normalizeLines(detailedAnswer, minLines: 22, maxLines: 32),
-    );
   }
 
   Future<String> defineWord({

@@ -77,22 +77,35 @@ class _ProfileScreenState
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              AppCard(
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.secondary.withValues(alpha: 0.18),
+                      AppColors.accent.withValues(alpha: 0.12),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppColors.outline),
+                ),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 28,
-                      backgroundColor: AppColors.secondary.withValues(alpha: 0.2),
+                      radius: 30,
+                      backgroundColor: Colors.white,
                       child: Text(
                         profile.name
                             .split(' ')
                             .map((part) => part.isNotEmpty ? part[0] : '')
                             .take(2)
                             .join(),
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(color: AppColors.secondary),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.secondary,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -105,7 +118,7 @@ class _ProfileScreenState
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -115,18 +128,25 @@ class _ProfileScreenState
                                 .bodySmall
                                 ?.copyWith(color: AppColors.mutedInk),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            profile.semester.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.mutedInk),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _ProfileChip(label: profile.semester.name),
+                              _ProfileChip(
+                                label: profile.isAdmin ? 'Admin' : 'Student',
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    IconButton.outlined(
+                    IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        foregroundColor: Colors.white,
+                      ),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -140,9 +160,18 @@ class _ProfileScreenState
                 ),
               ),
               const SizedBox(height: 24),
+              Text(
+                'Quick actions',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(color: AppColors.mutedInk),
+              ),
+              const SizedBox(height: 12),
               _ProfileItem(
                 icon: Icons.search,
                 label: 'Search',
+                subtitle: 'Find notes, questions, and quizzes.',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SearchScreen()),
@@ -152,6 +181,7 @@ class _ProfileScreenState
               _ProfileItem(
                 icon: Icons.event_note,
                 label: 'Study Planner',
+                subtitle: 'Plan sessions and stay on track.',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const PlannerScreen()),
@@ -161,6 +191,7 @@ class _ProfileScreenState
               _ProfileItem(
                 icon: Icons.insights,
                 label: 'Progress Tracking',
+                subtitle: 'Review goals and achievements.',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const ProgressScreen()),
@@ -170,6 +201,7 @@ class _ProfileScreenState
               _ProfileItem(
                 icon: Icons.list_alt,
                 label: 'Syllabus',
+                subtitle: 'Open official course outlines.',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SyllabusScreen()),
@@ -180,6 +212,7 @@ class _ProfileScreenState
                 _ProfileItem(
                   icon: Icons.admin_panel_settings,
                   label: 'Admin',
+                  subtitle: 'Manage content and approvals.',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AdminScreen()),
@@ -190,6 +223,7 @@ class _ProfileScreenState
               _ProfileItem(
                 icon: Icons.logout,
                 label: 'Logout',
+                subtitle: 'Sign out of your account.',
                 onTap: _handleLogout,
               ),
             ],
@@ -203,30 +237,90 @@ class _ProfileScreenState
 class _ProfileItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final VoidCallback onTap;
 
   const _ProfileItem({
     required this.icon,
     required this.label,
+    this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.secondary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: AppColors.secondary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.mutedInk),
+            ],
+          ),
         ),
-        child: Icon(icon, color: AppColors.secondary),
       ),
-      title: Text(label),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+    );
+  }
+}
+
+class _ProfileChip extends StatelessWidget {
+  final String label;
+
+  const _ProfileChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context)
+            .textTheme
+            .labelSmall
+            ?.copyWith(color: AppColors.mutedInk, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

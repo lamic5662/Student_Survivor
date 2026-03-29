@@ -12,6 +12,8 @@ Flutter app for the Student Survivor learning platform. Includes Supabase-backed
 - Games: flashcards + battle quiz
 - Quiz flow + results with review
 - Study planner (AI + manual tasks)
+- Community Q&A (AI-verified questions + public answers)
+- Offline notes cache (Hive) + offline AI note drafts
 - Search
 - Progress tracking
 - Syllabus & past papers
@@ -28,6 +30,9 @@ Data layer uses Supabase services in `lib/data/` with MVP presenters per feature
 ## Database
 
 Supabase migrations live in `supabase/migrations/`.
+Latest additions:
+- `0020_community_qna.sql` (Community Q&A tables + RLS)
+- `0021_community_qna_semester_rls.sql` (same-semester visibility)
 
 ## Backend Workflow (Supabase)
 
@@ -58,6 +63,11 @@ Or create a `.env` (see `.env.example`) and run normally:
 ```bash
 flutter run
 ```
+
+## Offline Notes Cache
+
+Notes and AI-generated drafts are cached with Hive. First open notes online to seed the cache.
+After that, notes and AI drafts are available offline.
 
 ## AI Modes
 

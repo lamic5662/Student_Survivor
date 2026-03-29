@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -647,24 +648,28 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
     final question = _currentQuestion;
     final ready = _status == 'active' && question != null;
     final finished = _status == 'finished';
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Battle Quiz (2P)'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? _BattleError(message: _error!, onRetry: _resetLobby)
-                : _roomId == null
-                    ? _BattleLobby(
-                        onCreate: _createRoom,
-                        onJoin: _promptJoinCode,
-                      )
-                    : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+    final appBar = AppBar(
+      title: const Text('Battle Quiz (2P)'),
+      backgroundColor: AppColors.paper,
+      foregroundColor: AppColors.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
+    final body = Padding(
+      padding: const EdgeInsets.all(20),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? _BattleError(message: _error!, onRetry: _resetLobby)
+              : _roomId == null
+                  ? _BattleLobby(
+                      onCreate: _createRoom,
+                      onJoin: _promptJoinCode,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       _BattleHeader(
                         status: _status,
                         targetScore: _targetScore,
@@ -818,7 +823,11 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                         ),
                     ],
                   ),
-      ),
+    );
+    return GameZoneScaffold(
+      appBar: appBar,
+      body: body,
+      useSafeArea: false,
     );
   }
 }
@@ -986,7 +995,7 @@ class _BattleLobby extends StatelessWidget {
               child: const Text('Create Room'),
             ),
             const SizedBox(height: 8),
-            OutlinedButton(
+            FilledButton.tonal(
               onPressed: onJoin,
               child: const Text('Join with Code'),
             ),
@@ -1046,13 +1055,13 @@ class _WaitingCard extends StatelessWidget {
                   ?.copyWith(letterSpacing: 2, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            OutlinedButton(
+            FilledButton.tonal(
               onPressed: onCopy,
               child: const Text('Copy Code'),
             ),
           ],
           const SizedBox(height: 16),
-          OutlinedButton(
+          TextButton(
             onPressed: onCancel,
             child: const Text('Cancel'),
           ),
@@ -1101,7 +1110,7 @@ class _BattleFinishedCard extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 onPressed: onExit,
                 child: const Text('Exit'),
               ),
@@ -1144,7 +1153,7 @@ class _BattleError extends StatelessWidget {
                 ?.copyWith(color: AppColors.mutedInk),
           ),
           const SizedBox(height: 16),
-          OutlinedButton(
+          FilledButton(
             onPressed: onRetry,
             child: const Text('Retry'),
           ),

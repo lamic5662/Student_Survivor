@@ -157,7 +157,7 @@ class AdminService {
     final baseQuery = _client
         .from('note_submissions')
         .select(
-          'id,user_id,chapter_id,title,short_answer,detailed_answer,tags,status,created_at,'
+          'id,user_id,chapter_id,title,short_answer,detailed_answer,file_url,tags,status,created_at,'
           'chapter:chapters(id,title,subject:subjects(id,name))',
         )
         .eq('status', 'pending');
@@ -184,6 +184,8 @@ class AdminService {
       'short_answer': submission.shortAnswer,
       'detailed_answer': submission.detailedAnswer,
       'tags': submission.tags,
+      if (submission.fileUrl != null && submission.fileUrl!.isNotEmpty)
+        'file_url': submission.fileUrl,
     });
 
     final adminId = _client.auth.currentUser?.id;
@@ -209,6 +211,43 @@ class AdminService {
 
   Future<void> deleteNoteSubmission(String submissionId) async {
     await _client.from('note_submissions').delete().eq('id', submissionId);
+  }
+
+  Future<List<AdminCommunityQuestion>> fetchPendingCommunityQuestions() async {
+    final data = await _client
+        .from('community_questions')
+        .select(
+          'id,question,subject_id,user_id,status,ai_reason,created_at,'
+          'subject:subjects(id,name)',
+        )
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+
+    return (data as List<dynamic>)
+        .map((row) => _adminCommunityQuestionFromMap(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> approveCommunityQuestion(AdminCommunityQuestion question) async {
+    final adminId = _client.auth.currentUser?.id;
+    await _client.from('community_questions').update({
+      'status': 'approved',
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      'reviewed_by': adminId,
+    }).eq('id', question.id);
+  }
+
+  Future<void> rejectCommunityQuestion(
+    AdminCommunityQuestion question, {
+    String? adminReason,
+  }) async {
+    final adminId = _client.auth.currentUser?.id;
+    await _client.from('community_questions').update({
+      'status': 'rejected',
+      'admin_reason': adminReason,
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      'reviewed_by': adminId,
+    }).eq('id', question.id);
   }
 
   Future<void> deleteQuestion(String questionId) async {
@@ -641,6 +680,7 @@ class AdminNoteSubmission {
   final String detailedAnswer;
   final List<String> tags;
   final String status;
+  final String? fileUrl;
   final String userId;
   final String chapterTitle;
   final String? subjectName;
@@ -654,9 +694,32 @@ class AdminNoteSubmission {
     required this.detailedAnswer,
     required this.tags,
     required this.status,
+    this.fileUrl,
     required this.userId,
     required this.chapterTitle,
     this.subjectName,
+    this.createdAt,
+  });
+}
+
+class AdminCommunityQuestion {
+  final String id;
+  final String question;
+  final String subjectId;
+  final String subjectName;
+  final String userId;
+  final String status;
+  final String? aiReason;
+  final DateTime? createdAt;
+
+  const AdminCommunityQuestion({
+    required this.id,
+    required this.question,
+    required this.subjectId,
+    required this.subjectName,
+    required this.userId,
+    required this.status,
+    this.aiReason,
     this.createdAt,
   });
 }
@@ -693,9 +756,28 @@ AdminNoteSubmission _adminSubmissionFromMap(Map<String, dynamic> map) {
     detailedAnswer: map['detailed_answer']?.toString() ?? '',
     tags: tags,
     status: map['status']?.toString() ?? 'pending',
+    fileUrl: map['file_url']?.toString(),
     userId: map['user_id']?.toString() ?? '',
     chapterTitle: chapterMap?['title']?.toString() ?? 'Chapter',
     subjectName: subjectMap?['name']?.toString(),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+  );
+}
+
+AdminCommunityQuestion _adminCommunityQuestionFromMap(
+  Map<String, dynamic> map,
+) {
+  final subjectMap = map['subject'] as Map<String, dynamic>?;
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminCommunityQuestion(
+    id: map['id']?.toString() ?? '',
+    question: map['question']?.toString() ?? '',
+    subjectId: map['subject_id']?.toString() ?? '',
+    subjectName: subjectMap?['name']?.toString() ?? 'Subject',
+    userId: map['user_id']?.toString() ?? '',
+    status: map['status']?.toString() ?? 'pending',
+    aiReason: map['ai_reason']?.toString(),
     createdAt:
         createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
   );

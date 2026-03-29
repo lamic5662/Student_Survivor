@@ -17,6 +17,7 @@ class AiQuizService {
     Chapter? chapter,
     required int count,
     required QuizDifficulty baseDifficulty,
+    String? nonce,
   }) async {
     final mode =
         SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
@@ -28,12 +29,14 @@ class AiQuizService {
                 context: context,
                 count: count,
                 baseDifficulty: baseDifficulty,
+                nonce: nonce,
               )
             : await _generateWithLocalAi(
                 mode: mode,
                 context: context,
                 count: count,
                 baseDifficulty: baseDifficulty,
+                nonce: nonce,
               );
         if (questions.isNotEmpty) {
           return questions;
@@ -105,6 +108,7 @@ class AiQuizService {
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
+    String? nonce,
   }) async {
     final base = baseDifficulty.name;
     final mix = _difficultyMix(baseDifficulty);
@@ -114,9 +118,13 @@ class AiQuizService {
         'Rules: 4 options per question, correct_index is 0-based, no markdown. '
         'Options must be full answer text, not just labels like A/B/C/D.';
 
+    final nonceLine = nonce == null
+        ? ''
+        : 'Unique seed: $nonce. Do not repeat any previously asked questions.\n';
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
-        'Use this mix: $mix. Use the context below.\n\n$context';
+        'Use this mix: $mix. $nonceLine'
+        'Use the context below.\n\n$context';
 
     final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
     final response = await http.post(
@@ -181,12 +189,14 @@ class AiQuizService {
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
+    String? nonce,
   }) async {
     if (mode == 'ollama') {
       return _generateWithOllama(
         context: context,
         count: count,
         baseDifficulty: baseDifficulty,
+        nonce: nonce,
       );
     }
 
@@ -198,9 +208,13 @@ class AiQuizService {
         'Rules: 4 options per question, correct_index is 0-based, no markdown. '
         'Options must be full answer text, not just labels like A/B/C/D.';
 
+    final nonceLine = nonce == null
+        ? ''
+        : 'Unique seed: $nonce. Do not repeat any previously asked questions.\n';
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
-        'Use this mix: $mix. Use the context below.\n\n$context';
+        'Use this mix: $mix. $nonceLine'
+        'Use the context below.\n\n$context';
 
     final uri =
         Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
@@ -285,6 +299,7 @@ class AiQuizService {
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
+    String? nonce,
   }) async {
     final base = baseDifficulty.name;
     final mix = _difficultyMix(baseDifficulty);
@@ -294,9 +309,13 @@ class AiQuizService {
         'Rules: 4 options per question, correct_index is 0-based, no markdown. '
         'Options must be full answer text, not just labels like A/B/C/D.';
 
+    final nonceLine = nonce == null
+        ? ''
+        : 'Unique seed: $nonce. Do not repeat any previously asked questions.\n';
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
-        'Use this mix: $mix. Use the context below.\n\n$context';
+        'Use this mix: $mix. $nonceLine'
+        'Use the context below.\n\n$context';
 
     final response = await _client.functions.invoke(
       'ai-generate',

@@ -38,6 +38,7 @@ class PlannerService {
               title: task.title,
               subject: task.subject,
               isDone: task.isDone,
+              dueDate: task.dueDate,
             ),
           );
     }
@@ -57,18 +58,19 @@ class PlannerService {
     }).eq('id', taskId);
   }
 
-  Future<void> addTask({
+  Future<String> addTask({
     required String title,
     String? subjectId,
     DateTime? dueDate,
   }) async {
     final planId = await _ensurePlanId();
-    await _client.from('study_tasks').insert({
+    final inserted = await _client.from('study_tasks').insert({
       'plan_id': planId,
       'subject_id': subjectId,
       'title': title,
       'due_date': dueDate?.toIso8601String().substring(0, 10),
-    });
+    }).select('id').single();
+    return inserted['id']?.toString() ?? '';
   }
 
   Future<void> deleteTask(String taskId) async {

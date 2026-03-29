@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
+import 'package:student_survivor/features/community/subject_qna_screen.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/features/subjects/chapter_detail_screen.dart';
 import 'package:student_survivor/features/subjects/subject_study_screen.dart';
@@ -10,10 +12,12 @@ import 'package:student_survivor/models/app_models.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
+  final bool useGameZoneTheme;
 
   const SubjectDetailScreen({
     super.key,
     required this.subject,
+    this.useGameZoneTheme = false,
   });
 
   @override
@@ -68,61 +72,122 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.subject.name),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          AppCard(
-            color: widget.subject.accentColor.withValues(alpha: 0.1),
+    final appBar = AppBar(
+      title: Text(widget.subject.name),
+      backgroundColor:
+          widget.useGameZoneTheme ? AppColors.paper : null,
+      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
+      elevation: widget.useGameZoneTheme ? 0 : null,
+      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
+      surfaceTintColor:
+          widget.useGameZoneTheme ? Colors.transparent : null,
+    );
+
+    final body = ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        AppCard(
+          color: widget.useGameZoneTheme
+              ? AppColors.surface
+              : widget.subject.accentColor.withValues(alpha: 0.1),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: widget.subject.accentColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.menu_book, color: widget.subject.accentColor),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.subject.code,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.mutedInk),
+                  ),
+                  Text(
+                    '${widget.subject.chapters.length} chapters',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  if ((widget.subject.syllabusUrl ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextButton.icon(
+                        onPressed: () => _openSyllabus(
+                          context,
+                          widget.subject.name,
+                          widget.subject.syllabusUrl!,
+                        ),
+                        icon: const Icon(Icons.description_rounded, size: 18),
+                        label: const Text('Open syllabus'),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        AppCard(
+          child: InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SubjectQnaScreen(subject: widget.subject),
+                ),
+              );
+            },
             child: Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: widget.subject.accentColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(Icons.menu_book, color: widget.subject.accentColor),
+                  child: const Icon(
+                    Icons.forum_outlined,
+                    color: AppColors.secondary,
+                  ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.subject.code,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
-                    ),
-                    Text(
-                      '${widget.subject.chapters.length} chapters',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    if ((widget.subject.syllabusUrl ?? '').trim().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: TextButton.icon(
-                          onPressed: () => _openSyllabus(
-                            context,
-                            widget.subject.name,
-                            widget.subject.syllabusUrl!,
-                          ),
-                          icon: const Icon(Icons.description_rounded, size: 18),
-                          label: const Text('Open syllabus'),
-                        ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Community Q&A',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
-                  ],
-                )
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ask questions and answer your classmates.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.mutedInk),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          if (widget.subject.pastPapers.isNotEmpty) ...[
+        ),
+        const SizedBox(height: 20),
+        if (widget.subject.pastPapers.isNotEmpty) ...[
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,8 +248,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            SubjectStudyScreen(subject: widget.subject),
+                        builder: (_) => SubjectStudyScreen(
+                          subject: widget.subject,
+                          useGameZoneTheme: widget.useGameZoneTheme,
+                        ),
                       ),
                     );
                   },
@@ -206,6 +273,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                         builder: (_) => ChapterDetailScreen(
                           subject: widget.subject,
                           chapter: chapter,
+                          useGameZoneTheme: widget.useGameZoneTheme,
                         ),
                       ),
                     )
@@ -245,7 +313,19 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
             ),
           ),
         ],
-      ),
+      );
+
+    if (widget.useGameZoneTheme) {
+      return GameZoneScaffold(
+        appBar: appBar,
+        body: body,
+        useSafeArea: false,
+      );
+    }
+
+    return Scaffold(
+      appBar: appBar,
+      body: body,
     );
   }
 
@@ -263,4 +343,5 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
       ),
     );
   }
+
 }

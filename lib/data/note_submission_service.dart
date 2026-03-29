@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -11,13 +12,14 @@ class NoteSubmissionService {
     required String title,
     required String shortAnswer,
     required String detailedAnswer,
+    String? fileUrl,
     List<String> tags = const [],
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       throw Exception('Not authenticated.');
     }
-    await _client.from('note_submissions').insert({
+    final payload = <String, dynamic>{
       'user_id': user.id,
       'chapter_id': chapterId,
       'title': title,
@@ -25,7 +27,11 @@ class NoteSubmissionService {
       'detailed_answer': detailedAnswer,
       'tags': tags,
       'status': 'pending',
-    });
+    };
+    if (fileUrl != null && fileUrl.isNotEmpty) {
+      payload['file_url'] = fileUrl;
+    }
+    await _client.from('note_submissions').insert(payload);
   }
 
   Future<List<NoteSubmission>> fetchMySubmissions(String chapterId) async {
@@ -36,7 +42,7 @@ class NoteSubmissionService {
     final data = await _client
         .from('note_submissions')
         .select(
-          'id,chapter_id,title,short_answer,detailed_answer,tags,status,admin_feedback,created_at',
+          'id,chapter_id,title,short_answer,detailed_answer,file_url,tags,status,admin_feedback,created_at',
         )
         .eq('user_id', user.id)
         .eq('chapter_id', chapterId)
@@ -61,12 +67,64 @@ class NoteSubmissionService {
       detailedAnswer: map['detailed_answer']?.toString() ?? '',
       tags: tags,
       status: map['status']?.toString() ?? 'pending',
+      fileUrl: map['file_url']?.toString(),
       adminFeedback: map['admin_feedback']?.toString(),
       createdAt: createdAt == null ? null : DateTime.tryParse(createdAt),
     );
   }
 
+  Future<String> uploadSubmissionAttachment({
+    required String chapterId,
+    required PlatformFile file,
+  }) async {
+    if (file.bytes == null) {
+      throw Exception('File bytes unavailable.');
+    }
+    final safeName = file.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final timestamp = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final path = '$chapterId/$timestamp-$safeName';
+    final contentType = _contentTypeForExtension(file.extension);
+
+    await _client.storage.from('note_submissions').uploadBinary(
+          path,
+          file.bytes!,
+          fileOptions: FileOptions(
+            upsert: false,
+            contentType: contentType,
+          ),
+        );
+
+    return _client.storage.from('note_submissions').getPublicUrl(path);
+  }
+
   Future<void> deleteSubmission(String submissionId) async {
     await _client.from('note_submissions').delete().eq('id', submissionId);
+  }
+
+  String _contentTypeForExtension(String? ext) {
+    final lower = ext?.toLowerCase();
+    switch (lower) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'ppt':
+        return 'application/vnd.ms-powerpoint';
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return 'application/octet-stream';
+    }
   }
 }
