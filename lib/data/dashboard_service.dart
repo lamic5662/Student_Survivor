@@ -60,6 +60,12 @@ class DashboardService {
         .where((note) => note != null)
         .map(_noteFromMap)
         .toList();
+    final resolvedRecommendations = recommendedNotes.isNotEmpty
+        ? recommendedNotes
+        : await _fallbackRecommendations(
+            subjects: subjects,
+            weakTopics: weakTopics,
+          );
 
     final attemptData = await _client
         .from('quiz_attempts')
@@ -103,9 +109,111 @@ class DashboardService {
       xp: xp,
       gamesPlayed: gamesPlayed,
       weakTopics: weakTopics,
-      recommendedNotes: recommendedNotes,
+      recommendedNotes: resolvedRecommendations,
       latestAttempt: latestAttempt,
     );
+  }
+
+  Future<List<Note>> _fallbackRecommendations({
+    required List<Subject> subjects,
+    required List<WeakTopic> weakTopics,
+  }) async {
+    final results = <Note>[];
+    final seen = <String>{};
+    final chapterIds = _chapterIdsFromSubjects(subjects);
+
+    if (weakTopics.isNotEmpty && chapterIds.isNotEmpty) {
+      final orFilters = weakTopics
+          .map((topic) => _sanitizeTopic(topic.name))
+          .where((topic) => topic.isNotEmpty)
+          .expand((topic) => [
+                'title.ilike.%$topic%',
+                'short_answer.ilike.%$topic%',
+                'detailed_answer.ilike.%$topic%',
+              ])
+          .join(',');
+      if (orFilters.isNotEmpty) {
+        final rows = await _client
+            .from('notes')
+            .select('id,title,short_answer,detailed_answer,file_url')
+            .inFilter('chapter_id', chapterIds)
+            .or(orFilters)
+            .limit(5);
+        for (final row in rows as List<dynamic>) {
+          final note = _noteFromMap(row);
+          if (note.id.isEmpty || seen.contains(note.id)) continue;
+          seen.add(note.id);
+          results.add(note);
+        }
+      }
+    }
+
+    if (results.length < 5 && chapterIds.isNotEmpty) {
+      final focusChapters = await _lowestProgressChapters(chapterIds);
+      if (focusChapters.isNotEmpty) {
+        final rows = await _client
+            .from('notes')
+            .select('id,title,short_answer,detailed_answer,file_url')
+            .inFilter('chapter_id', focusChapters)
+            .order('created_at', ascending: false)
+            .limit(5 - results.length);
+        for (final row in rows as List<dynamic>) {
+          final note = _noteFromMap(row);
+          if (note.id.isEmpty || seen.contains(note.id)) continue;
+          seen.add(note.id);
+          results.add(note);
+        }
+      }
+    }
+
+    if (results.isEmpty) {
+      final rows = await _client
+          .from('notes')
+          .select('id,title,short_answer,detailed_answer,file_url')
+          .order('created_at', ascending: false)
+          .limit(5);
+      for (final row in rows as List<dynamic>) {
+        final note = _noteFromMap(row);
+        if (note.id.isEmpty || seen.contains(note.id)) continue;
+        seen.add(note.id);
+        results.add(note);
+      }
+    }
+
+    return results;
+  }
+
+  List<String> _chapterIdsFromSubjects(List<Subject> subjects) {
+    final chapterIds = <String>{};
+    for (final subject in subjects) {
+      for (final chapter in subject.chapters) {
+        if (chapter.id.isNotEmpty) {
+          chapterIds.add(chapter.id);
+        }
+      }
+    }
+    return chapterIds.toList();
+  }
+
+  Future<List<String>> _lowestProgressChapters(List<String> chapterIds) async {
+    final rows = await _client
+        .from('user_chapter_progress')
+        .select('chapter_id, completion_percent')
+        .inFilter('chapter_id', chapterIds)
+        .order('completion_percent', ascending: true)
+        .limit(3);
+    return (rows as List<dynamic>)
+        .map((row) => row['chapter_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+  }
+
+  String _sanitizeTopic(String raw) {
+    return raw
+        .replaceAll('%', '')
+        .replaceAll(',', ' ')
+        .replaceAll(';', ' ')
+        .trim();
   }
 
   Future<double> _computeProgress(List<Subject> subjects) async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -236,7 +238,130 @@ class QuizService {
         .map((topic) => topic.toString())
         .toList();
 
+    unawaited(
+      _updateChapterProgress(
+        attemptId: attemptId,
+        score: score,
+        durationSeconds: durationSeconds,
+      ),
+    );
+
     return QuizAttemptResult(passed: passed, xpEarned: xp, weakTopics: topics);
+  }
+
+  Future<void> _updateChapterProgress({
+    required String attemptId,
+    required int score,
+    required int durationSeconds,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    final attempt = await _client
+        .from('quiz_attempts')
+        .select('quiz_id,total')
+        .eq('id', attemptId)
+        .maybeSingle();
+    final quizId = attempt?['quiz_id']?.toString();
+    if (quizId == null || quizId.isEmpty) return;
+    final total = (attempt?['total'] as num?)?.toInt() ?? 0;
+
+    final quiz = await _client
+        .from('quizzes')
+        .select('chapter_id,difficulty,duration_minutes')
+        .eq('id', quizId)
+        .maybeSingle();
+    final chapterId = quiz?['chapter_id']?.toString();
+    if (chapterId == null || chapterId.isEmpty) return;
+
+    final difficulty = quiz?['difficulty']?.toString() ?? 'medium';
+    final durationMinutes = (quiz?['duration_minutes'] as num?)?.toInt();
+    final delta = _ruleBasedProgressDelta(
+      score: score,
+      total: total,
+      durationSeconds: durationSeconds,
+      difficulty: difficulty,
+      durationMinutes: durationMinutes,
+    );
+    if (delta <= 0) return;
+
+    final existing = await _client
+        .from('user_chapter_progress')
+        .select('completion_percent')
+        .eq('chapter_id', chapterId)
+        .maybeSingle();
+    final current = (existing?['completion_percent'] as num?)?.toDouble() ?? 0;
+    final updated = (current + delta).clamp(0, 100);
+
+    await _client.from('user_chapter_progress').upsert({
+      'user_id': user.id,
+      'chapter_id': chapterId,
+      'completion_percent': updated,
+      'last_activity_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'user_id,chapter_id');
+  }
+
+  double _ruleBasedProgressDelta({
+    required int score,
+    required int total,
+    required int durationSeconds,
+    required String difficulty,
+    int? durationMinutes,
+  }) {
+    if (total <= 0) return 0;
+    final accuracy = (score / total).clamp(0, 1);
+    var delta = 0.0;
+
+    // Base effort for completing an attempt.
+    delta += 2;
+
+    // Accuracy bonus (up to 20).
+    delta += accuracy * 20;
+
+    // Difficulty bonus.
+    switch (difficulty.toLowerCase()) {
+      case 'hard':
+        delta += 9;
+        break;
+      case 'medium':
+        delta += 6;
+        break;
+      case 'easy':
+        delta += 3;
+        break;
+      default:
+        delta += 5;
+    }
+
+    // Speed bonus.
+    if (durationMinutes != null &&
+        durationMinutes > 0 &&
+        durationSeconds > 0) {
+      final expected = durationMinutes * 60;
+      final ratio = durationSeconds / expected;
+      if (ratio <= 0.6) {
+        delta += 4;
+      } else if (ratio <= 0.8) {
+        delta += 2;
+      }
+    }
+
+    // Mastery streak bonus.
+    if (accuracy >= 0.9) {
+      delta += 4;
+    } else if (accuracy >= 0.75) {
+      delta += 2;
+    }
+
+    // Low score penalty.
+    if (accuracy < 0.4) {
+      delta -= 4;
+    }
+
+    if (delta < 0) {
+      return 0;
+    }
+    return delta.clamp(0, 25);
   }
 
   Future<List<Note>> fetchRecommendedNotes() async {
@@ -246,7 +371,7 @@ class QuizService {
         .order('created_at', ascending: false)
         .limit(5);
 
-    return (data as List<dynamic>)
+    final notes = (data as List<dynamic>)
         .map((row) => row['note'])
         .where((note) => note != null)
         .map((note) {
@@ -260,6 +385,88 @@ class QuizService {
           );
         })
         .toList();
+    if (notes.isNotEmpty) {
+      return notes;
+    }
+
+    return _fallbackRecommendations();
+  }
+
+  Future<List<Note>> _fallbackRecommendations() async {
+    final results = <Note>[];
+    final seen = <String>{};
+
+    final weak = await _client
+        .from('weak_topics')
+        .select('topic')
+        .order('severity', ascending: false)
+        .limit(5);
+    final topics = (weak as List<dynamic>)
+        .map((row) => row['topic']?.toString() ?? '')
+        .where((topic) => topic.trim().isNotEmpty)
+        .toList();
+    if (topics.isNotEmpty) {
+      final orFilters = topics
+          .map(_sanitizeTopic)
+          .where((topic) => topic.isNotEmpty)
+          .expand((topic) => [
+                'title.ilike.%$topic%',
+                'short_answer.ilike.%$topic%',
+                'detailed_answer.ilike.%$topic%',
+              ])
+          .join(',');
+      if (orFilters.isNotEmpty) {
+        final rows = await _client
+            .from('notes')
+            .select('id,title,short_answer,detailed_answer,file_url')
+            .or(orFilters)
+            .limit(5);
+        for (final row in rows as List<dynamic>) {
+          final map = row as Map<String, dynamic>;
+          final note = Note(
+            id: map['id']?.toString() ?? '',
+            title: map['title']?.toString() ?? '',
+            shortAnswer: map['short_answer']?.toString() ?? '',
+            detailedAnswer: map['detailed_answer']?.toString() ?? '',
+            fileUrl: map['file_url']?.toString(),
+          );
+          if (note.id.isEmpty || seen.contains(note.id)) continue;
+          seen.add(note.id);
+          results.add(note);
+        }
+      }
+    }
+
+    if (results.isEmpty) {
+      final rows = await _client
+          .from('notes')
+          .select('id,title,short_answer,detailed_answer,file_url')
+          .order('created_at', ascending: false)
+          .limit(5);
+      for (final row in rows as List<dynamic>) {
+        final map = row as Map<String, dynamic>;
+        final note = Note(
+          id: map['id']?.toString() ?? '',
+          title: map['title']?.toString() ?? '',
+          shortAnswer: map['short_answer']?.toString() ?? '',
+          detailedAnswer: map['detailed_answer']?.toString() ?? '',
+          fileUrl: map['file_url']?.toString(),
+        );
+        if (note.id.isEmpty || seen.contains(note.id)) continue;
+        seen.add(note.id);
+        results.add(note);
+      }
+    }
+
+    return results;
+  }
+
+  String _sanitizeTopic(String raw) {
+    return raw
+        .replaceAll('%', '')
+        .replaceAll(',', ' ')
+        .replaceAll(';', ' ')
+        .trim();
   }
 
   Future<List<Question>> fetchImportantQuestionsForQuiz(String quizId) async {

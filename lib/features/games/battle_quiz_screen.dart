@@ -44,6 +44,8 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
 
   int _myScore = 0;
   int _opponentScore = 0;
+  int _correctStreak = 0;
+  int _lastPointsEarned = 0;
   List<_BattleQuestion> _questions = const [];
   int _currentIndex = 0;
 
@@ -77,6 +79,8 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
       _currentIndex = 0;
       _myScore = 0;
       _opponentScore = 0;
+      _correctStreak = 0;
+      _lastPointsEarned = 0;
       _isHost = false;
     });
   }
@@ -588,11 +592,24 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
     final user = _client.auth.currentUser;
     if (user == null) return;
     final isCorrect = index == question.correctIndex;
+    final points = isCorrect
+        ? _calculateBattlePoints(
+            difficulty: question.difficulty,
+            currentStreak: _correctStreak + 1,
+            myScore: _myScore,
+            opponentScore: _opponentScore,
+          )
+        : 0;
+
     _safeSetState(() {
       _selectedIndex = index;
       _answered = true;
+      _lastPointsEarned = points;
       if (isCorrect) {
-        _myScore += 1;
+        _correctStreak += 1;
+        _myScore += points;
+      } else {
+        _correctStreak = 0;
       }
     });
 
@@ -632,8 +649,47 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
         _currentIndex += 1;
         _answered = false;
         _selectedIndex = null;
+        _lastPointsEarned = 0;
       });
     }
+  }
+
+  int _calculateBattlePoints({
+    required String? difficulty,
+    required int currentStreak,
+    required int myScore,
+    required int opponentScore,
+  }) {
+    final base = _basePointsForDifficulty(difficulty);
+    final streakBonus = _streakBonus(currentStreak);
+    final comebackBonus = (opponentScore - myScore) >= 3 ? 1 : 0;
+    return base + streakBonus + comebackBonus;
+  }
+
+  int _basePointsForDifficulty(String? difficulty) {
+    switch (difficulty?.toLowerCase()) {
+      case 'hard':
+        return 3;
+      case 'medium':
+        return 2;
+      case 'easy':
+        return 1;
+      default:
+        return 2;
+    }
+  }
+
+  int _streakBonus(int streak) {
+    if (streak >= 8) {
+      return 3;
+    }
+    if (streak >= 5) {
+      return 2;
+    }
+    if (streak >= 3) {
+      return 1;
+    }
+    return 0;
   }
 
   _BattleQuestion? get _currentQuestion {
@@ -777,8 +833,8 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                   const SizedBox(height: 12),
                                   Text(
                                     _selectedIndex == question.correctIndex
-                                        ? 'Correct! You score a point.'
-                                        : 'Wrong! No score.',
+                                        ? 'Correct! +$_lastPointsEarned battle points.'
+                                        : 'Wrong! 0 points.',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
@@ -877,7 +933,7 @@ class _BattleHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$statusText • Target $targetScore',
+            '$statusText • Target $targetScore pts',
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
