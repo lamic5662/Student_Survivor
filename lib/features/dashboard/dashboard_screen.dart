@@ -7,6 +7,8 @@ import 'package:student_survivor/core/widgets/tag.dart';
 import 'package:student_survivor/features/dashboard/dashboard_presenter.dart';
 import 'package:student_survivor/features/dashboard/dashboard_view_model.dart';
 import 'package:student_survivor/features/ai/ai_coach_screen.dart';
+import 'package:student_survivor/features/books/free_books_screen.dart';
+import 'package:student_survivor/features/programming_world/programming_world_screen.dart';
 import 'package:student_survivor/features/notices/bca_notices_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/progress/progress_screen.dart';
@@ -52,6 +54,20 @@ class _DashboardScreenState
   void openNotices() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const BcaNoticesScreen()),
+    );
+  }
+
+  @override
+  void openBooks() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const FreeBooksScreen()),
+    );
+  }
+
+  @override
+  void openProgrammingWorld() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ProgrammingWorldScreen()),
     );
   }
 
@@ -104,6 +120,8 @@ class _DashboardScreenState
                 onSyllabus: presenter.onSyllabus,
                 onProgress: presenter.onProgress,
                 onNotices: presenter.onNotices,
+                onBooks: presenter.onBooks,
+                onProgrammingWorld: presenter.onProgrammingWorld,
               ),
               const SizedBox(height: 24),
               const SectionHeader(title: 'Progress Snapshot'),
@@ -349,12 +367,16 @@ class _QuickActions extends StatelessWidget {
   final VoidCallback onSyllabus;
   final VoidCallback onProgress;
   final VoidCallback onNotices;
+  final VoidCallback onBooks;
+  final VoidCallback onProgrammingWorld;
 
   const _QuickActions({
     required this.onPlanner,
     required this.onSyllabus,
     required this.onProgress,
     required this.onNotices,
+    required this.onBooks,
+    required this.onProgrammingWorld,
   });
 
   @override
@@ -404,6 +426,26 @@ class _QuickActions extends StatelessWidget {
                 label: 'BCA Notices',
                 subtitle: 'TU updates',
                 onTap: onNotices,
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.auto_stories_rounded,
+                color: AppColors.secondary,
+                label: 'Free Books',
+                subtitle: 'Open textbooks',
+                onTap: onBooks,
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.code_rounded,
+                color: AppColors.accent,
+                label: 'Programming World',
+                subtitle: 'Tracks & practice',
+                onTap: onProgrammingWorld,
               ),
             ),
           ],
