@@ -530,25 +530,25 @@ class _AuthMethodSelector extends StatelessWidget {
       ],
       selected: {selected},
       style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.secondary.withValues(alpha: 0.12);
           }
           return AppColors.surface;
         }),
-        foregroundColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.secondary;
           }
           return AppColors.mutedInk;
         }),
-        side: MaterialStateProperty.resolveWith(
+        side: WidgetStateProperty.resolveWith(
           (_) => const BorderSide(color: AppColors.outline),
         ),
-        textStyle: MaterialStateProperty.all(
+        textStyle: WidgetStateProperty.all(
           theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
-        shape: MaterialStateProperty.all(
+        shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),

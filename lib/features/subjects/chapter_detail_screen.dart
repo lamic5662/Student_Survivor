@@ -855,13 +855,6 @@ class _NotesTabState extends State<_NotesTab> {
             String? generateError;
             return StatefulBuilder(
               builder: (context, setModalState) {
-                final contextText = _buildNoteContext(
-                  title: title,
-                  shortAnswer: shortAnswer,
-                  detailedAnswer: detailedAnswer,
-                );
-                final highlight = _buildHighlightSets(contextText);
-
                 Future<void> handleGenerate() async {
                   if (isGenerating) return;
                   setModalState(() {
@@ -887,20 +880,22 @@ class _NotesTabState extends State<_NotesTab> {
                   setModalState(() {
                     isGenerating = false;
                   });
-                  if (!context.mounted) return;
                   String? answer;
                   String? generatedId;
                   var isAnswerLoading = false;
                   final pointCount =
                       _countQuestionPoints(generated.question);
-                  if (noteId != null && chapterId != null) {
+                  final safeNoteId = noteId;
+                  final safeChapterId = chapterId;
+                  if (safeNoteId != null && safeChapterId != null) {
                     generatedId =
                         await _noteGeneratedQuestionService.create(
-                      noteId: noteId!,
-                      chapterId: chapterId!,
+                      noteId: safeNoteId,
+                      chapterId: safeChapterId,
                       question: generated.question,
                     );
                   }
+                  if (!context.mounted) return;
                   await showDialog<void>(
                     context: context,
                     builder: (context) {
@@ -924,12 +919,14 @@ class _NotesTabState extends State<_NotesTab> {
                                 pointCount,
                               );
                             }
-                            if (generatedId != null &&
-                                answer != null &&
-                                answer!.trim().isNotEmpty) {
+                            final safeGeneratedId = generatedId;
+                            final safeAnswer = answer;
+                            if (safeGeneratedId != null &&
+                                safeAnswer != null &&
+                                safeAnswer.trim().isNotEmpty) {
                               await _noteGeneratedQuestionService.updateAnswer(
-                                id: generatedId!,
-                                answer: answer!.trim(),
+                                id: safeGeneratedId,
+                                answer: safeAnswer.trim(),
                               );
                             }
                             if (!context.mounted) return;
@@ -1036,11 +1033,15 @@ class _NotesTabState extends State<_NotesTab> {
                               runSpacing: 6,
                               children: [
                                 TextButton(
-                          onPressed: () => _openAttachment(
-                            title: title,
-                            url: fileUrl!,
-                            contextText: contextText,
-                          ),
+                                  onPressed: () => _openAttachment(
+                                    title: title,
+                                    url: fileUrl!,
+                                    contextText: _buildNoteContext(
+                                      title: title,
+                                      shortAnswer: shortAnswer,
+                                      detailedAnswer: detailedAnswer,
+                                    ),
+                                  ),
                                   child: const Text('Open'),
                                 ),
                                 TextButton(
@@ -1117,8 +1118,6 @@ class _NotesTabState extends State<_NotesTab> {
     required String shortAnswer,
     required String detailedAnswer,
     String? fileUrl,
-    String? noteId,
-    String? chapterId,
   }) async {
     var contentParts = <String>[];
     if ((fileUrl ?? '').isNotEmpty) {
@@ -2344,10 +2343,11 @@ class _QuestionsTabState extends State<_QuestionsTab> {
         _generateError = 'Failed to generate: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGenerating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
     }
   }
 
@@ -2373,32 +2373,6 @@ class _QuestionsTabState extends State<_QuestionsTab> {
     } catch (_) {
       return [];
     }
-  }
-
-  String _buildPromptFromNote(Note note) {
-    final title = note.title.trim();
-    if (title.isEmpty) {
-      return 'Explain the key concept from the official notes.';
-    }
-    final lower = title.toLowerCase();
-    const starters = [
-      'define',
-      'explain',
-      'describe',
-      'discuss',
-      'what',
-      'why',
-      'how',
-      'list',
-      'outline',
-      'compare',
-      'differentiate',
-      'state',
-    ];
-    if (starters.any((starter) => lower.startsWith(starter))) {
-      return title.endsWith('?') ? title : '$title?';
-    }
-    return 'Explain: $title';
   }
 
   Future<String> _noteContentForPrompt(Note note) async {
@@ -2490,15 +2464,6 @@ class _QuestionsTabState extends State<_QuestionsTab> {
   String _trimText(String value, int max) {
     if (value.length <= max) return value;
     return value.substring(0, max);
-  }
-
-  String _firstSentence(String text, int maxLen) {
-    final trimmed = _trimText(text, maxLen);
-    final match = RegExp(r'^(.+?[.!?])(\s|$)').firstMatch(trimmed);
-    if (match != null) {
-      return match.group(1)!.trim();
-    }
-    return trimmed;
   }
 
   String _pickContentSnippet(String text, String title) {
@@ -2946,15 +2911,6 @@ class _NoteQuestionBuilder {
   static String _trimText(String value, int max) {
     if (value.length <= max) return value;
     return value.substring(0, max);
-  }
-
-  static String _firstSentence(String text, int maxLen) {
-    final trimmed = _trimText(text, maxLen);
-    final match = RegExp(r'^(.+?[.!?])(\s|$)').firstMatch(trimmed);
-    if (match != null) {
-      return match.group(1)!.trim();
-    }
-    return trimmed;
   }
 
   static String _pickContentSnippet(String text, String title) {

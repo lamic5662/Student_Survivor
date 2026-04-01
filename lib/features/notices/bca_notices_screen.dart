@@ -176,7 +176,8 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
               child: ListView.separated(
                 padding: const EdgeInsets.all(20),
                 itemCount: _filteredNotices().length + 1,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return Column(
