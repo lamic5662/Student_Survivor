@@ -11,6 +11,8 @@ abstract class DashboardView extends BaseView {
   void openPlanner();
   void openSyllabus();
   void openProgress();
+  void openNotices();
+  void openCoach();
 }
 
 class DashboardPresenter extends Presenter<DashboardView> {
@@ -61,6 +63,10 @@ class DashboardPresenter extends Presenter<DashboardView> {
   void onSyllabus() => view?.openSyllabus();
 
   void onProgress() => view?.openProgress();
+
+  void onNotices() => view?.openNotices();
+
+  void onCoach() => view?.openCoach();
 
   @override
   void onViewDetached() {

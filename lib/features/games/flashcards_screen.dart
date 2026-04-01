@@ -116,11 +116,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
             ),
           )
           .toList();
-      if (cards.isEmpty) {
+      final merged = [..._noteCards, ...cards];
+      if (merged.isEmpty) {
         throw Exception('AI returned empty cards.');
       }
       setState(() {
-        _cards = cards;
+        _cards = merged;
         _index = 0;
         _showBack = false;
         _usingAi = true;

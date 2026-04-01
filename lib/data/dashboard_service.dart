@@ -91,6 +91,7 @@ class DashboardService {
           total: (attemptData['total'] as num?)?.toInt() ?? 0,
           xpEarned: (attemptData['xp_earned'] as num?)?.toInt() ?? 0,
           weakTopics: const [],
+          durationSeconds: null,
         );
       }
     }

@@ -211,6 +211,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         total: _questions.length,
         xpEarned: result.xpEarned,
         weakTopics: weakTopics,
+        durationSeconds: durationSeconds,
       );
 
       if (!mounted) return;

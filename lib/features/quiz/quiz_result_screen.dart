@@ -85,6 +85,37 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     return QuizDifficulty.easy;
   }
 
+  List<String> _coachTips() {
+    final tips = <String>[];
+    if (widget.attempt.total == 0) {
+      return const ['Try a quiz to unlock feedback tips.'];
+    }
+    final ratio = widget.attempt.score / widget.attempt.total;
+    final duration = widget.attempt.durationSeconds;
+    if (duration != null && duration > 0) {
+      final avg = duration / widget.attempt.total;
+      if (avg > 75) {
+        tips.add('You took a bit long per question. Practice with a timer.');
+      } else if (avg < 20) {
+        tips.add('Great speed! Slow down if you see mistakes.');
+      }
+    }
+    if (ratio < 0.5) {
+      tips.add('Revise the chapter notes before the next quiz.');
+      tips.add('Start with Easy difficulty and rebuild confidence.');
+    } else if (ratio < 0.8) {
+      tips.add('Focus on weak topics and practice 5 MCQs each.');
+      tips.add('Summarize each wrong answer in your own words.');
+    } else {
+      tips.add('Great work! Try Medium or Hard difficulty next.');
+      tips.add('Challenge yourself with a timed quiz.');
+    }
+    if (widget.attempt.weakTopics.isNotEmpty) {
+      tips.add('Weak topics: ${widget.attempt.weakTopics.first.name}.');
+    }
+    return tips;
+  }
+
   void _startPractice() {
     final practiceContext = _practiceContext;
     if (practiceContext == null) {
@@ -269,8 +300,52 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                     ],
                   ),
                 ),
-              ),
             ),
+          ),
+          const SizedBox(height: 24),
+          AppCard(
+            color: AppColors.secondary.withValues(alpha: 0.08),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Coach Feedback',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+                const SizedBox(height: 12),
+                ..._coachTips().map(
+                  (tip) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.check_circle_outline,
+                            size: 16, color: AppColors.secondary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            tip,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           const SectionHeader(title: 'Answer Review'),
           const SizedBox(height: 12),

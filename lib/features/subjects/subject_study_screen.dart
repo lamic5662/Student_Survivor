@@ -10,6 +10,7 @@ import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
+import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 enum SubjectNotesSection { myNotes, officialNotes }
@@ -462,10 +463,31 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     );
   }
 
+  void _openAttachment({
+    required String title,
+    required String url,
+  }) {
+    if (url.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No attachment available.')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SyllabusWebViewScreen(
+          title: title,
+          url: url,
+        ),
+      ),
+    );
+  }
+
   void _showTextNoteDetails({
     required String title,
     required String shortAnswer,
     required String detailedAnswer,
+    String? fileUrl,
   }) {
     final contextText = _buildNoteContext(
       title: title,
@@ -508,30 +530,38 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 16),
-                if (shortAnswer.isNotEmpty) ...[
-                  Text(
-                    'Short Notes',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildTappableText(
-                    shortAnswer,
-                    contextText: contextText,
-                    mainWords: highlight.mainWords,
-                    difficultWords: highlight.difficultWords,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: AppColors.mutedInk),
+                if ((fileUrl ?? '').isNotEmpty) ...[
+                  AppCard(
+                    color: AppColors.secondary.withValues(alpha: 0.06),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.attach_file_rounded),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Attachment available',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _openAttachment(
+                            title: title,
+                            url: fileUrl!,
+                          ),
+                          child: const Text('Open'),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
-                if (detailedAnswer.isNotEmpty) ...[
+                if (detailedAnswer.isNotEmpty ||
+                    shortAnswer.isNotEmpty) ...[
                   Text(
-                    'Detailed Notes',
+                    'Notes',
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
@@ -539,11 +569,19 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   ),
                   const SizedBox(height: 8),
                   _buildTappableText(
-                    detailedAnswer,
+                    detailedAnswer.isNotEmpty ? detailedAnswer : shortAnswer,
                     contextText: contextText,
                     mainWords: highlight.mainWords,
                     difficultWords: highlight.difficultWords,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ] else if ((fileUrl ?? '').isEmpty) ...[
+                  Text(
+                    'No note content available yet.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: AppColors.mutedInk),
                   ),
                 ],
               ],
@@ -559,6 +597,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       title: note.title,
       shortAnswer: note.shortAnswer,
       detailedAnswer: note.detailedAnswer,
+      fileUrl: null,
     );
   }
 
@@ -908,6 +947,35 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     }
   }
 
+  Widget _noteBadge({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _noteCard({
     required String title,
     required String shortAnswer,
@@ -915,9 +983,15 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     Widget? trailing,
     VoidCallback? onTap,
     bool collapsible = false,
+    bool showTapHint = false,
+    String? badgeLabel,
+    Color? badgeColor,
+    IconData? badgeIcon,
+    bool showAttachmentBadge = false,
   }) {
     if (collapsible) {
-      final summaryText = shortAnswer.trim();
+      final summaryText =
+          detailedAnswer.trim().isNotEmpty ? detailedAnswer.trim() : shortAnswer.trim();
       final detailText = detailedAnswer.trim();
       return AppCard(
         child: ExpansionTile(
@@ -943,6 +1017,26 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           trailing: trailing,
           childrenPadding: const EdgeInsets.only(bottom: 8),
           children: [
+            if (badgeLabel != null) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _noteBadge(
+                    label: badgeLabel,
+                    color: badgeColor ?? AppColors.secondary,
+                    icon: badgeIcon ?? Icons.auto_awesome_rounded,
+                  ),
+                  if (showAttachmentBadge)
+                    _noteBadge(
+                      label: 'Attachment',
+                      color: AppColors.warning,
+                      icon: Icons.attach_file_rounded,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             if (detailText.isNotEmpty && detailText != summaryText) ...[
               Text(
                 detailText,
@@ -959,10 +1053,34 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       );
     }
 
+    final previewText = detailedAnswer.trim().isNotEmpty
+        ? detailedAnswer.trim()
+        : shortAnswer.trim();
     final card = AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (badgeLabel != null || showAttachmentBadge) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (badgeLabel != null)
+                  _noteBadge(
+                    label: badgeLabel,
+                    color: badgeColor ?? AppColors.secondary,
+                    icon: badgeIcon ?? Icons.bookmark_rounded,
+                  ),
+                if (showAttachmentBadge)
+                  _noteBadge(
+                    label: 'Attachment',
+                    color: AppColors.warning,
+                    icon: Icons.attach_file_rounded,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -979,20 +1097,37 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
             ],
           ),
           const SizedBox(height: 8),
-          if (shortAnswer.isNotEmpty)
+          if (previewText.isNotEmpty)
             Text(
-              shortAnswer,
+              previewText,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: AppColors.mutedInk),
             ),
-          if (shortAnswer.isNotEmpty) const SizedBox(height: 12),
-          if (detailedAnswer.isNotEmpty)
-            Text(
-              detailedAnswer,
-              style: Theme.of(context).textTheme.bodySmall,
+          if (previewText.isNotEmpty) const SizedBox(height: 12),
+          if (showTapHint && onTap != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 16,
+                  color: AppColors.mutedInk,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Tap to open full note',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
             ),
+          ],
         ],
       ),
     );
@@ -1000,9 +1135,13 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     if (onTap == null) {
       return card;
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: card,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: card,
+      ),
     );
   }
 
@@ -1092,6 +1231,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                   shortAnswer: draft.shortAnswer,
                                   detailedAnswer: draft.detailedAnswer,
                                   collapsible: true,
+                                  badgeLabel: 'AI Draft',
+                                  badgeColor: AppColors.secondary,
+                                  badgeIcon: Icons.auto_awesome_rounded,
                                   trailing: IconButton(
                                     tooltip: 'Open',
                                     onPressed: () => _showTextNoteDetails(
@@ -1186,7 +1328,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  collapsible: true,
+                  onTap: () => _showUserNoteDetails(note),
+                  showTapHint: true,
+                  badgeLabel: 'My Note',
+                  badgeColor: AppColors.accent,
+                  badgeIcon: Icons.bookmark_rounded,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1230,15 +1376,40 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   title: '${entry.note.title} • ${entry.chapterTitle}',
                   shortAnswer: entry.note.shortAnswer,
                   detailedAnswer: entry.note.detailedAnswer,
-                  collapsible: true,
-                  trailing: IconButton(
-                    tooltip: 'Open',
-                    onPressed: () => _showTextNoteDetails(
-                      title: '${entry.note.title} (${entry.chapterTitle})',
-                      shortAnswer: entry.note.shortAnswer,
-                      detailedAnswer: entry.note.detailedAnswer,
+                  onTap: () => _showTextNoteDetails(
+                    title: '${entry.note.title} (${entry.chapterTitle})',
+                    shortAnswer: entry.note.shortAnswer,
+                    detailedAnswer: entry.note.detailedAnswer,
+                    fileUrl: entry.note.fileUrl,
+                  ),
+                  showTapHint: true,
+                  badgeLabel: 'Official',
+                  badgeColor: AppColors.secondary,
+                  badgeIcon: Icons.verified_rounded,
+                  showAttachmentBadge: (entry.note.fileUrl ?? '').isNotEmpty,
+                  trailing: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    icon: const Icon(Icons.open_in_new),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.open_in_new,
+                            size: 14, color: AppColors.secondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Open',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

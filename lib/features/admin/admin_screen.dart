@@ -317,6 +317,134 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  void _openNoteAttachment({
+    required String title,
+    required String url,
+  }) {
+    if (url.trim().isEmpty) {
+      _show('No attachment available.');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SyllabusWebViewScreen(
+          title: title,
+          url: url,
+        ),
+      ),
+    );
+  }
+
+  void _showAdminNoteDetails(AdminNote note) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                Container(
+                  height: 4,
+                  width: 40,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.outline,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Text(
+                  note.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                if ((note.fileUrl ?? '').isNotEmpty) ...[
+                  AppCard(
+                    color: AppColors.secondary.withValues(alpha: 0.06),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.attach_file_rounded),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text('Attachment available'),
+                        ),
+                        TextButton(
+                          onPressed: () => _openNoteAttachment(
+                            title: note.title,
+                            url: note.fileUrl!,
+                          ),
+                          child: const Text('Open'),
+                        ),
+                        TextButton(
+                          onPressed: () => _copyToClipboard(note.fileUrl!),
+                          child: const Text('Copy link'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (note.detailedAnswer.isNotEmpty ||
+                    note.shortAnswer.isNotEmpty) ...[
+                  Text(
+                    'Notes',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    note.detailedAnswer.isNotEmpty
+                        ? note.detailedAnswer
+                        : note.shortAnswer,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (note.tags.isNotEmpty) ...[
+                  Text(
+                    'Tags',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: note.tags
+                        .map(
+                          (tag) => Chip(
+                            label: Text(tag),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _generateAdminNoteDraft() async {
     if (_isAiNoteLoading) return;
     final subject = _noteSubject;
@@ -2001,74 +2129,140 @@ class _AdminScreenState extends State<AdminScreen> {
           const Text('No notes found for the selected chapter.')
         else
           ..._adminNotes.map(
-            (note) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            note.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Edit',
-                          onPressed: () => _editNote(note),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Delete',
-                          onPressed: _deletingNoteId == note.id
-                              ? null
-                              : () => _confirmDeleteAdminNote(note),
-                          icon: _deletingNoteId == note.id
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
-                    if (note.shortAnswer.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        note.shortAnswer,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
-                      ),
-                    ],
-                    if (note.tags.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: note.tags
-                            .map(
-                              (tag) => Chip(
-                                label: Text(tag),
-                                visualDensity: VisualDensity.compact,
+            (note) {
+              final previewText = note.detailedAnswer.trim().isNotEmpty
+                  ? note.detailedAnswer.trim()
+                  : note.shortAnswer.trim();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _showAdminNoteDetails(note),
+                    child: AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  note.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
                               ),
-                            )
-                            .toList(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.secondary
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.open_in_new,
+                                        size: 14, color: AppColors.secondary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Open',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: AppColors.secondary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                tooltip: 'Edit',
+                                onPressed: () => _editNote(note),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Delete',
+                                onPressed: _deletingNoteId == note.id
+                                    ? null
+                                    : () => _confirmDeleteAdminNote(note),
+                                icon: _deletingNoteId == note.id
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                          if ((note.fileUrl ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.attach_file_rounded,
+                                  size: 16,
+                                  color: AppColors.mutedInk,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Attachment available',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: AppColors.mutedInk),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (previewText.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              previewText,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.mutedInk),
+                            ),
+                          ],
+                          if (note.tags.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: note.tags
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(tag),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         const SizedBox(height: 24),
         SectionHeader(

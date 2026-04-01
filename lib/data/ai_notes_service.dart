@@ -186,6 +186,38 @@ class AiNotesService {
     return cards;
   }
 
+  Future<String> generateAnswerFromNotes({
+    required String question,
+    required String content,
+    int points = 5,
+  }) async {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    if (!_isSupportedAi(mode)) {
+      throw Exception('AI unavailable. Enable LM Studio or Ollama.');
+    }
+    final safeQuestion = question.trim();
+    final safeContent = _trim(content.replaceAll(RegExp(r'\s+'), ' '), 2000);
+    final systemPrompt =
+        'You are a study coach for BCA students. Use ONLY the provided notes. '
+        'Return a point-wise answer with marks per point. No markdown.';
+    final userPrompt =
+        'Question:\n$safeQuestion\n\n'
+        'Notes:\n$safeContent\n\n'
+        'Write $points concise points, each ending with "(2 marks)" unless the question '
+        'already specifies marks. Keep each point 1-2 sentences.';
+
+    final raw = await _sendChat(
+      mode: mode,
+      systemPrompt: systemPrompt,
+      userPrompt: userPrompt,
+    );
+    if (raw.isEmpty) {
+      throw Exception('AI returned empty answer.');
+    }
+    return raw.trim();
+  }
+
   String _buildContext(Subject subject, Chapter chapter) {
     final buffer = StringBuffer();
     buffer.writeln('Subject: ${subject.name} (${subject.code})');

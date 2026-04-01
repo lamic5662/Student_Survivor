@@ -79,14 +79,49 @@ class AiQuizService {
       buffer.writeln('Chapter: ${resolvedChapter.title}');
     }
 
+    final noteSnippets = <String>[];
+    final seenTitles = <String>{};
+
+    void addNoteSnippet(String title, String body) {
+      final cleanedTitle = title.trim();
+      final cleanedBody = body.trim();
+      if (cleanedTitle.isEmpty || cleanedBody.isEmpty) return;
+      final key = cleanedTitle.toLowerCase();
+      if (seenTitles.contains(key)) return;
+      seenTitles.add(key);
+      noteSnippets.add('$cleanedTitle: ${_trim(cleanedBody, 120)}');
+    }
+
     final notes = resolvedChapter?.notes ?? const <Note>[];
-    if (notes.isNotEmpty) {
-      buffer.writeln('Key notes:');
-      for (final note in notes.take(4)) {
+    for (final note in notes.take(4)) {
+      final text = note.shortAnswer.isNotEmpty
+          ? note.shortAnswer
+          : note.detailedAnswer;
+      addNoteSnippet(note.title, text);
+    }
+
+    if (resolvedChapter != null && resolvedChapter.id.isNotEmpty) {
+      final dbNotes = await _fetchNotesForChapter(resolvedChapter.id);
+      for (final note in dbNotes.take(4)) {
         final text = note.shortAnswer.isNotEmpty
             ? note.shortAnswer
             : note.detailedAnswer;
-        buffer.writeln('- ${note.title}: ${_trim(text, 120)}');
+        addNoteSnippet(note.title, text);
+      }
+
+      final userNotes = await _fetchUserNotesForChapter(resolvedChapter.id);
+      for (final note in userNotes.take(4)) {
+        final text = note.shortAnswer.isNotEmpty
+            ? note.shortAnswer
+            : note.detailedAnswer;
+        addNoteSnippet(note.title, text);
+      }
+    }
+
+    if (noteSnippets.isNotEmpty) {
+      buffer.writeln('Key notes:');
+      for (final snippet in noteSnippets.take(8)) {
+        buffer.writeln('- $snippet');
       }
     }
 
@@ -102,6 +137,57 @@ class AiQuizService {
     }
 
     return _trim(buffer.toString(), 1800);
+  }
+
+  Future<List<Note>> _fetchNotesForChapter(String chapterId) async {
+    if (chapterId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('notes')
+          .select('id,title,short_answer,detailed_answer')
+          .eq('chapter_id', chapterId)
+          .order('created_at', ascending: false)
+          .limit(6);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => Note(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              shortAnswer: row['short_answer']?.toString() ?? '',
+              detailedAnswer: row['detailed_answer']?.toString() ?? '',
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<UserNote>> _fetchUserNotesForChapter(String chapterId) async {
+    final user = _client.auth.currentUser;
+    if (user == null || chapterId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('user_notes')
+          .select('id,title,short_answer,detailed_answer')
+          .eq('user_id', user.id)
+          .eq('chapter_id', chapterId)
+          .order('created_at', ascending: false)
+          .limit(6);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => UserNote(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              shortAnswer: row['short_answer']?.toString() ?? '',
+              detailedAnswer: row['detailed_answer']?.toString() ?? '',
+              chapterId: chapterId,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<QuizQuestionItem>> _generateWithOllama({

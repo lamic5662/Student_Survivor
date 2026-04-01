@@ -1,14 +1,27 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:xml/xml.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
+import 'package:student_survivor/data/note_generated_question_service.dart';
 import 'package:student_survivor/data/note_submission_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
+import 'package:student_survivor/features/games/battle_quiz_screen.dart';
+import 'package:student_survivor/features/games/flashcards_screen.dart';
+import 'package:student_survivor/features/games/survival_quiz_game_screen.dart';
+import 'package:student_survivor/features/quiz/quiz_detail_screen.dart';
+import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class ChapterDetailScreen extends StatelessWidget {
@@ -36,6 +49,7 @@ class ChapterDetailScreen extends StatelessWidget {
         Tab(text: 'Notes'),
         Tab(text: 'Important'),
         Tab(text: 'Past Qs'),
+        Tab(text: 'Games'),
       ],
     );
 
@@ -61,6 +75,7 @@ class ChapterDetailScreen extends StatelessWidget {
           subject: subject,
           chapter: chapter,
           questions: chapter.importantQuestions,
+          allowGenerateFromNotes: false,
         ),
         _QuestionsTab(
           title: 'Past Questions',
@@ -68,11 +83,16 @@ class ChapterDetailScreen extends StatelessWidget {
           chapter: chapter,
           questions: chapter.pastQuestions,
         ),
+        _GamesTab(
+          subject: subject,
+          chapter: chapter,
+          useGameZoneTheme: useGameZoneTheme,
+        ),
       ],
     );
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: useGameZoneTheme
           ? GameZoneScaffold(
               appBar: appBar,
@@ -83,6 +103,346 @@ class ChapterDetailScreen extends StatelessWidget {
               appBar: appBar,
               body: body,
             ),
+    );
+  }
+}
+
+class _GamesTab extends StatelessWidget {
+  final Subject subject;
+  final Chapter chapter;
+  final bool useGameZoneTheme;
+
+  const _GamesTab({
+    required this.subject,
+    required this.chapter,
+    required this.useGameZoneTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const SectionHeader(title: 'Play & Practice'),
+        const SizedBox(height: 12),
+        _GameCard(
+          title: 'Study Survivor',
+          subtitle: 'Survive waves and answer questions for rewards.',
+          icon: Icons.shield,
+          actionLabel: 'Play',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SurvivalQuizGameScreen(
+                  subject: subject,
+                  chapter: chapter,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        _GameCard(
+          title: 'Battle Quiz (2P)',
+          subtitle: 'Challenge others in a live quiz battle.',
+          icon: Icons.sports_esports,
+          actionLabel: 'Start',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => BattleQuizScreen(
+                  subject: subject,
+                  chapter: chapter,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        _GameCard(
+          title: 'Flashcards',
+          subtitle: 'Quick revision with chapter flashcards.',
+          icon: Icons.auto_stories,
+          actionLabel: 'Open',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => FlashcardsScreen(
+                  subject: subject,
+                  chapter: chapter,
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        const SectionHeader(title: 'Chapter Quizzes'),
+        const SizedBox(height: 12),
+        if (chapter.quizzes.isEmpty)
+          Text(
+            'No quizzes available for this chapter yet.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedInk,
+            ),
+          )
+        else
+          ...chapter.quizzes.map(
+            (quiz) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _QuizCard(
+                subject: subject,
+                chapter: chapter,
+                quiz: quiz,
+                useGameZoneTheme: useGameZoneTheme,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String actionLabel;
+  final VoidCallback onTap;
+
+  const _GameCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.outline),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surface,
+            AppColors.paper.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, size: 28, color: AppColors.secondary),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.secondary.withValues(alpha: 0.22),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    actionLabel,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuizCard extends StatelessWidget {
+  final Subject subject;
+  final Chapter chapter;
+  final Quiz quiz;
+  final bool useGameZoneTheme;
+
+  const _QuizCard({
+    required this.subject,
+    required this.chapter,
+    required this.quiz,
+    required this.useGameZoneTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => QuizDetailScreen(
+                quiz: quiz,
+                subject: subject,
+                chapter: chapter,
+                useGameZoneTheme: useGameZoneTheme,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: subject.accentColor.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.quiz, color: subject.accentColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    quiz.title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _MetaChip(
+                        label: '${quiz.questionCount} Qs',
+                        color: AppColors.ink.withValues(alpha: 0.06),
+                      ),
+                      _MetaChip(
+                        label: '${quiz.duration.inMinutes} min',
+                        color: AppColors.ink.withValues(alpha: 0.06),
+                      ),
+                      _MetaChip(
+                        label: _difficultyLabel(quiz.difficulty),
+                        color: _difficultyColor(quiz.difficulty)
+                            .withValues(alpha: 0.16),
+                        textColor: _difficultyColor(quiz.difficulty),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.mutedInk),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _difficultyLabel(QuizDifficulty difficulty) {
+    switch (difficulty) {
+      case QuizDifficulty.easy:
+        return 'Easy';
+      case QuizDifficulty.medium:
+        return 'Medium';
+      case QuizDifficulty.hard:
+        return 'Hard';
+    }
+  }
+
+  Color _difficultyColor(QuizDifficulty difficulty) {
+    switch (difficulty) {
+      case QuizDifficulty.easy:
+        return AppColors.success;
+      case QuizDifficulty.medium:
+        return AppColors.warning;
+      case QuizDifficulty.hard:
+        return AppColors.danger;
+    }
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color? textColor;
+
+  const _MetaChip({
+    required this.label,
+    required this.color,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: textColor ?? AppColors.ink,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }
@@ -106,6 +466,7 @@ class _NotesTabState extends State<_NotesTab> {
   late final UserNotesService _userNotesService;
   late final AiNotesService _aiNotesService;
   late final NoteSubmissionService _noteSubmissionService;
+  late final NoteGeneratedQuestionService _noteGeneratedQuestionService;
   bool _isLoading = true;
   bool _isGenerating = false;
   bool _isSaving = false;
@@ -122,6 +483,8 @@ class _NotesTabState extends State<_NotesTab> {
     _userNotesService = UserNotesService(SupabaseConfig.client);
     _aiNotesService = AiNotesService(SupabaseConfig.client);
     _noteSubmissionService = NoteSubmissionService(SupabaseConfig.client);
+    _noteGeneratedQuestionService =
+        NoteGeneratedQuestionService(SupabaseConfig.client);
     _loadUserNotes();
     _loadSubmissions();
     if (widget.openSubmitSheet) {
@@ -313,6 +676,124 @@ class _NotesTabState extends State<_NotesTab> {
     );
   }
 
+  Future<void> _openAttachment({
+    required String title,
+    required String url,
+    String? contextText,
+  }) async {
+    if (url.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No attachment available.')),
+      );
+      return;
+    }
+    final extracted = await _NoteQuestionBuilder.extractTextFromFile(url);
+    if (!mounted) return;
+    if (extracted.trim().isEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SyllabusWebViewScreen(
+            title: title,
+            url: url,
+          ),
+        ),
+      );
+      return;
+    }
+    final mergedContext = [
+      contextText ?? '',
+      extracted,
+    ].where((value) => value.trim().isNotEmpty).join('\n');
+    final highlight = _buildHighlightSets(mergedContext);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.98,
+          expand: false,
+          builder: (context, scrollController) {
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                Container(
+                  height: 4,
+                  width: 40,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.outline,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Text(
+                  title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SyllabusWebViewScreen(
+                              title: title,
+                              url: url,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Open original'),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      onPressed: () => _copyToClipboard(url),
+                      child: const Text('Copy link'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Read & tap for meanings',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.ink.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.outline),
+                  ),
+                  child: _buildTappableText(
+                    extracted,
+                    contextText: mergedContext,
+                    mainWords: highlight.mainWords,
+                    difficultWords: highlight.difficultWords,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _saveDraft() async {
     final draft = _draft;
     if (draft == null || _isSaving) return;
@@ -352,13 +833,10 @@ class _NotesTabState extends State<_NotesTab> {
     required String title,
     required String shortAnswer,
     required String detailedAnswer,
+    String? fileUrl,
+    String? noteId,
+    String? chapterId,
   }) {
-    final contextText = _buildNoteContext(
-      title: title,
-      shortAnswer: shortAnswer,
-      detailedAnswer: detailedAnswer,
-    );
-    final highlight = _buildHighlightSets(contextText);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -373,66 +851,260 @@ class _NotesTabState extends State<_NotesTab> {
           maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
-            return ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              children: [
-                Container(
-                  height: 4,
-                  width: 40,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.outline,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                Text(
-                  title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 16),
-                if (shortAnswer.isNotEmpty) ...[
-                  Text(
-                    'Short Notes',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildTappableText(
-                    shortAnswer,
-                    contextText: contextText,
-                    mainWords: highlight.mainWords,
-                    difficultWords: highlight.difficultWords,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: AppColors.mutedInk),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                if (detailedAnswer.isNotEmpty) ...[
-                  Text(
-                    'Detailed Notes',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildTappableText(
-                    detailedAnswer,
-                    contextText: contextText,
-                    mainWords: highlight.mainWords,
-                    difficultWords: highlight.difficultWords,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
+            var isGenerating = false;
+            String? generateError;
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                final contextText = _buildNoteContext(
+                  title: title,
+                  shortAnswer: shortAnswer,
+                  detailedAnswer: detailedAnswer,
+                );
+                final highlight = _buildHighlightSets(contextText);
+
+                Future<void> handleGenerate() async {
+                  if (isGenerating) return;
+                  setModalState(() {
+                    isGenerating = true;
+                    generateError = null;
+                  });
+                  final generated = await _generateQuestionFromNote(
+                    title: title,
+                    shortAnswer: shortAnswer,
+                    detailedAnswer: detailedAnswer,
+                    fileUrl: fileUrl,
+                  );
+                  if (!mounted) return;
+                  if (generated == null ||
+                      generated.question.trim().isEmpty) {
+                    setModalState(() {
+                      generateError =
+                          'Unable to generate a question from this file.';
+                      isGenerating = false;
+                    });
+                    return;
+                  }
+                  setModalState(() {
+                    isGenerating = false;
+                  });
+                  if (!context.mounted) return;
+                  String? answer;
+                  String? generatedId;
+                  var isAnswerLoading = false;
+                  final pointCount =
+                      _countQuestionPoints(generated.question);
+                  if (noteId != null && chapterId != null) {
+                    generatedId =
+                        await _noteGeneratedQuestionService.create(
+                      noteId: noteId!,
+                      chapterId: chapterId!,
+                      question: generated.question,
+                    );
+                  }
+                  await showDialog<void>(
+                    context: context,
+                    builder: (context) {
+                      return StatefulBuilder(
+                        builder: (context, setAnswerState) {
+                          Future<void> generateAnswer() async {
+                            if (isAnswerLoading) return;
+                            setAnswerState(() {
+                              isAnswerLoading = true;
+                            });
+                            try {
+                              answer =
+                                  await _aiNotesService.generateAnswerFromNotes(
+                                question: generated.question,
+                                content: generated.content,
+                                points: pointCount,
+                              );
+                            } catch (_) {
+                              answer = _fallbackAnswerFromContent(
+                                generated.content,
+                                pointCount,
+                              );
+                            }
+                            if (generatedId != null &&
+                                answer != null &&
+                                answer!.trim().isNotEmpty) {
+                              await _noteGeneratedQuestionService.updateAnswer(
+                                id: generatedId!,
+                                answer: answer!.trim(),
+                              );
+                            }
+                            if (!context.mounted) return;
+                            setAnswerState(() {
+                              isAnswerLoading = false;
+                            });
+                          }
+
+                          return AlertDialog(
+                            title: const Text('Generated Question'),
+                            content: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(generated.question),
+                                  const SizedBox(height: 12),
+                                  if (answer != null && answer!.isNotEmpty) ...[
+                                    Text(
+                                      'Sample Answer',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(answer!),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed:
+                                    isAnswerLoading ? null : generateAnswer,
+                                child: isAnswerLoading
+                                    ? const SizedBox(
+                                        height: 16,
+                                        width: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Text('Generate Answer'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  );
+                }
+
+                return ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  children: [
+                    Container(
+                      height: 4,
+                      width: 40,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.outline,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 16),
+                    if ((fileUrl ?? '').isNotEmpty) ...[
+                      AppCard(
+                        color: AppColors.secondary.withValues(alpha: 0.06),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.attach_file_rounded),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Attachment available',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                TextButton(
+                          onPressed: () => _openAttachment(
+                            title: title,
+                            url: fileUrl!,
+                            contextText: contextText,
+                          ),
+                                  child: const Text('Open'),
+                                ),
+                                TextButton(
+                                  onPressed: () => _copyToClipboard(fileUrl!),
+                                  child: const Text('Copy link'),
+                                ),
+                                TextButton(
+                                  onPressed: isGenerating
+                                      ? null
+                                      : handleGenerate,
+                                  child: isGenerating
+                                      ? const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Text('Generate Q'),
+                                ),
+                              ],
+                            ),
+                            if (generateError != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                generateError!,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.danger),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (detailedAnswer.isNotEmpty ||
+                        shortAnswer.isNotEmpty) ...[
+                      Text(
+                        'Notes',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        detailedAnswer.isNotEmpty
+                            ? detailedAnswer
+                            : shortAnswer,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ] else if ((fileUrl ?? '').isEmpty) ...[
+                      Text(
+                        'No note content available yet.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                    ],
+                  ],
+                );
+              },
             );
           },
         );
@@ -440,11 +1112,74 @@ class _NotesTabState extends State<_NotesTab> {
     );
   }
 
+  Future<_GeneratedQuestion?> _generateQuestionFromNote({
+    required String title,
+    required String shortAnswer,
+    required String detailedAnswer,
+    String? fileUrl,
+    String? noteId,
+    String? chapterId,
+  }) async {
+    var contentParts = <String>[];
+    if ((fileUrl ?? '').isNotEmpty) {
+      final fileText =
+          await _NoteQuestionBuilder.extractTextFromFile(fileUrl!);
+      if (fileText.trim().isNotEmpty) {
+        contentParts.add(fileText.trim());
+      }
+    }
+    if (detailedAnswer.trim().isNotEmpty) {
+      contentParts.add(detailedAnswer.trim());
+    } else if (shortAnswer.trim().isNotEmpty) {
+      contentParts.add(shortAnswer.trim());
+    }
+    if (contentParts.isEmpty) return null;
+    final content = contentParts.join(' ');
+    final prompt = _NoteQuestionBuilder.buildPromptFromContent(
+      content,
+      fallbackTitle: title,
+    );
+    if (prompt.trim().isEmpty) {
+      return _GeneratedQuestion(
+        question:
+            'Explain: ${title.trim().isEmpty ? 'the topic' : title.trim()}',
+        content: content,
+      );
+    }
+    return _GeneratedQuestion(question: prompt, content: content);
+  }
+
+  String _fallbackAnswerFromContent(String content, int points) {
+    final cleaned = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.isEmpty) return '';
+    final selected =
+        _NoteQuestionBuilder._extractKeyPoints(cleaned, '').take(points).toList();
+    if (selected.isEmpty) {
+      return _NoteQuestionBuilder._trimText(cleaned, 400);
+    }
+    final buffer = StringBuffer();
+    for (var i = 0; i < selected.length; i += 1) {
+      buffer.writeln('${i + 1}. ${selected[i]}');
+    }
+    return buffer.toString().trim();
+  }
+
+  int _countQuestionPoints(String question) {
+    final lines = question.split('\n');
+    final count = lines
+        .where((line) => RegExp(r'^\s*\d+\.\s+').hasMatch(line))
+        .length;
+    return count == 0 ? 5 : count;
+  }
+
   void _showUserNoteDetails(UserNote note) {
     _showTextNoteDetails(
       title: note.title,
       shortAnswer: note.shortAnswer,
       detailedAnswer: note.detailedAnswer,
+      fileUrl: null,
+      noteId: null,
+      chapterId: note.chapterId,
     );
   }
 
@@ -794,6 +1529,35 @@ class _NotesTabState extends State<_NotesTab> {
     }
   }
 
+  Widget _noteBadge({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _noteCard({
     required String title,
     required String shortAnswer,
@@ -801,9 +1565,15 @@ class _NotesTabState extends State<_NotesTab> {
     Widget? trailing,
     VoidCallback? onTap,
     bool collapsible = false,
+    bool showTapHint = false,
+    String? badgeLabel,
+    Color? badgeColor,
+    IconData? badgeIcon,
+    bool showAttachmentBadge = false,
   }) {
     if (collapsible) {
-      final summaryText = shortAnswer.trim();
+      final summaryText =
+          detailedAnswer.trim().isNotEmpty ? detailedAnswer.trim() : shortAnswer.trim();
       final detailText = detailedAnswer.trim();
       return AppCard(
         child: ExpansionTile(
@@ -829,6 +1599,26 @@ class _NotesTabState extends State<_NotesTab> {
           trailing: trailing,
           childrenPadding: const EdgeInsets.only(bottom: 8),
           children: [
+            if (badgeLabel != null) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _noteBadge(
+                    label: badgeLabel,
+                    color: badgeColor ?? AppColors.secondary,
+                    icon: badgeIcon ?? Icons.auto_awesome_rounded,
+                  ),
+                  if (showAttachmentBadge)
+                    _noteBadge(
+                      label: 'Attachment',
+                      color: AppColors.warning,
+                      icon: Icons.attach_file_rounded,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
             if (detailText.isNotEmpty && detailText != summaryText) ...[
               Text(
                 detailText,
@@ -845,10 +1635,34 @@ class _NotesTabState extends State<_NotesTab> {
       );
     }
 
+    final previewText = detailedAnswer.trim().isNotEmpty
+        ? detailedAnswer.trim()
+        : shortAnswer.trim();
     final card = AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (badgeLabel != null || showAttachmentBadge) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (badgeLabel != null)
+                  _noteBadge(
+                    label: badgeLabel,
+                    color: badgeColor ?? AppColors.secondary,
+                    icon: badgeIcon ?? Icons.bookmark_rounded,
+                  ),
+                if (showAttachmentBadge)
+                  _noteBadge(
+                    label: 'Attachment',
+                    color: AppColors.warning,
+                    icon: Icons.attach_file_rounded,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -865,20 +1679,37 @@ class _NotesTabState extends State<_NotesTab> {
             ],
           ),
           const SizedBox(height: 8),
-          if (shortAnswer.isNotEmpty)
+          if (previewText.isNotEmpty)
             Text(
-              shortAnswer,
+              previewText,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: AppColors.mutedInk),
             ),
-          if (shortAnswer.isNotEmpty) const SizedBox(height: 12),
-          if (detailedAnswer.isNotEmpty)
-            Text(
-              detailedAnswer,
-              style: Theme.of(context).textTheme.bodySmall,
+          if (previewText.isNotEmpty) const SizedBox(height: 12),
+          if (showTapHint && onTap != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 16,
+                  color: AppColors.mutedInk,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Tap to open full note',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
             ),
+          ],
         ],
       ),
     );
@@ -886,9 +1717,13 @@ class _NotesTabState extends State<_NotesTab> {
     if (onTap == null) {
       return card;
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: card,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: card,
+      ),
     );
   }
 
@@ -972,6 +1807,9 @@ class _NotesTabState extends State<_NotesTab> {
                     shortAnswer: _draft!.shortAnswer,
                     detailedAnswer: _draft!.detailedAnswer,
                     collapsible: true,
+                    badgeLabel: 'AI Draft',
+                    badgeColor: AppColors.secondary,
+                    badgeIcon: Icons.auto_awesome_rounded,
                   ),
                   const SizedBox(height: 12),
                   Column(
@@ -1035,7 +1873,11 @@ class _NotesTabState extends State<_NotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  collapsible: true,
+                  onTap: () => _showUserNoteDetails(note),
+                  showTapHint: true,
+                  badgeLabel: 'My Note',
+                  badgeColor: AppColors.accent,
+                  badgeIcon: Icons.bookmark_rounded,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1182,15 +2024,42 @@ class _NotesTabState extends State<_NotesTab> {
                   title: note.title,
                   shortAnswer: note.shortAnswer,
                   detailedAnswer: note.detailedAnswer,
-                  collapsible: true,
-                  trailing: IconButton(
-                    tooltip: 'Open',
-                    onPressed: () => _showTextNoteDetails(
-                      title: note.title,
-                      shortAnswer: note.shortAnswer,
-                      detailedAnswer: note.detailedAnswer,
+                  onTap: () => _showTextNoteDetails(
+                    title: note.title,
+                    shortAnswer: note.shortAnswer,
+                    detailedAnswer: note.detailedAnswer,
+                    fileUrl: note.fileUrl,
+                    noteId: note.id,
+                    chapterId: widget.chapter.id,
+                  ),
+                  showTapHint: true,
+                  badgeLabel: 'Official',
+                  badgeColor: AppColors.secondary,
+                  badgeIcon: Icons.verified_rounded,
+                  showAttachmentBadge: (note.fileUrl ?? '').isNotEmpty,
+                  trailing: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    icon: const Icon(Icons.open_in_new),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.open_in_new,
+                            size: 14, color: AppColors.secondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Open',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1405,38 +2274,368 @@ class _NoteSubmissionSheetState extends State<_NoteSubmissionSheet> {
   }
 }
 
-class _QuestionsTab extends StatelessWidget {
+class _QuestionsTab extends StatefulWidget {
   final String title;
   final Subject subject;
   final Chapter chapter;
   final List<Question> questions;
+  final bool allowGenerateFromNotes;
 
   const _QuestionsTab({
     required this.title,
     required this.subject,
     required this.chapter,
     required this.questions,
+    this.allowGenerateFromNotes = false,
   });
 
   @override
+  State<_QuestionsTab> createState() => _QuestionsTabState();
+}
+
+class _QuestionsTabState extends State<_QuestionsTab> {
+  bool _isGenerating = false;
+  String? _generateError;
+  final List<Question> _generated = [];
+  final Random _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _generateFromNotes() async {
+    if (_isGenerating) return;
+    setState(() {
+      _isGenerating = true;
+      _generateError = null;
+    });
+    try {
+      final officialNotes = await _fetchOfficialNotes();
+      if (!mounted) return;
+      if (officialNotes.isEmpty) {
+        setState(() {
+          _generateError = 'No official notes found for this chapter yet.';
+        });
+        return;
+      }
+      final note = officialNotes[_random.nextInt(officialNotes.length)];
+      final content = await _noteContentForPrompt(note);
+      if (!mounted) return;
+      if (content.trim().isEmpty) {
+        setState(() {
+          _generateError =
+              'Could not read the note file. Try another note or add text.';
+        });
+        return;
+      }
+      final generated = Question(
+        id: 'note_q_${note.id}_${DateTime.now().millisecondsSinceEpoch}',
+        prompt: _buildPromptFromContent(content, fallbackTitle: note.title),
+        marks: 5,
+        kind: 'important',
+      );
+      setState(() {
+        _generated.insert(0, generated);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _generateError = 'Failed to generate: $error';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isGenerating = false;
+      });
+    }
+  }
+
+  Future<List<Note>> _fetchOfficialNotes() async {
+    try {
+      final rows = await SupabaseConfig.client
+          .from('notes')
+          .select('id,title,short_answer,detailed_answer,file_url')
+          .eq('chapter_id', widget.chapter.id)
+          .order('created_at', ascending: false)
+          .limit(6);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => Note(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              shortAnswer: row['short_answer']?.toString() ?? '',
+              detailedAnswer: row['detailed_answer']?.toString() ?? '',
+              fileUrl: row['file_url']?.toString(),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _buildPromptFromNote(Note note) {
+    final title = note.title.trim();
+    if (title.isEmpty) {
+      return 'Explain the key concept from the official notes.';
+    }
+    final lower = title.toLowerCase();
+    const starters = [
+      'define',
+      'explain',
+      'describe',
+      'discuss',
+      'what',
+      'why',
+      'how',
+      'list',
+      'outline',
+      'compare',
+      'differentiate',
+      'state',
+    ];
+    if (starters.any((starter) => lower.startsWith(starter))) {
+      return title.endsWith('?') ? title : '$title?';
+    }
+    return 'Explain: $title';
+  }
+
+  Future<String> _noteContentForPrompt(Note note) async {
+    final parts = <String>[];
+    final url = note.fileUrl ?? '';
+    if (url.isNotEmpty) {
+      final fileText = await _extractTextFromFile(url);
+      if (fileText.trim().isNotEmpty) {
+        parts.add(fileText.trim());
+      }
+    }
+    final detailed = note.detailedAnswer.trim();
+    if (detailed.isNotEmpty) {
+      parts.add(detailed);
+    } else {
+      final short = note.shortAnswer.trim();
+      if (short.isNotEmpty) {
+        parts.add(short);
+      }
+    }
+    return parts.join(' ');
+  }
+
+  Future<String> _extractTextFromFile(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return '';
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return '';
+      }
+      final bytes = response.bodyBytes;
+      final contentType = response.headers['content-type'] ?? '';
+      final lowerUrl = url.toLowerCase();
+      if (lowerUrl.endsWith('.pdf') || contentType.contains('pdf')) {
+        final document = PdfDocument(inputBytes: bytes);
+        final text = PdfTextExtractor(document).extractText();
+        document.dispose();
+        return text;
+      }
+      if (lowerUrl.endsWith('.pptx') ||
+          contentType.contains('presentationml')) {
+        return _extractTextFromPptx(bytes);
+      }
+      if (lowerUrl.endsWith('.docx') ||
+          contentType.contains('wordprocessingml')) {
+        return _extractTextFromDocx(bytes);
+      }
+      return utf8.decode(bytes, allowMalformed: true);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _buildPromptFromContent(
+    String content, {
+    required String fallbackTitle,
+  }) {
+    final cleaned = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.isEmpty) return '';
+    final sentence = _pickContentSnippet(cleaned, fallbackTitle);
+    if (sentence.isEmpty) {
+      return 'Explain: ${_trimText(cleaned, 180)}';
+    }
+    if (sentence.endsWith('?')) {
+      return sentence;
+    }
+    final lower = sentence.toLowerCase();
+    const starters = [
+      'define',
+      'explain',
+      'describe',
+      'discuss',
+      'what',
+      'why',
+      'how',
+      'list',
+      'outline',
+      'compare',
+      'differentiate',
+      'state',
+    ];
+    if (starters.any((starter) => lower.startsWith(starter))) {
+      return '$sentence?';
+    }
+    return 'Explain: $sentence';
+  }
+
+  String _trimText(String value, int max) {
+    if (value.length <= max) return value;
+    return value.substring(0, max);
+  }
+
+  String _firstSentence(String text, int maxLen) {
+    final trimmed = _trimText(text, maxLen);
+    final match = RegExp(r'^(.+?[.!?])(\s|$)').firstMatch(trimmed);
+    if (match != null) {
+      return match.group(1)!.trim();
+    }
+    return trimmed;
+  }
+
+  String _pickContentSnippet(String text, String title) {
+    final normalizedTitle = title.trim().toLowerCase();
+    final candidates = text.split(RegExp(r'(?<=[.!?])\s+'));
+    for (final raw in candidates) {
+      final sentence = raw.trim();
+      if (sentence.length < 24) continue;
+      if (normalizedTitle.isNotEmpty &&
+          sentence.toLowerCase().contains(normalizedTitle)) {
+        continue;
+      }
+      return _trimText(sentence, 180);
+    }
+    return _trimText(text, 180);
+  }
+
+  String _extractTextFromPptx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final buffer = StringBuffer();
+      for (final file in archive) {
+        if (!file.isFile) continue;
+        final name = file.name;
+        if (!name.startsWith('ppt/slides/slide') || !name.endsWith('.xml')) {
+          continue;
+        }
+        final content = utf8.decode(file.content as List<int>,
+            allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+      }
+      return buffer.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _extractTextFromDocx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final documentFile = archive.firstWhere(
+        (file) => file.isFile && file.name == 'word/document.xml',
+        orElse: () => ArchiveFile.noCompress('', 0, []),
+      );
+      if (documentFile.isFile && documentFile.size > 0) {
+        final content = utf8.decode(documentFile.content as List<int>,
+            allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        final buffer = StringBuffer();
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+        return buffer.toString();
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final allQuestions = [..._generated, ...widget.questions];
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _ChapterHero(
-          subject: subject,
-          chapter: chapter,
-          title: title,
+          subject: widget.subject,
+          chapter: widget.chapter,
+          title: widget.title,
           subtitle: 'Review and revise key questions.',
           chips: [
             _InfoChip(
               icon: Icons.help_outline_rounded,
-              label: '${questions.length} questions',
+              label: '${allQuestions.length} questions',
             ),
           ],
         ),
+        if (widget.allowGenerateFromNotes) ...[
+          const SizedBox(height: 16),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Generate from official notes',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Create a new important question based on chapter notes.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonal(
+                  onPressed: _isGenerating ? null : _generateFromNotes,
+                  child: _isGenerating
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Generate Question'),
+                ),
+                if (_generateError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _generateError!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.danger),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
-        if (questions.isEmpty)
+        if (allQuestions.isEmpty)
           AppCard(
             child: Column(
               children: [
@@ -1459,7 +2658,7 @@ class _QuestionsTab extends StatelessWidget {
             ),
           )
         else
-          ...questions.asMap().entries.map(
+          ...allQuestions.asMap().entries.map(
                 (entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: _QuestionCard(
@@ -1671,5 +2870,217 @@ class _QuestionCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _GeneratedQuestion {
+  final String question;
+  final String content;
+
+  const _GeneratedQuestion({
+    required this.question,
+    required this.content,
+  });
+}
+
+class _NoteQuestionBuilder {
+  static Future<String> extractTextFromFile(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return '';
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return '';
+      }
+      final bytes = response.bodyBytes;
+      final contentType = response.headers['content-type'] ?? '';
+      final lowerUrl = url.toLowerCase();
+      if (lowerUrl.endsWith('.pdf') || contentType.contains('pdf')) {
+        final document = PdfDocument(inputBytes: bytes);
+        final text = PdfTextExtractor(document).extractText();
+        document.dispose();
+        return text;
+      }
+      if (lowerUrl.endsWith('.pptx') ||
+          contentType.contains('presentationml')) {
+        return _extractTextFromPptx(bytes);
+      }
+      if (lowerUrl.endsWith('.docx') ||
+          contentType.contains('wordprocessingml')) {
+        return _extractTextFromDocx(bytes);
+      }
+      return utf8.decode(bytes, allowMalformed: true);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String buildPromptFromContent(
+    String content, {
+    required String fallbackTitle,
+  }) {
+    final cleaned = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.isEmpty) return '';
+    final points = _extractKeyPoints(cleaned, fallbackTitle);
+    if (points.isEmpty) {
+      final snippet = _pickContentSnippet(cleaned, fallbackTitle);
+      if (snippet.isEmpty) return '';
+      if (snippet.endsWith('?')) return snippet;
+      return 'Explain: $snippet';
+    }
+    final marksPerPoint = points.length <= 3 ? 5 : 2;
+    final totalMarks = marksPerPoint * points.length;
+    final per = marksPerPoint;
+    var remainder = 0;
+    final buffer = StringBuffer();
+    buffer.writeln(
+        'Attempt all. Answer the following point-wise (Total: $totalMarks marks):');
+    for (var i = 0; i < points.length; i += 1) {
+      final marks = per + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+      buffer.writeln('${i + 1}. Explain: ${points[i]} ($marks marks)');
+    }
+    return buffer.toString().trim();
+  }
+
+  static String _trimText(String value, int max) {
+    if (value.length <= max) return value;
+    return value.substring(0, max);
+  }
+
+  static String _firstSentence(String text, int maxLen) {
+    final trimmed = _trimText(text, maxLen);
+    final match = RegExp(r'^(.+?[.!?])(\s|$)').firstMatch(trimmed);
+    if (match != null) {
+      return match.group(1)!.trim();
+    }
+    return trimmed;
+  }
+
+  static String _pickContentSnippet(String text, String title) {
+    final normalizedTitle = title.trim().toLowerCase();
+    final chunks = text
+        .split(RegExp(r'[\n\r•\-–]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    final filtered = chunks.where((line) {
+      if (normalizedTitle.isEmpty) return true;
+      final lower = line.toLowerCase();
+      if (lower == normalizedTitle) return false;
+      if (lower.contains(normalizedTitle) && lower.length <= normalizedTitle.length + 8) {
+        return false;
+      }
+      return true;
+    }).toList();
+    final joined = (filtered.isNotEmpty ? filtered : chunks).join(' ');
+    if (joined.isNotEmpty) {
+      return _trimText(joined, 180);
+    }
+    return _trimText(text, 180);
+  }
+
+  static List<String> _extractKeyPoints(String text, String title) {
+    final normalizedTitle = title.trim().toLowerCase();
+    final normalized = text
+        .replaceAll(RegExp(r'[•·]'), '\n')
+        .replaceAll(RegExp(r'\s*\-\s+'), '\n')
+        .replaceAll(RegExp(r'\s*\*\s+'), '\n')
+        .replaceAll(RegExp(r'\s*\d+[\.\)]\s+'), '\n');
+    final lines = normalized
+        .split(RegExp(r'[\n\r]+'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    final points = <String>[];
+    for (final line in lines) {
+      if (line.length < 20) continue;
+      final lower = line.toLowerCase();
+      if (normalizedTitle.isNotEmpty) {
+        if (lower == normalizedTitle) continue;
+        if (lower.contains(normalizedTitle) &&
+            lower.length <= normalizedTitle.length + 8) {
+          continue;
+        }
+      }
+      final cleaned = _trimText(line, 140);
+      if (!points.contains(cleaned)) {
+        points.add(cleaned);
+      }
+      if (points.length >= 10) break;
+    }
+    if (points.length >= 3) return points;
+
+    final sentences = text.split(RegExp(r'(?<=[.!?])\s+'));
+    for (final raw in sentences) {
+      final sentence = raw.trim();
+      if (sentence.length < 24) continue;
+      final lower = sentence.toLowerCase();
+      if (normalizedTitle.isNotEmpty &&
+          lower.contains(normalizedTitle) &&
+          sentence.length <= normalizedTitle.length + 10) {
+        continue;
+      }
+      final cleaned = _trimText(sentence, 140);
+      if (!points.contains(cleaned)) {
+        points.add(cleaned);
+      }
+      if (points.length >= 10) break;
+    }
+    return points;
+  }
+
+  static String _extractTextFromPptx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final buffer = StringBuffer();
+      for (final file in archive) {
+        if (!file.isFile) continue;
+        final name = file.name;
+        if (!name.startsWith('ppt/slides/slide') || !name.endsWith('.xml')) {
+          continue;
+        }
+        final content =
+            utf8.decode(file.content as List<int>, allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+      }
+      return buffer.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static String _extractTextFromDocx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final documentFile = archive.firstWhere(
+        (file) => file.isFile && file.name == 'word/document.xml',
+        orElse: () => ArchiveFile.noCompress('', 0, []),
+      );
+      if (documentFile.isFile && documentFile.size > 0) {
+        final content =
+            utf8.decode(documentFile.content as List<int>, allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        final buffer = StringBuffer();
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+        return buffer.toString();
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
   }
 }

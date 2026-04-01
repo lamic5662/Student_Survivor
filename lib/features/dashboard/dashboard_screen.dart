@@ -6,6 +6,8 @@ import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/core/widgets/tag.dart';
 import 'package:student_survivor/features/dashboard/dashboard_presenter.dart';
 import 'package:student_survivor/features/dashboard/dashboard_view_model.dart';
+import 'package:student_survivor/features/ai/ai_coach_screen.dart';
+import 'package:student_survivor/features/notices/bca_notices_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/progress/progress_screen.dart';
 import 'package:student_survivor/features/search/search_screen.dart';
@@ -36,6 +38,20 @@ class _DashboardScreenState
   void openProgress() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ProgressScreen()),
+    );
+  }
+
+  @override
+  void openCoach() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AiCoachScreen()),
+    );
+  }
+
+  @override
+  void openNotices() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BcaNoticesScreen()),
     );
   }
 
@@ -79,12 +95,15 @@ class _DashboardScreenState
             children: [
               _HeroCard(model: model),
               const SizedBox(height: 20),
+              _CoachCard(onOpen: presenter.onCoach),
+              const SizedBox(height: 20),
               const SectionHeader(title: 'Quick Actions'),
               const SizedBox(height: 12),
               _QuickActions(
                 onPlanner: presenter.onPlanner,
                 onSyllabus: presenter.onSyllabus,
                 onProgress: presenter.onProgress,
+                onNotices: presenter.onNotices,
               ),
               const SizedBox(height: 24),
               const SectionHeader(title: 'Progress Snapshot'),
@@ -272,51 +291,124 @@ class _HeroChip extends StatelessWidget {
   }
 }
 
+class _CoachCard extends StatelessWidget {
+  final VoidCallback onOpen;
+
+  const _CoachCard({required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.auto_awesome, color: AppColors.secondary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI Personal Coach',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Weak topics, daily plan, and 10 questions.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton.tonal(
+            onPressed: onOpen,
+            child: const Text('Open'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   final VoidCallback onPlanner;
   final VoidCallback onSyllabus;
   final VoidCallback onProgress;
+  final VoidCallback onNotices;
 
   const _QuickActions({
     required this.onPlanner,
     required this.onSyllabus,
     required this.onProgress,
+    required this.onNotices,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _QuickActionCard(
-            icon: Icons.event_note,
-            color: AppColors.secondary,
-            label: 'Study Planner',
-            subtitle: 'Plan your week',
-            onTap: onPlanner,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _QuickActionCard(
-            icon: Icons.insights,
-            color: AppColors.accent,
-            label: 'Progress',
-            subtitle: 'Track growth',
-            onTap: onProgress,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _QuickActionCard(
-            icon: Icons.list_alt,
-            color: AppColors.warning,
-            label: 'Syllabus',
-            subtitle: 'Official PDFs',
-            onTap: onSyllabus,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 12) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.event_note,
+                color: AppColors.secondary,
+                label: 'Study Planner',
+                subtitle: 'Plan your week',
+                onTap: onPlanner,
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.insights,
+                color: AppColors.accent,
+                label: 'Progress',
+                subtitle: 'Track growth',
+                onTap: onProgress,
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.list_alt,
+                color: AppColors.warning,
+                label: 'Syllabus',
+                subtitle: 'Official PDFs',
+                onTap: onSyllabus,
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _QuickActionCard(
+                icon: Icons.campaign_rounded,
+                color: AppColors.success,
+                label: 'BCA Notices',
+                subtitle: 'TU updates',
+                onTap: onNotices,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

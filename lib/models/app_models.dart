@@ -204,6 +204,7 @@ class QuizAttempt {
   final int total;
   final int xpEarned;
   final List<WeakTopic> weakTopics;
+  final int? durationSeconds;
 
   const QuizAttempt({
     required this.quiz,
@@ -211,6 +212,7 @@ class QuizAttempt {
     required this.total,
     required this.xpEarned,
     required this.weakTopics,
+    this.durationSeconds,
   });
 
   bool get isPass => score >= (total * 0.6);

@@ -38,6 +38,7 @@ dependencies:
   file_picker: ^8.1.2
   google_fonts: ^6.1.0
   http: ^1.2.2
+  html: ^0.15.4
   supabase_flutter: ^2.12.2
   webview_flutter: ^4.8.0
   flame: ^1.17.0
@@ -45,6 +46,9 @@ dependencies:
   flame_audio: ^2.1.8
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  syncfusion_flutter_pdf: ^24.2.9
+  archive: ^3.4.10
+  xml: ^6.5.0
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +60,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -73,6 +78,12 @@ flutter:
     - .env
     - assets/images/game/
     - assets/sounds/
+
+flutter_icons:
+   android: true
+   ios: true
+   image_path: "assets/icon/app_icon.png"
+   remove_alpha_ios: true
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
