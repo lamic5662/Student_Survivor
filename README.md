@@ -10,6 +10,8 @@ Flutter app for the Student Survivor learning platform. Includes Supabase-backed
 - AI notes (chapter + subject), saved user notes
 - AI study assistant chat + AI personal coach
 - Games: flashcards, battle quiz, study survivor
+- Programming World (learning tracks + practice links)
+- Free Books hub (OpenStax, Open Textbook Library, LibreTexts)
 - Note attachment reader with word meanings + generated Q/A (owner-only)
 - BCA notices feed (TU official page parsing)
 - Quiz flow + results with review
