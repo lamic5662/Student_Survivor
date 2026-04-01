@@ -8,8 +8,10 @@ Flutter app for the Student Survivor learning platform. Includes Supabase-backed
 - Dashboard (progress, weak topics, recommendations)
 - Subjects → chapters → notes/questions/quizzes
 - AI notes (chapter + subject), saved user notes
-- AI study assistant chat
-- Games: flashcards + battle quiz
+- AI study assistant chat + AI personal coach
+- Games: flashcards, battle quiz, study survivor
+- Note attachment reader with word meanings + generated Q/A (owner-only)
+- BCA notices feed (TU official page parsing)
 - Quiz flow + results with review
 - Study planner (AI + manual tasks)
 - Community Q&A (AI-verified questions + public answers)
@@ -33,6 +35,7 @@ Supabase migrations live in `supabase/migrations/`.
 Latest additions:
 - `0020_community_qna.sql` (Community Q&A tables + RLS)
 - `0021_community_qna_semester_rls.sql` (same-semester visibility)
+- `0022_note_generated_questions.sql` (note-generated Q/A, owner-only)
 
 ## Backend Workflow (Supabase)
 
