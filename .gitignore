@@ -15,6 +15,7 @@ migrate_working_dir/
 devtools_options.yaml
 supabase/.branches/
 supabase/.temp/
+tmp_ocr/
 
 # IntelliJ related
 *.iml
