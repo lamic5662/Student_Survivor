@@ -15,7 +15,8 @@ abstract class AuthView extends BaseView {
 }
 
 class AuthPresenter extends Presenter<AuthView> {
-  AuthPresenter() {
+  AuthPresenter({Map<String, dynamic>? signupMetadata})
+      : _signupMetadata = signupMetadata {
     state = ValueNotifier(AuthViewModel.initial());
     _authService = AuthService(SupabaseConfig.client);
     _profileService = ProfileService(SupabaseConfig.client);
@@ -26,6 +27,7 @@ class AuthPresenter extends Presenter<AuthView> {
   late final AuthService _authService;
   late final ProfileService _profileService;
   late final SubjectService _subjectService;
+  final Map<String, dynamic>? _signupMetadata;
 
   void toggleMode() {
     state.value = state.value.copyWith(isLogin: !state.value.isLogin);
@@ -68,6 +70,7 @@ class AuthPresenter extends Presenter<AuthView> {
           method: state.value.method,
           identifier: identifier,
           password: password,
+          data: _signupMetadata,
         );
       }
 

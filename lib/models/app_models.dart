@@ -63,6 +63,7 @@ class Chapter {
   final List<Question> importantQuestions;
   final List<Question> pastQuestions;
   final List<Quiz> quizzes;
+  final List<ChapterTopic> subtopics;
 
   const Chapter({
     required this.id,
@@ -71,6 +72,21 @@ class Chapter {
     required this.importantQuestions,
     required this.pastQuestions,
     required this.quizzes,
+    this.subtopics = const [],
+  });
+}
+
+class ChapterTopic {
+  final String id;
+  final String title;
+  final String summary;
+  final int sortOrder;
+
+  const ChapterTopic({
+    required this.id,
+    required this.title,
+    required this.summary,
+    required this.sortOrder,
   });
 }
 

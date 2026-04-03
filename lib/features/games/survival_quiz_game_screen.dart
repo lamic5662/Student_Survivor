@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -81,7 +82,8 @@ class SurvivalQuizGameScreen extends StatefulWidget {
   State<SurvivalQuizGameScreen> createState() => _SurvivalQuizGameScreenState();
 }
 
-class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
+class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
+    with SingleTickerProviderStateMixin {
   static const _prefSound = 'survival_sound_enabled';
   static const _prefVibration = 'survival_vibration_enabled';
   static const _prefSave = 'survival_game_save';
@@ -94,6 +96,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
   late final SurvivalQuizGame _game;
   late final GameWidget _gameWidget;
   late final AiQuizService _aiQuizService;
+  late final ActivityLogService _activityLogService;
 
   bool _showQuiz = false;
   bool _isLoadingQuestion = false;
@@ -104,6 +107,15 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
   String? _answerExplanation;
   String? _lastQuestionKey;
   final Set<String> _askedQuestionKeys = {};
+  List<QuizQuestionItem> _quizQuestions = const [];
+  int _quizIndex = 0;
+  int _quizCorrect = 0;
+  String? _lastWrongSelected;
+  String? _lastWrongAnswer;
+  String? _lastWrongExplanation;
+  String? _lastWrongPrompt;
+  static const int _quizTotal = 5;
+  static const int _quizPass = 3;
   final Random _random = Random();
   static const int _resumeCost = 20;
   bool _showSettings = true;
@@ -126,6 +138,11 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
   bool _playerHidden = false;
   double _powerSeconds = 0;
   String? _rewardMessage;
+  AnimationController? _horrorPulse;
+
+  int _waveTargetForLevel(int level) {
+    return 5 + max(0, level - 1) * 2;
+  }
   async.Timer? _rewardTimer;
   String? _stageIntro;
   async.Timer? _stageIntroTimer;
@@ -133,12 +150,17 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
   @override
   void initState() {
     super.initState();
+    _horrorPulse ??= AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _aiQuizService = AiQuizService(SupabaseConfig.client);
+    _activityLogService = ActivityLogService(SupabaseConfig.client);
     _loadLocalSettings();
     _primeAudio();
     _game = SurvivalQuizGame(
@@ -178,6 +200,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
 
   @override
   void dispose() {
+    _horrorPulse?.dispose();
     _game.dispose();
     _autoSaveTimer?.cancel();
     _persistGameState();
@@ -323,6 +346,13 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
       _gameOver = false;
       _showQuiz = false;
       _question = null;
+      _quizQuestions = const [];
+      _quizIndex = 0;
+      _quizCorrect = 0;
+      _lastWrongSelected = null;
+      _lastWrongAnswer = null;
+      _lastWrongExplanation = null;
+      _lastWrongPrompt = null;
       _hint = null;
       _quizError = null;
       _rewardMessage = null;
@@ -350,6 +380,13 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
       _gameOver = false;
       _showQuiz = false;
       _question = null;
+      _quizQuestions = const [];
+      _quizIndex = 0;
+      _quizCorrect = 0;
+      _lastWrongSelected = null;
+      _lastWrongAnswer = null;
+      _lastWrongExplanation = null;
+      _lastWrongPrompt = null;
       _hint = null;
       _quizError = null;
       _rewardMessage = null;
@@ -371,6 +408,13 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
       _isLoadingQuestion = true;
       _quizError = null;
       _question = null;
+      _quizQuestions = const [];
+      _quizIndex = 0;
+      _quizCorrect = 0;
+      _lastWrongSelected = null;
+      _lastWrongAnswer = null;
+      _lastWrongExplanation = null;
+      _lastWrongPrompt = null;
       _hint = null;
       _correctAnswer = null;
       _answerExplanation = null;
@@ -389,7 +433,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
             'survival_${widget.chapter.id}_${_level}_${DateTime.now().millisecondsSinceEpoch}',
         subject: widget.subject,
         chapter: widget.chapter,
-        count: 3,
+        count: _quizTotal + 2,
         baseDifficulty: difficulty,
         nonce: nonce,
       );
@@ -397,19 +441,51 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
         throw Exception('No questions available.');
       }
       final pool = List<QuizQuestionItem>.from(questions)..shuffle(_random);
-      QuizQuestionItem chosen = pool.first;
+      final selected = <QuizQuestionItem>[];
+      final usedKeys = <String>{};
       for (final candidate in pool) {
+        if (selected.length >= _quizTotal) break;
         final key = _questionKey(candidate);
-        if (key != _lastQuestionKey && !_askedQuestionKeys.contains(key)) {
-          chosen = candidate;
-          break;
+        if (key == _lastQuestionKey) {
+          continue;
+        }
+        if (_askedQuestionKeys.contains(key)) {
+          continue;
+        }
+        if (usedKeys.contains(key)) {
+          continue;
+        }
+        usedKeys.add(key);
+        selected.add(candidate);
+      }
+      if (selected.length < _quizTotal) {
+        for (final candidate in pool) {
+          if (selected.length >= _quizTotal) break;
+          final key = _questionKey(candidate);
+          if (key == _lastQuestionKey) {
+            continue;
+          }
+          if (usedKeys.contains(key)) {
+            continue;
+          }
+          usedKeys.add(key);
+          selected.add(candidate);
         }
       }
-      final shuffled = _shuffleQuestionOptions(chosen);
+      if (selected.length < _quizTotal) {
+        throw Exception('Not enough questions available.');
+      }
+      final shuffledQuestions =
+          selected.map(_shuffleQuestionOptions).toList();
+      final first = shuffledQuestions.first;
+      for (final question in shuffledQuestions) {
+        _askedQuestionKeys.add(_questionKey(question));
+      }
       _setStateSafe(() {
-        _question = shuffled;
-        _lastQuestionKey = _questionKey(shuffled);
-        _askedQuestionKeys.add(_lastQuestionKey!);
+        _quizQuestions = shuffledQuestions;
+        _quizIndex = 0;
+        _question = first;
+        _lastQuestionKey = _questionKey(first);
         _isLoadingQuestion = false;
       });
     } catch (error) {
@@ -452,22 +528,80 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
     if (question == null) return;
     final isCorrect = index == question.correctIndex;
     if (isCorrect) {
-      _applyReward();
-      _advanceLevel();
+      _activityLogService.logActivityUnawaited(
+        type: 'survival_quiz_correct',
+        source: 'survival_quiz',
+        points: 10,
+        subjectId: widget.subject.id,
+        chapterId: widget.chapter.id,
+        metadata: {
+          'level': _level,
+          'kills': _kills,
+          'prompt': question.prompt,
+        },
+      );
+      _quizCorrect += 1;
+    } else {
+      _activityLogService.logActivityUnawaited(
+        type: 'survival_quiz_wrong',
+        source: 'survival_quiz',
+        points: 0,
+        subjectId: widget.subject.id,
+        chapterId: widget.chapter.id,
+        metadata: {
+          'level': _level,
+          'kills': _kills,
+          'prompt': question.prompt,
+        },
+      );
+      final correct = question.options[question.correctIndex];
+      final explanation = (question.explanation ?? '').trim().isNotEmpty
+          ? question.explanation!.trim()
+          : 'Review the chapter notes to understand this concept.';
+      _lastWrongSelected = question.options[index];
+      _lastWrongAnswer = correct;
+      _lastWrongExplanation = explanation;
+      _lastWrongPrompt = question.prompt;
+    }
+    final isLast = _quizIndex >= _quizQuestions.length - 1;
+    if (!isLast) {
+      _setStateSafe(() {
+        _quizIndex += 1;
+        _question = _quizQuestions[_quizIndex];
+        _hint = null;
+      });
       return;
     }
-    _handleWrongAnswer(question);
-  }
-
-  void _handleWrongAnswer(QuizQuestionItem question) {
-    final correct = question.options[question.correctIndex];
-    final explanation = (question.explanation ?? '').trim().isNotEmpty
-        ? question.explanation!.trim()
-        : 'Review the chapter notes to understand this concept.';
+    if (_quizCorrect >= _quizPass) {
+      _setStateSafe(() {
+      _showQuiz = false;
+      _question = null;
+      _quizQuestions = const [];
+      _quizIndex = 0;
+      _quizCorrect = 0;
+      _lastWrongSelected = null;
+      _lastWrongAnswer = null;
+      _lastWrongExplanation = null;
+      _lastWrongPrompt = null;
+      _hint = null;
+      _quizError = null;
+    });
+      _applyReward();
+      _advanceLevel();
+      _game.resumeAfterQuiz();
+      _persistGameState(force: true);
+      return;
+    }
     _setStateSafe(() {
       _showQuiz = false;
-      _correctAnswer = correct;
-      _answerExplanation = explanation;
+      _question = null;
+      _quizQuestions = const [];
+      _quizIndex = 0;
+      _quizCorrect = 0;
+      _hint = null;
+      _quizError = null;
+      _correctAnswer = _lastWrongAnswer;
+      _answerExplanation = _lastWrongExplanation;
       _gameOver = true;
     });
     _game.pauseEngine();
@@ -683,6 +817,13 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
       body: Stack(
         children: [
           RepaintBoundary(child: _gameWidget),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _HorrorVignette(
+                pulse: _horrorPulse ?? const AlwaysStoppedAnimation(0.0),
+              ),
+            ),
+          ),
           Positioned(
             top: 10,
             left: 10,
@@ -715,6 +856,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                 level: _level,
                 stage: _stageForLevel(_level),
                 kills: _kills,
+                killsTarget: _waveTargetForLevel(_level),
                 coins: _coins,
                 weaponLevel: _weaponLevel,
               ),
@@ -724,6 +866,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
             bottom: 16,
             right: 20,
             child: _FireButton(
+              pulse: _horrorPulse,
               onPressed:
                   _showQuiz || _gameOver || _showSettings ? null : _handleFire,
             ),
@@ -741,9 +884,11 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: const Color(0xFF0B0F0E).withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.outline),
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Text(
                     _rewardMessage!,
@@ -762,7 +907,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                   opacity: _stageIntro == null ? 0 : 1,
                   duration: const Duration(milliseconds: 200),
                   child: Container(
-                    color: Colors.black.withValues(alpha: 0.35),
+                    color: Colors.black.withValues(alpha: 0.5),
                     alignment: Alignment.center,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -770,9 +915,11 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: const Color(0xFF0B0F0E).withValues(alpha: 0.95),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppColors.outline),
+                        border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Text(
                         _stageIntro ?? '',
@@ -793,7 +940,7 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
 
   Widget _buildQuizOverlay(BuildContext context) {
     return Container(
-      color: Colors.black.withValues(alpha: 0.55),
+      color: Colors.black.withValues(alpha: 0.65),
       child: Center(
         child: Container(
           width: 360,
@@ -803,17 +950,19 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.surface,
-                AppColors.surface.withValues(alpha: 0.9),
+                const Color(0xFF0B1110),
+                const Color(0xFF141012),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.outline),
+            border: Border.all(
+              color: AppColors.danger.withValues(alpha: 0.35),
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
+                color: AppColors.danger.withValues(alpha: 0.18),
                 blurRadius: 16,
                 offset: const Offset(0, 10),
               ),
@@ -843,6 +992,16 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                                 onPressed: () {
                                   setState(() {
                                     _showQuiz = false;
+                                    _question = null;
+                                    _quizQuestions = const [];
+                                    _quizIndex = 0;
+                                    _quizCorrect = 0;
+                                    _lastWrongSelected = null;
+                                    _lastWrongAnswer = null;
+                                    _lastWrongExplanation = null;
+                                    _lastWrongPrompt = null;
+                                    _hint = null;
+                                    _quizError = null;
                                   });
                                   _game.resumeAfterQuiz();
                                 },
@@ -898,6 +1057,22 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
                                 const SizedBox(width: 4),
                                 Text(
                                   'Level $_level',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(color: AppColors.mutedInk),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Q ${_quizIndex + 1}/${_quizQuestions.isEmpty ? _quizTotal : _quizQuestions.length}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(color: AppColors.mutedInk),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Correct $_quizCorrect',
                                   style: Theme.of(context)
                                       .textTheme
                                       .labelSmall
@@ -990,227 +1165,450 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen> {
 
   Widget _buildSettingsOverlay(BuildContext context) {
     final hasSave = _savedGame != null;
-    return Container(
-      color: Colors.black.withValues(alpha: 0.6),
-      child: Center(
-        child: Container(
-          width: 360,
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.outline),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.sports_esports_rounded),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Study Survivor',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Tune settings before entering the jungle.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
-                        ),
-                      ],
-                    ),
-                  ),
+    final maxWidth = min(440.0, MediaQuery.of(context).size.width - 40);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF08130C),
+                  Colors.black.withValues(alpha: 0.9),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(height: 16),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Sound'),
-                subtitle: const Text('Enable in‑game sound effects'),
-                value: _soundEnabled,
-                onChanged: (value) {
-                  setState(() => _soundEnabled = value);
-                  _saveSettings();
-                  if (value) {
-                    _primeAudio();
-                    _playSound(_soundUi, volume: 0.4);
-                    if (_bossAlive) {
-                      _startBossMusic();
-                    }
-                  } else {
-                    _stopBossMusic();
-                  }
-                },
+            ),
+          ),
+        ),
+        const Positioned(
+          top: -80,
+          left: -60,
+          child: _BackdropGlow(
+            color: AppColors.secondary,
+            size: 220,
+          ),
+        ),
+        const Positioned(
+          bottom: -90,
+          right: -40,
+          child: _BackdropGlow(
+            color: AppColors.accent,
+            size: 260,
+          ),
+        ),
+        Center(
+          child: Container(
+            width: maxWidth,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.surface,
+                  AppColors.surface.withValues(alpha: 0.92),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Vibration'),
-                subtitle: const Text('Haptic feedback on hits'),
-                value: _vibrationEnabled,
-                onChanged: (value) {
-                  setState(() => _vibrationEnabled = value);
-                  _saveSettings();
-                },
-              ),
-              if (hasSave) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.secondary.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.restore_rounded),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Saved run: Lv ${_savedGame!.level} • '
-                          'K ${_savedGame!.kills} • \$ ${_savedGame!.coins}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.outline.withValues(alpha: 0.7)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
                 ),
               ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _confirmQuit,
-                      child: const Text('Quit'),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.78,
+              ),
+              child: SingleChildScrollView(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Stack(
+                          children: [
+                            const _ZombieBackdrop(),
+                            Container(
+                              color: Colors.black.withValues(alpha: 0.55),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _startNewGame,
-                      child: const Text('Start New'),
-                    ),
-                  ),
-                  if (hasSave) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _resumeFromSave,
-                        child: const Text('Resume'),
+                    Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.secondary.withValues(alpha: 0.3),
+                                        AppColors.accent.withValues(alpha: 0.22),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            AppColors.secondary.withValues(alpha: 0.25),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(Icons.shield, size: 24),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Study Survivor',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.3,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Zombie waves • Quiz checkpoints • Boss fights',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: AppColors.mutedInk),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: const [
+                                          _HudChip(label: 'Wave system'),
+                                          _HudChip(label: '5 Q check'),
+                                          _HudChip(label: 'Pass 3'),
+                                          _HudChip(label: 'Resume 20 coins'),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  _MiniInfo(
+                                    icon: Icons.gamepad_outlined,
+                                    label: 'Move',
+                                    value: 'Joystick',
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _MiniInfo(
+                                    icon: Icons.flash_on,
+                                    label: 'Fire',
+                                    value: 'Tap',
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _MiniInfo(
+                                    icon: Icons.timer_outlined,
+                                    label: 'Waves',
+                                    value: 'Clear all',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.paper.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.outline),
+                              ),
+                              child: Column(
+                                children: [
+                                  _SettingRow(
+                                    icon: Icons.volume_up_rounded,
+                                    title: 'Sound',
+                                    subtitle: 'Enable in-game effects',
+                                    value: _soundEnabled,
+                                    onChanged: (value) {
+                                      setState(() => _soundEnabled = value);
+                                      _saveSettings();
+                                      if (value) {
+                                        _primeAudio();
+                                        _playSound(_soundUi, volume: 0.4);
+                                        if (_bossAlive) {
+                                          _startBossMusic();
+                                        }
+                                      } else {
+                                        _stopBossMusic();
+                                      }
+                                    },
+                                  ),
+                                  const Divider(height: 16),
+                                  _SettingRow(
+                                    icon: Icons.vibration_rounded,
+                                    title: 'Vibration',
+                                    subtitle: 'Haptic feedback on hits',
+                                    value: _vibrationEnabled,
+                                    onChanged: (value) {
+                                      setState(() => _vibrationEnabled = value);
+                                      _saveSettings();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (hasSave) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.secondary.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color:
+                                        AppColors.secondary.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.restore_rounded),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Saved run • Wave ${_savedGame!.level} • '
+                                        'K ${_savedGame!.kills} • \$ ${_savedGame!.coins}',
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _confirmQuit,
+                                    child: const Text('Quit'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _startNewGame,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.secondary,
+                                      foregroundColor: Colors.white,
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: const Text('Start Run'),
+                                  ),
+                                ),
+                                if (hasSave) ...[
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _resumeFromSave,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.accent,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                      ),
+                                      child: const Text('Resume'),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildGameOver(BuildContext context) {
     return Container(
-      color: Colors.black.withValues(alpha: 0.7),
+      color: Colors.black.withValues(alpha: 0.75),
       child: Center(
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.outline),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 340,
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _correctAnswer != null ? 'Wrong Answer' : 'Game Over',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B0F0E).withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.danger.withValues(alpha: 0.35),
               ),
-              if (_correctAnswer != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Correct Answer:',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _correctAnswer!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _answerExplanation ?? '',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-              ],
-              const SizedBox(height: 8),
-              Text('Level reached: $_level'),
-              const SizedBox(height: 16),
-              if (_coins >= _resumeCost) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _correctAnswer != null
-                        ? _resumeAfterWrong
-                        : _resumeAfterDeath,
-                    child: Text('Resume (-$_resumeCost coins)'),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _correctAnswer != null ? 'Wrong Answer' : 'Game Over',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _startNewGame,
-                  child: const Text('Start Over'),
-                ),
+                  if (_correctAnswer != null) ...[
+                    const SizedBox(height: 8),
+                    if (_lastWrongPrompt != null) ...[
+                      Text(
+                        'Question:',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _lastWrongPrompt!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_lastWrongSelected != null) ...[
+                      Text(
+                        'Your Answer:',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _lastWrongSelected!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Text(
+                      'Correct Answer:',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _correctAnswer!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _answerExplanation ?? '',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text('Level reached: $_level'),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _correctAnswer != null
+                          ? _resumeAfterWrong
+                          : _resumeAfterDeath,
+                      child: Text('Resume (-$_resumeCost coins)'),
+                    ),
+                  ),
+                  if (_coins < _resumeCost) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Need $_resumeCost coins to resume.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.mutedInk),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _startNewGame,
+                      child: const Text('Start Over'),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1238,9 +1636,9 @@ class _VitalsPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
+          color: const Color(0xFF0A0D0C).withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.18)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1283,6 +1681,7 @@ class _ScorePill extends StatelessWidget {
   final int level;
   final int stage;
   final int kills;
+  final int killsTarget;
   final int coins;
   final int weaponLevel;
 
@@ -1290,6 +1689,7 @@ class _ScorePill extends StatelessWidget {
     required this.level,
     required this.stage,
     required this.kills,
+    required this.killsTarget,
     required this.coins,
     required this.weaponLevel,
   });
@@ -1301,15 +1701,15 @@ class _ScorePill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
+          color: const Color(0xFF0A0D0C).withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.18)),
         ),
         child: FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-            'St $stage  •  Lv $level  •  K $kills  •  \$ $coins  •  Wp $weaponLevel',
+            'Wave $level  •  K $kills/$killsTarget  •  \$ $coins  •  Wp $weaponLevel',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -1338,9 +1738,9 @@ class _QuitPill extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: const Color(0xFF0A0D0C).withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: AppColors.danger.withValues(alpha: 0.18)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1356,6 +1756,290 @@ class _QuitPill extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HudChip extends StatelessWidget {
+  final String label;
+
+  const _HudChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.danger,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _SettingRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.danger.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: AppColors.danger, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.mutedInk),
+              ),
+            ],
+          ),
+        ),
+        Switch.adaptive(value: value, onChanged: onChanged),
+      ],
+    );
+  }
+}
+
+class _MiniInfo extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MiniInfo({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppColors.danger.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: AppColors.danger, size: 18),
+        ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.mutedInk,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZombieBackdrop extends StatelessWidget {
+  const _ZombieBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _ZombieBackdropPainter(),
+      child: Container(),
+    );
+  }
+}
+
+class _ZombieBackdropPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sky = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF0A120E),
+          Color(0xFF0E1A14),
+          Color(0xFF131E18),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, sky);
+
+    final moon = Paint()..color = const Color(0xFFEDEAD2).withValues(alpha: 0.22);
+    canvas.drawCircle(Offset(size.width * 0.82, size.height * 0.18), 52, moon);
+
+    final fog = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height * 0.62, size.width, size.height * 0.2),
+      fog,
+    );
+
+    final ground = Paint()
+      ..color = const Color(0xFF08110C).withValues(alpha: 0.85);
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height * 0.72, size.width, size.height * 0.3),
+      ground,
+    );
+
+    final silhouette = Paint()
+      ..color = const Color(0xFF0B1410).withValues(alpha: 0.9);
+    for (var i = 0; i < 6; i += 1) {
+      final x = size.width * (0.08 + i * 0.14);
+      final y = size.height * (0.7 + (i.isEven ? 0.02 : 0.0));
+      final body = Rect.fromCenter(
+        center: Offset(x, y),
+        width: 14,
+        height: 28,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(body, const Radius.circular(6)),
+        silhouette,
+      );
+      canvas.drawCircle(Offset(x, y - 20), 8, silhouette);
+      canvas.drawLine(
+        Offset(x - 10, y - 5),
+        Offset(x + 10, y - 10),
+        silhouette..strokeWidth = 3,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _HorrorVignette extends StatelessWidget {
+  final Animation<double> pulse;
+
+  const _HorrorVignette({required this.pulse});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: pulse,
+      builder: (context, child) {
+        final t = pulse.value;
+        final vignette = 0.2 + t * 0.12;
+        final glow = 0.08 + t * 0.08;
+        return Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.05,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: vignette),
+                    Colors.black.withValues(alpha: 0.6),
+                  ],
+                  stops: const [0.0, 0.65, 1.0],
+                ),
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF2B0E0E).withValues(alpha: glow),
+                    Colors.transparent,
+                    const Color(0xFF1B0B0B).withValues(alpha: glow + 0.05),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BackdropGlow extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const _BackdropGlow({
+    required this.color,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.32),
+            color.withValues(alpha: 0.0),
+          ],
         ),
       ),
     );
@@ -1405,12 +2089,13 @@ class _MiniBar extends StatelessWidget {
 
 class _FireButton extends StatelessWidget {
   final VoidCallback? onPressed;
+  final Animation<double>? pulse;
 
-  const _FireButton({this.onPressed});
+  const _FireButton({this.onPressed, this.pulse});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final content = GestureDetector(
       onTap: onPressed,
       child: Container(
         width: 86,
@@ -1418,15 +2103,15 @@ class _FireButton extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
-            colors: [Color(0xFFFF9A3D), Color(0xFFFF5A3D)],
+            colors: [Color(0xFFC13B2A), Color(0xFF6E0F0F)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -1438,6 +2123,34 @@ class _FireButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    final anim = pulse;
+    if (anim == null) {
+      return content;
+    }
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (context, child) {
+        final t = anim.value;
+        return Transform.scale(
+          scale: 0.97 + (t * 0.03),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.danger.withValues(alpha: 0.25 + t * 0.25),
+                  blurRadius: 16 + t * 8,
+                  spreadRadius: 1 + t * 2,
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: content,
     );
   }
 }
@@ -1547,7 +2260,8 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
 
   int _level = 1;
   int _kills = 0;
-  int _killsToTrigger = 5;
+  int _waveTarget = 5;
+  int _spawnedThisWave = 0;
   double _health = 100;
   double _shield = 0;
   int _weaponLevel = 1;
@@ -1560,6 +2274,10 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
 
   late Timer _spawnTimer;
   late Timer _quizTimer;
+
+  int _waveTargetForLevel(int level) {
+    return 5 + max(0, level - 1) * 2;
+  }
 
   @override
   Color backgroundColor() {
@@ -1666,12 +2384,12 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
       _spawnTimer.stop();
       _quizTimer.stop();
     }
-    final spawnInterval = max(0.8, 2.0 - (_level * 0.15));
-    final quizInterval = max(20, 32 - (_level * 2));
+    _waveTarget = _waveTargetForLevel(_level);
+    _spawnedThisWave = 0;
+    final spawnInterval = max(0.7, 1.8 - (_level * 0.12));
     _spawnTimer = Timer(spawnInterval, onTick: _spawnZombie, repeat: true)
       ..start();
-    _quizTimer = Timer(quizInterval.toDouble(), onTick: _triggerQuiz)
-      ..start();
+    _quizTimer = Timer(9999, onTick: _triggerQuiz);
     _timersReady = true;
   }
 
@@ -1934,6 +2652,7 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
 
   void _spawnZombie() {
     if (_quizActive) return;
+    if (_spawnedThisWave >= _waveTarget) return;
     final edge = _random.nextInt(4);
     double x = 0;
     double y = 0;
@@ -1958,6 +2677,7 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
     );
     _zombies.add(zombie);
     world.add(zombie);
+    _spawnedThisWave += 1;
   }
 
   void _spawnBoss() {
@@ -2003,7 +2723,7 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
     if (_bossAlive) {
       return;
     }
-    if (_kills >= _killsToTrigger || zombie.isBoss) {
+    if (_spawnedThisWave >= _waveTarget && _zombies.isEmpty) {
       _triggerQuiz();
     }
   }
@@ -2096,9 +2816,14 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
   void nextLevel(int level) {
     _level = level;
     _kills = 0;
-    _killsToTrigger = 5;
+    _waveTarget = _waveTargetForLevel(_level);
+    _spawnedThisWave = 0;
     _quizActive = false;
     onKillsChanged(_kills);
+    for (final zombie in List<ZombieComponent>.from(_zombies)) {
+      zombie.removeFromParent();
+    }
+    _zombies.clear();
     final stage = ((_level - 1) ~/ 3) + 1;
     _mapVariant = (stage - 1) % 3;
     _background?.setVariant(_mapVariant);
@@ -2112,16 +2837,13 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
     }
     _setupTimers();
     resumeEngine();
-    for (final zombie in List<ZombieComponent>.from(_zombies)) {
-      zombie.removeFromParent();
-    }
-    _zombies.clear();
   }
 
   void reset() {
     _level = 1;
     _kills = 0;
-    _killsToTrigger = 5;
+    _waveTarget = _waveTargetForLevel(_level);
+    _spawnedThisWave = 0;
     _health = 100;
     _shield = 0;
     _weaponLevel = 1;
@@ -2239,7 +2961,8 @@ class SurvivalQuizGame extends FlameGame with HasCollisionDetection {
     _health = save.health.clamp(0, 100);
     _shield = save.shield.clamp(0, 100);
     _weaponLevel = max(1, min(4, save.weaponLevel));
-    _killsToTrigger = 5;
+    _waveTarget = _waveTargetForLevel(_level);
+    _spawnedThisWave = min(_kills, _waveTarget);
     _quizActive = false;
     final stage = ((_level - 1) ~/ 3) + 1;
     _mapVariant = (stage - 1) % 3;

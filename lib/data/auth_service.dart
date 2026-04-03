@@ -29,17 +29,20 @@ class AuthService {
     required AuthMethod method,
     required String identifier,
     required String password,
+    Map<String, dynamic>? data,
   }) {
     switch (method) {
       case AuthMethod.email:
         return _client.auth.signUp(
           email: identifier,
           password: password,
+          data: data,
         );
       case AuthMethod.phone:
         return _client.auth.signUp(
           phone: identifier,
           password: password,
+          data: data,
         );
     }
   }

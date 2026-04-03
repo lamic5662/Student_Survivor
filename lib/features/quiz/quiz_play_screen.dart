@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -61,6 +60,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
   bool get _isTimeMode => widget.quiz.type == QuizType.time;
   bool get _isLevelMode => widget.quiz.type == QuizType.level;
   bool get _isAiMode => widget.isAi;
+  bool get _isGameTheme => widget.useGameZoneTheme;
 
   Future<void> _load() async {
     setState(() {
@@ -313,14 +313,25 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return _wrapScaffold(
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: _isGameTheme ? const Color(0xFF38BDF8) : null,
+          ),
+        ),
         safeArea: true,
       );
     }
     if (_errorMessage != null) {
       return _wrapScaffold(
         appBar: _buildAppBar(),
-        body: Center(child: Text(_errorMessage!)),
+        body: Center(
+          child: Text(
+            _errorMessage!,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _isGameTheme ? Colors.white70 : null,
+                ),
+          ),
+        ),
         safeArea: false,
       );
     }
@@ -332,6 +343,9 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
             _isAiMode
                 ? 'AI quiz unavailable. Enable Ollama or add quiz questions.'
                 : 'No questions available yet.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _isGameTheme ? Colors.white70 : null,
+                ),
           ),
         ),
         safeArea: false,
@@ -351,13 +365,11 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Text(widget.quiz.title),
-      backgroundColor:
-          widget.useGameZoneTheme ? AppColors.paper : null,
-      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
-      elevation: widget.useGameZoneTheme ? 0 : null,
-      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
-      surfaceTintColor:
-          widget.useGameZoneTheme ? Colors.transparent : null,
+      backgroundColor: _isGameTheme ? Colors.transparent : null,
+      foregroundColor: _isGameTheme ? Colors.white : null,
+      elevation: _isGameTheme ? 0 : null,
+      scrolledUnderElevation: _isGameTheme ? 0 : null,
+      surfaceTintColor: Colors.transparent,
     );
   }
 
@@ -387,11 +399,15 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
       children: [
         Text(
           timeLabel,
-          style: Theme.of(context).textTheme.titleSmall,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: _isGameTheme ? Colors.white : null,
+              ),
         ),
         Text(
           'Answered: ${_answers.length}/${_questions.length}',
-          style: Theme.of(context).textTheme.titleSmall,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: _isGameTheme ? Colors.white70 : null,
+              ),
         ),
       ],
     );
@@ -407,6 +423,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
                 index: entry.key + 1,
                 question: entry.value,
                 selectedIndex: _answers[entry.value.id],
+                isGameTheme: _isGameTheme,
                 onSelect: (value) {
                   setState(() {
                     _answers[entry.value.id] = value;
@@ -415,19 +432,25 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
               ),
             ),
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _submit,
-            child: _isSubmitting
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Submit Answers'),
-          ),
-        ),
+        _isGameTheme
+            ? _PrimaryActionButton(
+                label: 'Submit Answers',
+                isLoading: _isSubmitting,
+                onPressed: _isSubmitting ? null : _submit,
+              )
+            : SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submit,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Submit Answers'),
+                ),
+              ),
       ],
     );
   }
@@ -441,7 +464,9 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         const SizedBox(height: 20),
         Text(
           'Level ${_currentIndex + 1} of ${_questions.length}',
-          style: Theme.of(context).textTheme.titleSmall,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: _isGameTheme ? Colors.white70 : null,
+              ),
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -451,6 +476,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
                 index: _currentIndex + 1,
                 question: question,
                 selectedIndex: _answers[question.id],
+                isGameTheme: _isGameTheme,
                 onSelect: (value) {
                   setState(() {
                     _answers[question.id] = value;
@@ -461,23 +487,31 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _nextLevel,
-            child: _isSubmitting
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    _currentIndex == _questions.length - 1
-                        ? 'Finish'
-                        : 'Next',
-                  ),
-          ),
-        ),
+        _isGameTheme
+            ? _PrimaryActionButton(
+                label: _currentIndex == _questions.length - 1
+                    ? 'Finish'
+                    : 'Next',
+                isLoading: _isSubmitting,
+                onPressed: _isSubmitting ? null : _nextLevel,
+              )
+            : SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _nextLevel,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _currentIndex == _questions.length - 1
+                              ? 'Finish'
+                              : 'Next',
+                        ),
+                ),
+              ),
       ],
     );
   }
@@ -488,52 +522,182 @@ class _QuestionCard extends StatelessWidget {
   final QuizQuestionItem question;
   final int? selectedIndex;
   final ValueChanged<int> onSelect;
+  final bool isGameTheme;
 
   const _QuestionCard({
     required this.index,
     required this.question,
     required this.selectedIndex,
     required this.onSelect,
+    this.isGameTheme = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Q$index. ${question.prompt}',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            ...question.options.asMap().entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: selectedIndex == entry.key
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Q$index. ${question.prompt}',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isGameTheme ? Colors.white : null,
+              ),
+        ),
+        const SizedBox(height: 12),
+        ...question.options.asMap().entries.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: isGameTheme
+                        ? (selectedIndex == entry.key
+                            ? const Color(0xFF13243A)
+                            : const Color(0xFF0B1220))
+                        : (selectedIndex == entry.key
                             ? Theme.of(context)
                                 .colorScheme
                                 .primary
                                 .withValues(alpha: 0.1)
-                            : null,
-                      ),
-                      onPressed: () => onSelect(entry.key),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(entry.value),
-                      ),
+                            : null),
+                    foregroundColor: isGameTheme ? Colors.white : null,
+                    side: BorderSide(
+                      color: isGameTheme
+                          ? (selectedIndex == entry.key
+                              ? const Color(0xFF38BDF8)
+                              : const Color(0xFF1E2A44))
+                          : Theme.of(context).dividerColor,
                     ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  onPressed: () => onSelect(entry.key),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(entry.value),
                   ),
                 ),
+              ),
+            ),
+      ],
+    );
+
+    return isGameTheme
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _GameCard(child: content),
+          )
+        : Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: content,
+            ),
+          );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+
+  const _GameCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
           ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _PrimaryActionButton extends StatelessWidget {
+  final String label;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  const _PrimaryActionButton({
+    required this.label,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF38BDF8),
+              Color(0xFF4F46E5),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
         ),
       ),
     );

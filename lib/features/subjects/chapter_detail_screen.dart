@@ -17,14 +17,9 @@ import 'package:student_survivor/data/note_generated_question_service.dart';
 import 'package:student_survivor/data/note_submission_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
-import 'package:student_survivor/features/games/battle_quiz_screen.dart';
-import 'package:student_survivor/features/games/flashcards_screen.dart';
-import 'package:student_survivor/features/games/survival_quiz_game_screen.dart';
-import 'package:student_survivor/features/quiz/quiz_detail_screen.dart';
-import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
-class ChapterDetailScreen extends StatelessWidget {
+class ChapterDetailScreen extends StatefulWidget {
   final Subject subject;
   final Chapter chapter;
   final bool useGameZoneTheme;
@@ -39,410 +34,157 @@ class ChapterDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<ChapterDetailScreen> createState() => _ChapterDetailScreenState();
+}
+
+class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
+  bool _showTitle = true;
+  bool _showTabs = true;
+
+  bool _handleScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final shouldShow = notification.metrics.pixels < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
+    return false;
+  }
+
+  void _updateTitleVisibility(bool shouldShow) {
+    if (shouldShow == _showTitle && shouldShow == _showTabs) {
+      return;
+    }
+    setState(() {
+      _showTitle = shouldShow;
+      _showTabs = shouldShow;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isGamingTheme = !widget.useGameZoneTheme;
     final tabBar = TabBar(
       isScrollable: true,
-      labelColor: useGameZoneTheme ? AppColors.ink : null,
-      unselectedLabelColor: useGameZoneTheme ? AppColors.mutedInk : null,
-      indicatorColor: useGameZoneTheme ? AppColors.secondary : null,
+      labelColor: isGamingTheme
+          ? Colors.white
+          : widget.useGameZoneTheme
+              ? AppColors.ink
+              : null,
+      unselectedLabelColor: isGamingTheme
+          ? Colors.white70
+          : widget.useGameZoneTheme
+              ? AppColors.mutedInk
+              : null,
+      indicatorColor: isGamingTheme
+          ? const Color(0xFF38BDF8)
+          : widget.useGameZoneTheme
+              ? AppColors.secondary
+              : null,
       tabs: const [
         Tab(text: 'Notes'),
         Tab(text: 'Important'),
         Tab(text: 'Past Qs'),
-        Tab(text: 'Games'),
       ],
+    );
+
+    final tabBarWidget = PreferredSize(
+      preferredSize:
+          Size.fromHeight(_showTabs ? kTextTabBarHeight : 0),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: _showTabs ? kTextTabBarHeight : 0,
+          child: _showTabs ? tabBar : const SizedBox.shrink(),
+        ),
+      ),
     );
 
     final appBar = AppBar(
-      title: Text(chapter.title),
-      backgroundColor: useGameZoneTheme ? AppColors.paper : null,
-      foregroundColor: useGameZoneTheme ? AppColors.ink : null,
-      elevation: useGameZoneTheme ? 0 : null,
-      scrolledUnderElevation: useGameZoneTheme ? 0 : null,
-      surfaceTintColor: useGameZoneTheme ? Colors.transparent : null,
-      bottom: tabBar,
+      title: AnimatedOpacity(
+        opacity: _showTitle ? 1 : 0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          widget.chapter.title,
+          style: isGamingTheme
+              ? Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  )
+              : null,
+        ),
+      ),
+      backgroundColor: isGamingTheme
+          ? Colors.transparent
+          : widget.useGameZoneTheme
+              ? AppColors.paper
+              : null,
+      foregroundColor: isGamingTheme
+          ? Colors.white
+          : widget.useGameZoneTheme
+              ? AppColors.ink
+              : null,
+      elevation: isGamingTheme ? 0 : (widget.useGameZoneTheme ? 0 : null),
+      scrolledUnderElevation:
+          isGamingTheme ? 0 : (widget.useGameZoneTheme ? 0 : null),
+      surfaceTintColor: Colors.transparent,
+      bottom: tabBarWidget,
     );
 
-    final body = TabBarView(
-      children: [
-        _NotesTab(
-          subject: subject,
-          chapter: chapter,
-          openSubmitSheet: openSubmitSheet,
-        ),
-        _QuestionsTab(
-          title: 'Important Questions',
-          subject: subject,
-          chapter: chapter,
-          questions: chapter.importantQuestions,
-          allowGenerateFromNotes: false,
-        ),
-        _QuestionsTab(
-          title: 'Past Questions',
-          subject: subject,
-          chapter: chapter,
-          questions: chapter.pastQuestions,
-        ),
-        _GamesTab(
-          subject: subject,
-          chapter: chapter,
-          useGameZoneTheme: useGameZoneTheme,
-        ),
-      ],
+    final body = NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: TabBarView(
+        children: [
+          _NotesTab(
+            subject: widget.subject,
+            chapter: widget.chapter,
+            openSubmitSheet: widget.openSubmitSheet,
+            useGameTheme: isGamingTheme,
+            onTitleVisibilityChanged: _updateTitleVisibility,
+          ),
+          _QuestionsTab(
+            title: 'Important Questions',
+            subject: widget.subject,
+            chapter: widget.chapter,
+            questions: widget.chapter.importantQuestions,
+            allowGenerateFromNotes: false,
+            useGameTheme: isGamingTheme,
+            onTitleVisibilityChanged: _updateTitleVisibility,
+          ),
+          _QuestionsTab(
+            title: 'Past Questions',
+            subject: widget.subject,
+            chapter: widget.chapter,
+            questions: widget.chapter.pastQuestions,
+            useGameTheme: isGamingTheme,
+            onTitleVisibilityChanged: _updateTitleVisibility,
+          ),
+        ],
+      ),
     );
 
     return DefaultTabController(
-      length: 4,
-      child: useGameZoneTheme
+      length: 3,
+      child: widget.useGameZoneTheme
           ? GameZoneScaffold(
               appBar: appBar,
               body: body,
               useSafeArea: false,
             )
           : Scaffold(
+              extendBodyBehindAppBar: true,
+              backgroundColor: const Color(0xFF070B14),
               appBar: appBar,
-              body: body,
-            ),
-    );
-  }
-}
-
-class _GamesTab extends StatelessWidget {
-  final Subject subject;
-  final Chapter chapter;
-  final bool useGameZoneTheme;
-
-  const _GamesTab({
-    required this.subject,
-    required this.chapter,
-    required this.useGameZoneTheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const SectionHeader(title: 'Play & Practice'),
-        const SizedBox(height: 12),
-        _GameCard(
-          title: 'Study Survivor',
-          subtitle: 'Survive waves and answer questions for rewards.',
-          icon: Icons.shield,
-          actionLabel: 'Play',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => SurvivalQuizGameScreen(
-                  subject: subject,
-                  chapter: chapter,
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        _GameCard(
-          title: 'Battle Quiz (2P)',
-          subtitle: 'Challenge others in a live quiz battle.',
-          icon: Icons.sports_esports,
-          actionLabel: 'Start',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BattleQuizScreen(
-                  subject: subject,
-                  chapter: chapter,
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        _GameCard(
-          title: 'Flashcards',
-          subtitle: 'Quick revision with chapter flashcards.',
-          icon: Icons.auto_stories,
-          actionLabel: 'Open',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => FlashcardsScreen(
-                  subject: subject,
-                  chapter: chapter,
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        const SectionHeader(title: 'Chapter Quizzes'),
-        const SizedBox(height: 12),
-        if (chapter.quizzes.isEmpty)
-          Text(
-            'No quizzes available for this chapter yet.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.mutedInk,
-            ),
-          )
-        else
-          ...chapter.quizzes.map(
-            (quiz) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _QuizCard(
-                subject: subject,
-                chapter: chapter,
-                quiz: quiz,
-                useGameZoneTheme: useGameZoneTheme,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _GameCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String actionLabel;
-  final VoidCallback onTap;
-
-  const _GameCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.actionLabel,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.outline),
-        gradient: LinearGradient(
-          colors: [
-            AppColors.surface,
-            AppColors.paper.withValues(alpha: 0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(icon, size: 28, color: AppColors.secondary),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary,
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.secondary.withValues(alpha: 0.22),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    actionLabel,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuizCard extends StatelessWidget {
-  final Subject subject;
-  final Chapter chapter;
-  final Quiz quiz;
-  final bool useGameZoneTheme;
-
-  const _QuizCard({
-    required this.subject,
-    required this.chapter,
-    required this.quiz,
-    required this.useGameZoneTheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => QuizDetailScreen(
-                quiz: quiz,
-                subject: subject,
-                chapter: chapter,
-                useGameZoneTheme: useGameZoneTheme,
-              ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: subject.accentColor.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.quiz, color: subject.accentColor),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              body: Stack(
                 children: [
-                  Text(
-                    quiz.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      _MetaChip(
-                        label: '${quiz.questionCount} Qs',
-                        color: AppColors.ink.withValues(alpha: 0.06),
-                      ),
-                      _MetaChip(
-                        label: '${quiz.duration.inMinutes} min',
-                        color: AppColors.ink.withValues(alpha: 0.06),
-                      ),
-                      _MetaChip(
-                        label: _difficultyLabel(quiz.difficulty),
-                        color: _difficultyColor(quiz.difficulty)
-                            .withValues(alpha: 0.16),
-                        textColor: _difficultyColor(quiz.difficulty),
-                      ),
-                    ],
-                  ),
+                  const Positioned.fill(child: _ChapterBackdrop()),
+                  body,
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.mutedInk),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _difficultyLabel(QuizDifficulty difficulty) {
-    switch (difficulty) {
-      case QuizDifficulty.easy:
-        return 'Easy';
-      case QuizDifficulty.medium:
-        return 'Medium';
-      case QuizDifficulty.hard:
-        return 'Hard';
-    }
-  }
-
-  Color _difficultyColor(QuizDifficulty difficulty) {
-    switch (difficulty) {
-      case QuizDifficulty.easy:
-        return AppColors.success;
-      case QuizDifficulty.medium:
-        return AppColors.warning;
-      case QuizDifficulty.hard:
-        return AppColors.danger;
-    }
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color? textColor;
-
-  const _MetaChip({
-    required this.label,
-    required this.color,
-    this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: textColor ?? AppColors.ink,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
     );
   }
 }
@@ -451,11 +193,15 @@ class _NotesTab extends StatefulWidget {
   final Subject subject;
   final Chapter chapter;
   final bool openSubmitSheet;
+  final bool useGameTheme;
+  final ValueChanged<bool>? onTitleVisibilityChanged;
 
   const _NotesTab({
     required this.subject,
     required this.chapter,
     this.openSubmitSheet = false,
+    this.useGameTheme = false,
+    this.onTitleVisibilityChanged,
   });
 
   @override
@@ -476,6 +222,28 @@ class _NotesTabState extends State<_NotesTab> {
   List<NoteSubmission> _submissions = const [];
   NoteDraft? _draft;
   final Map<String, String> _definitionCache = {};
+
+  bool get _useGameTheme => widget.useGameTheme;
+  Color get _mutedTextColor =>
+      _useGameTheme ? Colors.white70 : AppColors.mutedInk;
+
+  Widget _buildCard({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    Color? color,
+  }) {
+    if (_useGameTheme) {
+      return _GameCard(
+        padding: padding,
+        child: child,
+      );
+    }
+    return AppCard(
+      padding: padding,
+      color: color,
+      child: child,
+    );
+  }
 
   @override
   void initState() {
@@ -566,6 +334,10 @@ class _NotesTabState extends State<_NotesTab> {
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: _useGameTheme ? AppColors.paper : null,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
         return _NoteSubmissionSheet(
           onUploadAttachment: (file) =>
@@ -690,13 +462,8 @@ class _NotesTabState extends State<_NotesTab> {
     final extracted = await _NoteQuestionBuilder.extractTextFromFile(url);
     if (!mounted) return;
     if (extracted.trim().isEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SyllabusWebViewScreen(
-            title: title,
-            url: url,
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preview not available for this file.')),
       );
       return;
     }
@@ -708,7 +475,8 @@ class _NotesTabState extends State<_NotesTab> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor:
+          _useGameTheme ? const Color(0xFF0B1220) : AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -728,7 +496,9 @@ class _NotesTabState extends State<_NotesTab> {
                   width: 40,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.outline,
+                    color: _useGameTheme
+                        ? Colors.white24
+                        : AppColors.outline,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -737,30 +507,21 @@ class _NotesTabState extends State<_NotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: _useGameTheme ? Colors.white : null,
+                      ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    FilledButton.tonal(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => SyllabusWebViewScreen(
-                              title: title,
-                              url: url,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Text('Open original'),
-                    ),
-                    const SizedBox(width: 12),
-                    OutlinedButton(
-                      onPressed: () => _copyToClipboard(url),
-                      child: const Text('Copy link'),
-                    ),
-                  ],
+                OutlinedButton(
+                  onPressed: () => _copyToClipboard(url),
+                  style: _useGameTheme
+                      ? OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white24),
+                        )
+                      : null,
+                  child: const Text('Copy link'),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -768,22 +529,33 @@ class _NotesTabState extends State<_NotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: _useGameTheme ? Colors.white : null,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.ink.withValues(alpha: 0.04),
+                    color: _useGameTheme
+                        ? const Color(0xFF10192E)
+                        : AppColors.ink.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.outline),
+                    border: Border.all(
+                      color: _useGameTheme
+                          ? const Color(0xFF1E2A44)
+                          : AppColors.outline,
+                    ),
                   ),
                   child: _buildTappableText(
                     extracted,
                     contextText: mergedContext,
                     mainWords: highlight.mainWords,
                     difficultWords: highlight.difficultWords,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _useGameTheme ? Colors.white70 : null,
+                        ),
                   ),
                 ),
               ],
@@ -840,7 +612,8 @@ class _NotesTabState extends State<_NotesTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor:
+          _useGameTheme ? const Color(0xFF0B1220) : AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -993,7 +766,9 @@ class _NotesTabState extends State<_NotesTab> {
                       width: 40,
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: AppColors.outline,
+                        color: _useGameTheme
+                            ? Colors.white24
+                            : AppColors.outline,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -1002,18 +777,25 @@ class _NotesTabState extends State<_NotesTab> {
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: _useGameTheme ? Colors.white : null,
+                          ),
                     ),
                     const SizedBox(height: 16),
                     if ((fileUrl ?? '').isNotEmpty) ...[
-                      AppCard(
+                      _buildCard(
                         color: AppColors.secondary.withValues(alpha: 0.06),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.attach_file_rounded),
+                                Icon(
+                                  Icons.attach_file_rounded,
+                                  color:
+                                      _useGameTheme ? Colors.white : null,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -1022,7 +804,11 @@ class _NotesTabState extends State<_NotesTab> {
                                         .textTheme
                                         .bodyMedium
                                         ?.copyWith(
-                                            fontWeight: FontWeight.w600),
+                                          fontWeight: FontWeight.w600,
+                                          color: _useGameTheme
+                                              ? Colors.white
+                                              : null,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -1052,6 +838,11 @@ class _NotesTabState extends State<_NotesTab> {
                                   onPressed: isGenerating
                                       ? null
                                       : handleGenerate,
+                                  style: _useGameTheme
+                                      ? TextButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                        )
+                                      : null,
                                   child: isGenerating
                                       ? const SizedBox(
                                           height: 16,
@@ -1085,14 +876,22 @@ class _NotesTabState extends State<_NotesTab> {
                         style: Theme.of(context)
                             .textTheme
                             .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: _useGameTheme ? Colors.white : null,
+                            ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         detailedAnswer.isNotEmpty
                             ? detailedAnswer
                             : shortAnswer,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: _useGameTheme ? Colors.white70 : null,
+                            ),
                       ),
                     ] else if ((fileUrl ?? '').isEmpty) ...[
                       Text(
@@ -1100,7 +899,7 @@ class _NotesTabState extends State<_NotesTab> {
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
-                            ?.copyWith(color: AppColors.mutedInk),
+                            ?.copyWith(color: _mutedTextColor),
                       ),
                     ],
                   ],
@@ -1574,7 +1373,7 @@ class _NotesTabState extends State<_NotesTab> {
       final summaryText =
           detailedAnswer.trim().isNotEmpty ? detailedAnswer.trim() : shortAnswer.trim();
       final detailText = detailedAnswer.trim();
-      return AppCard(
+      return _buildCard(
         child: ExpansionTile(
           tilePadding: EdgeInsets.zero,
           title: Text(
@@ -1582,7 +1381,10 @@ class _NotesTabState extends State<_NotesTab> {
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: _useGameTheme ? Colors.white : null,
+                ),
           ),
           subtitle: summaryText.isEmpty
               ? null
@@ -1593,7 +1395,7 @@ class _NotesTabState extends State<_NotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: _mutedTextColor),
                 ),
           trailing: trailing,
           childrenPadding: const EdgeInsets.only(bottom: 8),
@@ -1621,12 +1423,22 @@ class _NotesTabState extends State<_NotesTab> {
             if (detailText.isNotEmpty && detailText != summaryText) ...[
               Text(
                 detailText,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: _useGameTheme ? Colors.white70 : null,
+                    ),
               ),
             ] else if (summaryText.isNotEmpty) ...[
               Text(
                 summaryText,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: _useGameTheme ? Colors.white70 : null,
+                    ),
               ),
             ],
           ],
@@ -1637,7 +1449,7 @@ class _NotesTabState extends State<_NotesTab> {
     final previewText = detailedAnswer.trim().isNotEmpty
         ? detailedAnswer.trim()
         : shortAnswer.trim();
-    final card = AppCard(
+    final card = _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1671,7 +1483,10 @@ class _NotesTabState extends State<_NotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: _useGameTheme ? Colors.white : null,
+                      ),
                 ),
               ),
               ...?(trailing == null ? null : [trailing]),
@@ -1686,7 +1501,7 @@ class _NotesTabState extends State<_NotesTab> {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: _mutedTextColor),
             ),
           if (previewText.isNotEmpty) const SizedBox(height: 12),
           if (showTapHint && onTap != null) ...[
@@ -1696,7 +1511,7 @@ class _NotesTabState extends State<_NotesTab> {
                 Icon(
                   Icons.touch_app_rounded,
                   size: 16,
-                  color: AppColors.mutedInk,
+                  color: _mutedTextColor,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -1704,7 +1519,7 @@ class _NotesTabState extends State<_NotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .labelSmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: _mutedTextColor),
                 ),
               ],
             ),
@@ -1726,41 +1541,119 @@ class _NotesTabState extends State<_NotesTab> {
     );
   }
 
+  Widget _buildSectionHeader({
+    required String title,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    if (!_useGameTheme) {
+      return SectionHeader(
+        title: title,
+        actionLabel: actionLabel,
+        onAction: onAction,
+      );
+    }
+    return _GameSectionHeader(
+      title: title,
+      actionLabel: actionLabel,
+      onAction: onAction,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final notes = widget.chapter.notes;
-    return RefreshIndicator(
-      onRefresh: () async {
-        await _loadUserNotes();
-        await _loadSubmissions();
+    final topInset = _useGameTheme
+        ? max(
+            0.0,
+            MediaQuery.of(context).padding.top +
+                kToolbarHeight +
+                kTextTabBarHeight -
+                96,
+          )
+        : 20.0;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis != Axis.vertical) {
+          return false;
+        }
+        final shouldShow = notification.metrics.pixels < 24;
+        widget.onTitleVisibilityChanged?.call(shouldShow);
+        return false;
       },
-      child: ListView(
-        padding: const EdgeInsets.all(20),
+      child: RefreshIndicator(
+        onRefresh: () async {
+          await _loadUserNotes();
+          await _loadSubmissions();
+        },
+        child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          topInset,
+          20,
+          24,
+        ),
         children: [
           _ChapterHero(
             subject: widget.subject,
             chapter: widget.chapter,
             title: 'Chapter Notes',
             subtitle: 'AI notes, your notes, and official references.',
+            useGameTheme: _useGameTheme,
             chips: [
               _InfoChip(
                 icon: Icons.menu_book_rounded,
                 label: '${notes.length} official',
+                useGameTheme: _useGameTheme,
               ),
               _InfoChip(
                 icon: Icons.bookmark_rounded,
                 label: '${_userNotes.length} my notes',
                 color: AppColors.accent,
+                useGameTheme: _useGameTheme,
               ),
               _InfoChip(
                 icon: Icons.upload_file_rounded,
                 label: '${_submissions.length} submitted',
                 color: AppColors.warning,
+                useGameTheme: _useGameTheme,
               ),
             ],
           ),
+          if (widget.chapter.subtopics.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Subtopics',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: _useGameTheme ? Colors.white : null,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...(() {
+                    final items = [...widget.chapter.subtopics]
+                      ..sort(
+                        (a, b) => a.sortOrder.compareTo(b.sortOrder),
+                      );
+                    return items.map(
+                      (topic) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _SubtopicTile(
+                          topic: topic,
+                          useGameTheme: _useGameTheme,
+                        ),
+                      ),
+                    );
+                  })(),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
-          AppCard(
+          _buildCard(
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
               initiallyExpanded: false,
@@ -1770,7 +1663,9 @@ class _NotesTabState extends State<_NotesTab> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.14),
+                      color: _useGameTheme
+                          ? const Color(0xFF111B2E)
+                          : AppColors.secondary.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.auto_awesome_rounded,
@@ -1780,7 +1675,9 @@ class _NotesTabState extends State<_NotesTab> {
                   Expanded(
                     child: Text(
                       'AI Notes',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _useGameTheme ? Colors.white : null,
+                          ),
                     ),
                   ),
                   if (_isGenerating)
@@ -1792,6 +1689,12 @@ class _NotesTabState extends State<_NotesTab> {
                   else
                     FilledButton.tonal(
                       onPressed: _generateNote,
+                      style: _useGameTheme
+                          ? FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF162033),
+                              foregroundColor: Colors.white,
+                            )
+                          : null,
                       child: Text(_draft == null ? 'Generate' : 'Regenerate'),
                     ),
                 ],
@@ -1799,7 +1702,12 @@ class _NotesTabState extends State<_NotesTab> {
               childrenPadding: const EdgeInsets.only(bottom: 8),
               children: [
                 if (_draft == null)
-                  const Text('Generate a quick AI note for this chapter.')
+                  Text(
+                    'Generate a quick AI note for this chapter.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _useGameTheme ? Colors.white70 : null,
+                        ),
+                  )
                 else ...[
                   _noteCard(
                     title: _draft!.title,
@@ -1816,6 +1724,12 @@ class _NotesTabState extends State<_NotesTab> {
                     children: [
                       FilledButton(
                         onPressed: _isSaving ? null : _saveDraft,
+                        style: _useGameTheme
+                            ? FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF38BDF8),
+                                foregroundColor: Colors.white,
+                              )
+                            : null,
                         child: _isSaving
                             ? const SizedBox(
                                 height: 18,
@@ -1835,6 +1749,11 @@ class _NotesTabState extends State<_NotesTab> {
                                   _draft = null;
                                 });
                               },
+                        style: _useGameTheme
+                            ? TextButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                              )
+                            : null,
                         child: const Text('Discard'),
                       ),
                     ],
@@ -1854,7 +1773,7 @@ class _NotesTabState extends State<_NotesTab> {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeader(
+          _buildSectionHeader(
             title: 'My Notes',
             actionLabel: _isLoading ? null : 'Refresh',
             onAction: _isLoading ? null : _loadUserNotes,
@@ -1863,7 +1782,13 @@ class _NotesTabState extends State<_NotesTab> {
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
           else if (_userNotes.isEmpty)
-            const Text('No saved notes yet.')
+            Text(
+              'No saved notes yet.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _mutedTextColor),
+            )
           else
             ..._userNotes.map(
               (note) => Padding(
@@ -1883,7 +1808,10 @@ class _NotesTabState extends State<_NotesTab> {
                       IconButton(
                         tooltip: 'Open',
                         onPressed: () => _showUserNoteDetails(note),
-                        icon: const Icon(Icons.open_in_new),
+                        icon: Icon(
+                          Icons.open_in_new,
+                          color: _useGameTheme ? Colors.white : null,
+                        ),
                       ),
                       IconButton(
                         tooltip: 'Delete',
@@ -1897,7 +1825,10 @@ class _NotesTabState extends State<_NotesTab> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.delete_outline),
+                            : Icon(
+                                Icons.delete_outline,
+                                color: _useGameTheme ? Colors.white70 : null,
+                              ),
                       ),
                     ],
                   ),
@@ -1905,19 +1836,25 @@ class _NotesTabState extends State<_NotesTab> {
               ),
             ),
           const SizedBox(height: 24),
-          SectionHeader(
+          _buildSectionHeader(
             title: 'Submit Notes for Approval',
             actionLabel: 'Submit',
             onAction: _openSubmissionSheet,
           ),
           const SizedBox(height: 12),
           if (_submissions.isEmpty)
-            const Text('No submissions yet.')
+            Text(
+              'No submissions yet.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _mutedTextColor),
+            )
           else
             ..._submissions.map(
               (submission) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: AppCard(
+                child: _buildCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1929,14 +1866,20 @@ class _NotesTabState extends State<_NotesTab> {
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: _useGameTheme ? Colors.white : null,
+                                  ),
                             ),
                           ),
                           if (submission.status == 'pending')
                             IconButton(
                               tooltip: 'Delete',
                               onPressed: () => _deleteSubmission(submission),
-                              icon: const Icon(Icons.delete_outline),
+                              icon: Icon(
+                                Icons.delete_outline,
+                                color: _useGameTheme ? Colors.white70 : null,
+                              ),
                             ),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1966,25 +1909,44 @@ class _NotesTabState extends State<_NotesTab> {
                         const SizedBox(height: 6),
                         Text(
                           submission.shortAnswer,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color:
+                                    _useGameTheme ? Colors.white70 : null,
+                              ),
                         ),
                       ],
                       if ((submission.fileUrl ?? '').isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.attach_file,
                               size: 16,
-                              color: AppColors.mutedInk,
+                              color: _mutedTextColor,
                             ),
                             const SizedBox(width: 6),
-                            const Expanded(
-                              child: Text('Attachment submitted'),
+                            Expanded(
+                              child: Text(
+                                'Attachment submitted',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: _mutedTextColor,
+                                    ),
+                              ),
                             ),
                             TextButton(
                               onPressed: () =>
                                   _copyToClipboard(submission.fileUrl!),
+                              style: _useGameTheme
+                                  ? TextButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                    )
+                                  : null,
                               child: const Text('Copy link'),
                             ),
                           ],
@@ -1997,12 +1959,18 @@ class _NotesTabState extends State<_NotesTab> {
                           style: Theme.of(context)
                               .textTheme
                               .labelSmall
-                              ?.copyWith(color: AppColors.mutedInk),
+                              ?.copyWith(color: _mutedTextColor),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           submission.adminFeedback!,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color:
+                                    _useGameTheme ? Colors.white70 : null,
+                              ),
                         ),
                       ],
                     ],
@@ -2011,10 +1979,16 @@ class _NotesTabState extends State<_NotesTab> {
               ),
             ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Official Notes'),
+          _buildSectionHeader(title: 'Official Notes'),
           const SizedBox(height: 12),
           if (notes.isEmpty)
-            const Text('No official notes yet.')
+            Text(
+              'No official notes yet.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _mutedTextColor),
+            )
           else
             ...notes.map(
               (note) => Padding(
@@ -2040,20 +2014,29 @@ class _NotesTabState extends State<_NotesTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      color: _useGameTheme
+                          ? const Color(0xFF111B2E)
+                          : AppColors.secondary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.open_in_new,
-                            size: 14, color: AppColors.secondary),
+                        Icon(
+                          Icons.open_in_new,
+                          size: 14,
+                          color: _useGameTheme
+                              ? const Color(0xFF38BDF8)
+                              : AppColors.secondary,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'Open',
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: AppColors.secondary,
+                                    color: _useGameTheme
+                                        ? const Color(0xFF38BDF8)
+                                        : AppColors.secondary,
                                     fontWeight: FontWeight.w600,
                                   ),
                         ),
@@ -2064,6 +2047,7 @@ class _NotesTabState extends State<_NotesTab> {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -2279,6 +2263,8 @@ class _QuestionsTab extends StatefulWidget {
   final Chapter chapter;
   final List<Question> questions;
   final bool allowGenerateFromNotes;
+  final bool useGameTheme;
+  final ValueChanged<bool>? onTitleVisibilityChanged;
 
   const _QuestionsTab({
     required this.title,
@@ -2286,6 +2272,8 @@ class _QuestionsTab extends StatefulWidget {
     required this.chapter,
     required this.questions,
     this.allowGenerateFromNotes = false,
+    this.useGameTheme = false,
+    this.onTitleVisibilityChanged,
   });
 
   @override
@@ -2297,6 +2285,28 @@ class _QuestionsTabState extends State<_QuestionsTab> {
   String? _generateError;
   final List<Question> _generated = [];
   final Random _random = Random();
+
+  bool get _useGameTheme => widget.useGameTheme;
+  Color get _mutedTextColor =>
+      _useGameTheme ? Colors.white70 : AppColors.mutedInk;
+
+  Widget _buildCard({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    Color? color,
+  }) {
+    if (_useGameTheme) {
+      return _GameCard(
+        padding: padding,
+        child: child,
+      );
+    }
+    return AppCard(
+      padding: padding,
+      color: color,
+      child: child,
+    );
+  }
 
   @override
   void initState() {
@@ -2538,101 +2548,139 @@ class _QuestionsTabState extends State<_QuestionsTab> {
   @override
   Widget build(BuildContext context) {
     final allQuestions = [..._generated, ...widget.questions];
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _ChapterHero(
-          subject: widget.subject,
-          chapter: widget.chapter,
-          title: widget.title,
-          subtitle: 'Review and revise key questions.',
-          chips: [
-            _InfoChip(
-              icon: Icons.help_outline_rounded,
-              label: '${allQuestions.length} questions',
-            ),
-          ],
+    final topInset = _useGameTheme
+        ? max(
+            0.0,
+            MediaQuery.of(context).padding.top +
+                kToolbarHeight +
+                kTextTabBarHeight -
+                96,
+          )
+        : 20.0;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis != Axis.vertical) {
+          return false;
+        }
+        final shouldShow = notification.metrics.pixels < 24;
+        widget.onTitleVisibilityChanged?.call(shouldShow);
+        return false;
+      },
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          topInset,
+          20,
+          24,
         ),
-        if (widget.allowGenerateFromNotes) ...[
-          const SizedBox(height: 16),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Generate from official notes',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Create a new important question based on chapter notes.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.tonal(
-                  onPressed: _isGenerating ? null : _generateFromNotes,
-                  child: _isGenerating
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Generate Question'),
-                ),
-                if (_generateError != null) ...[
-                  const SizedBox(height: 8),
+        children: [
+          _ChapterHero(
+            subject: widget.subject,
+            chapter: widget.chapter,
+            title: widget.title,
+            subtitle: 'Review and revise key questions.',
+            useGameTheme: _useGameTheme,
+            chips: [
+              _InfoChip(
+                icon: Icons.help_outline_rounded,
+                label: '${allQuestions.length} questions',
+                useGameTheme: _useGameTheme,
+              ),
+            ],
+          ),
+          if (widget.allowGenerateFromNotes) ...[
+            const SizedBox(height: 16),
+            _buildCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    _generateError!,
+                    'Generate from official notes',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: _useGameTheme ? Colors.white : null,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Create a new important question based on chapter notes.',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: AppColors.danger),
+                        ?.copyWith(color: _mutedTextColor),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.tonal(
+                    onPressed: _isGenerating ? null : _generateFromNotes,
+                    style: _useGameTheme
+                        ? FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF162033),
+                            foregroundColor: Colors.white,
+                          )
+                        : null,
+                    child: _isGenerating
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Generate Question'),
+                  ),
+                  if (_generateError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _generateError!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          if (allQuestions.isEmpty)
+            _buildCard(
+              child: Column(
+                children: [
+                  Icon(Icons.quiz_outlined,
+                      size: 48, color: _mutedTextColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No questions yet.',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: _useGameTheme ? Colors.white : null,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Questions will appear once content is added.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: _mutedTextColor),
                   ),
                 ],
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        if (allQuestions.isEmpty)
-          AppCard(
-            child: Column(
-              children: [
-                const Icon(Icons.quiz_outlined,
-                    size: 48, color: AppColors.mutedInk),
-                const SizedBox(height: 12),
-                Text(
-                  'No questions yet.',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Questions will appear once content is added.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-              ],
-            ),
-          )
-        else
-          ...allQuestions.asMap().entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _QuestionCard(
-                    index: entry.key + 1,
-                    question: entry.value,
+              ),
+            )
+          else
+            ...allQuestions.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _QuestionCard(
+                      index: entry.key + 1,
+                      question: entry.value,
+                      useGameTheme: _useGameTheme,
+                    ),
                   ),
                 ),
-              ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -2643,6 +2691,7 @@ class _ChapterHero extends StatelessWidget {
   final String title;
   final String subtitle;
   final List<Widget> chips;
+  final bool useGameTheme;
 
   const _ChapterHero({
     required this.subject,
@@ -2650,23 +2699,36 @@ class _ChapterHero extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.chips,
+    this.useGameTheme = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = subject.accentColor;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            subject.accentColor.withValues(alpha: 0.16),
-            AppColors.secondary.withValues(alpha: 0.12),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: useGameTheme
+            ? LinearGradient(
+                colors: [
+                  const Color(0xFF0B1220),
+                  accent.withValues(alpha: 0.25),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [
+                  accent.withValues(alpha: 0.16),
+                  AppColors.secondary.withValues(alpha: 0.12),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(
+          color: useGameTheme ? const Color(0xFF1E2A44) : AppColors.outline,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2677,11 +2739,12 @@ class _ChapterHero extends StatelessWidget {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: subject.accentColor.withValues(alpha: 0.2),
+                  color: useGameTheme
+                      ? const Color(0xFF111B2E)
+                      : accent.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(Icons.menu_book_rounded,
-                    color: subject.accentColor),
+                child: Icon(Icons.menu_book_rounded, color: accent),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2693,7 +2756,10 @@ class _ChapterHero extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: useGameTheme ? Colors.white : null,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -2701,7 +2767,11 @@ class _ChapterHero extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(
+                            color: useGameTheme
+                                ? Colors.white70
+                                : AppColors.mutedInk,
+                          ),
                     ),
                   ],
                 ),
@@ -2714,7 +2784,9 @@ class _ChapterHero extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(
+                  color: useGameTheme ? Colors.white70 : AppColors.mutedInk,
+                ),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -2732,11 +2804,13 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color? color;
+  final bool useGameTheme;
 
   const _InfoChip({
     required this.icon,
     required this.label,
     this.color,
+    this.useGameTheme = false,
   });
 
   @override
@@ -2745,8 +2819,13 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: resolved.withValues(alpha: 0.1),
+        color: useGameTheme
+            ? resolved.withValues(alpha: 0.18)
+            : resolved.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
+        border: useGameTheme
+            ? Border.all(color: const Color(0xFF1E2A44))
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2766,76 +2845,340 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
+class _SubtopicTile extends StatelessWidget {
+  final ChapterTopic topic;
+  final bool useGameTheme;
+
+  const _SubtopicTile({
+    required this.topic,
+    this.useGameTheme = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: useGameTheme
+                ? const Color(0xFF111B2E)
+                : AppColors.secondary.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.label_rounded,
+              size: 16, color: AppColors.secondary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                topic.title,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: useGameTheme ? Colors.white : null,
+                    ),
+              ),
+              if (topic.summary.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  topic.summary,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(
+                        color:
+                            useGameTheme ? Colors.white70 : AppColors.mutedInk,
+                      ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _QuestionCard extends StatelessWidget {
   final int index;
   final Question question;
+  final bool useGameTheme;
 
   const _QuestionCard({
     required this.index,
     required this.question,
+    this.useGameTheme = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final year = question.year;
-    return AppCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Center(
-              child: Text(
-                '#$index',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(color: AppColors.secondary),
-              ),
+    final card = useGameTheme
+        ? _GameCard(child: _buildContent(context, year))
+        : AppCard(child: _buildContent(context, year));
+    return card;
+  }
+
+  Widget _buildContent(BuildContext context, int? year) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: useGameTheme
+                ? const Color(0xFF111B2E)
+                : AppColors.secondary.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(
+            child: Text(
+              '#$index',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(
+                    color: useGameTheme
+                        ? const Color(0xFF38BDF8)
+                        : AppColors.secondary,
+                  ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  question.prompt,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _InfoChip(
-                      icon: Icons.stars_rounded,
-                      label: '${question.marks} marks',
-                      color: AppColors.accent,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                question.prompt,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: useGameTheme ? Colors.white : null,
                     ),
-                    if (year != null)
-                      _InfoChip(
-                        icon: Icons.calendar_today_rounded,
-                        label: year.toString(),
-                        color: AppColors.warning,
-                      ),
-                  ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _InfoChip(
+                    icon: Icons.stars_rounded,
+                    label: '${question.marks} marks',
+                    color: AppColors.accent,
+                    useGameTheme: useGameTheme,
+                  ),
+                  if (year != null)
+                    _InfoChip(
+                      icon: Icons.calendar_today_rounded,
+                      label: year.toString(),
+                      color: AppColors.warning,
+                      useGameTheme: useGameTheme,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GameSectionHeader extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _GameSectionHeader({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
+          ),
+        ),
+        if (actionLabel != null)
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF38BDF8),
             ),
+            child: Text(actionLabel!.toUpperCase()),
+          ),
+      ],
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _GameCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _ChapterBackdrop extends StatelessWidget {
+  const _ChapterBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF070B14),
+            Color(0xFF0B1324),
+            Color(0xFF101C2E),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: const [
+          Positioned.fill(child: CustomPaint(painter: _ChapterGridPainter())),
+          Positioned(
+            top: -140,
+            right: -80,
+            child: _GlowOrb(size: 280, color: Color(0x3322D3EE)),
+          ),
+          Positioned(
+            bottom: -120,
+            left: -60,
+            child: _GlowOrb(size: 240, color: Color(0x334F46E5)),
+          ),
+          Positioned(
+            top: 160,
+            left: 40,
+            child: _GlowOrb(size: 180, color: Color(0x332DD4BF)),
           ),
         ],
       ),
     );
   }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: 80,
+            spreadRadius: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChapterGridPainter extends CustomPainter {
+  const _ChapterGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    const gap = 52.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    final glowPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rect = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.08,
+      size.width * 0.84,
+      size.height * 0.76,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(28)),
+      glowPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChapterGridPainter oldDelegate) => false;
 }
 
 class _GeneratedQuestion {

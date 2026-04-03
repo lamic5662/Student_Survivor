@@ -191,10 +191,15 @@ class NotesCacheService {
           chapter.importantQuestions.map(_questionToMap).toList(),
       'past_questions': chapter.pastQuestions.map(_questionToMap).toList(),
       'quizzes': chapter.quizzes.map(_quizToMap).toList(),
+      'subtopics': chapter.subtopics.map(_chapterTopicToMap).toList(),
     };
   }
 
   Chapter _chapterFromMap(Map<String, dynamic> map) {
+    final subtopics = (map['subtopics'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((entry) => _chapterTopicFromMap(Map<String, dynamic>.from(entry)))
+        .toList();
     final notes = (map['notes'] as List<dynamic>? ?? [])
         .whereType<Map>()
         .map((entry) => _noteFromMap(Map<String, dynamic>.from(entry)))
@@ -215,10 +220,29 @@ class NotesCacheService {
     return Chapter(
       id: map['id']?.toString() ?? '',
       title: map['title']?.toString() ?? 'Chapter',
+      subtopics: subtopics,
       notes: notes,
       importantQuestions: important,
       pastQuestions: past,
       quizzes: quizzes,
+    );
+  }
+
+  Map<String, dynamic> _chapterTopicToMap(ChapterTopic topic) {
+    return {
+      'id': topic.id,
+      'title': topic.title,
+      'summary': topic.summary,
+      'sort_order': topic.sortOrder,
+    };
+  }
+
+  ChapterTopic _chapterTopicFromMap(Map<String, dynamic> map) {
+    return ChapterTopic(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      summary: map['summary']?.toString() ?? '',
+      sortOrder: (map['sort_order'] as num?)?.toInt() ?? 0,
     );
   }
 

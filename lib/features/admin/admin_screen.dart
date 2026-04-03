@@ -66,6 +66,10 @@ class _AdminScreenState extends State<AdminScreen> {
   bool _isAiNoteLoading = false;
   bool _isAiQuestionLoading = false;
   bool _isAiQuizQuestionLoading = false;
+  bool _isBulkNotesUploading = false;
+  bool _isBulkQuestionsUploading = false;
+  List<String> _bulkNotesMessages = const [];
+  List<String> _bulkQuestionMessages = const [];
   String? _notesError;
   bool _isPendingLoading = false;
   String? _pendingError;
@@ -96,6 +100,7 @@ class _AdminScreenState extends State<AdminScreen> {
   final _chapterTitle = TextEditingController();
   final _chapterSummary = TextEditingController();
   final _chapterSort = TextEditingController(text: '1');
+  final _chapterSubtopics = TextEditingController();
 
   final _noteTitle = TextEditingController();
   final _noteShort = TextEditingController();
@@ -137,6 +142,7 @@ class _AdminScreenState extends State<AdminScreen> {
     _chapterTitle.dispose();
     _chapterSummary.dispose();
     _chapterSort.dispose();
+    _chapterSubtopics.dispose();
     _noteTitle.dispose();
     _noteShort.dispose();
     _noteDetailed.dispose();
@@ -677,14 +683,35 @@ class _AdminScreenState extends State<AdminScreen> {
       _show('Chapter title required.');
       return;
     }
+    final subtopics = <Map<String, dynamic>>[];
+    var sortOrder = 1;
+    final lines = _chapterSubtopics.text.split('\n');
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      final parts = line.split('|');
+      final topicTitle = parts.first.trim();
+      if (topicTitle.isEmpty) continue;
+      final summary = parts.length > 1
+          ? parts.sublist(1).join('|').trim()
+          : '';
+      subtopics.add({
+        'title': topicTitle,
+        'summary': summary,
+        'sort_order': sortOrder,
+      });
+      sortOrder += 1;
+    }
     await _adminService.addChapter(
       subjectId: subject.id,
       title: title,
       summary: _chapterSummary.text.trim(),
       sortOrder: int.tryParse(_chapterSort.text.trim()) ?? 0,
+      subtopics: subtopics,
     );
     _chapterTitle.clear();
     _chapterSummary.clear();
+    _chapterSubtopics.clear();
     await _load();
     await _refreshProfileContent();
     _show('Chapter added.');
@@ -731,6 +758,133 @@ class _AdminScreenState extends State<AdminScreen> {
       if (mounted) {
         setState(() {
           _isUploadingSyllabus = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _bulkUploadNotes() async {
+    String chapterId;
+    if (_noteChapterWise) {
+      final chapter = _noteChapter;
+      if (chapter == null) {
+        _show('Select a chapter.');
+        return;
+      }
+      chapterId = chapter.id;
+    } else {
+      final subject = _noteSubject;
+      if (subject == null) {
+        _show('Select a subject.');
+        return;
+      }
+      chapterId = await _adminService.ensureGeneralChapter(subject.id);
+    }
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const [
+        'pdf',
+        'doc',
+        'docx',
+        'ppt',
+        'pptx',
+        'xls',
+        'xlsx',
+        'png',
+        'jpg',
+        'jpeg',
+      ],
+      allowMultiple: true,
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isBulkNotesUploading = true;
+      _bulkNotesMessages = const [];
+    });
+    try {
+      final result = await _adminService.uploadNotesBatch(
+        chapterId: chapterId,
+        files: picked.files,
+        tags: _adminService.parseTags(_noteTags.text),
+      );
+      await _loadAdminNotes();
+      await _refreshProfileContent();
+      setState(() {
+        _bulkNotesMessages = result.messages;
+      });
+      _show(
+        'Uploaded ${result.uploaded} file(s), skipped ${result.skipped}.',
+      );
+    } catch (error) {
+      _show('Bulk upload failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBulkNotesUploading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _bulkUploadQuestions() async {
+    final chapter = _qaChapter;
+    if (chapter == null) {
+      _show('Select a chapter for the questions.');
+      return;
+    }
+    final marks = int.tryParse(_questionMarks.text.trim()) ?? 5;
+    int? year;
+    if (_questionKind == 'past' && _questionYear.text.trim().isNotEmpty) {
+      year = int.tryParse(_questionYear.text.trim());
+    }
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const [
+        'txt',
+        'csv',
+        'pdf',
+        'doc',
+        'docx',
+        'ppt',
+        'pptx',
+      ],
+      allowMultiple: true,
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isBulkQuestionsUploading = true;
+      _bulkQuestionMessages = const [];
+    });
+    try {
+      final result = await _adminService.uploadQuestionsBatch(
+        chapterId: chapter.id,
+        files: picked.files,
+        kind: _questionKind,
+        marks: marks,
+        defaultYear: year,
+      );
+      setState(() {
+        _bulkQuestionMessages = result.messages;
+      });
+      _show(
+        'Imported ${result.uploaded} question(s), skipped ${result.skipped} file(s).',
+      );
+    } catch (error) {
+      _show('Bulk upload failed: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBulkQuestionsUploading = false;
         });
       }
     }
@@ -1481,6 +1635,16 @@ class _AdminScreenState extends State<AdminScreen> {
         .toList();
   }
 
+  Semester? _matchSemester(List<Semester> semesters, Semester? selected) {
+    if (selected == null) return null;
+    for (final semester in semesters) {
+      if (semester.id == selected.id) {
+        return semester;
+      }
+    }
+    return null;
+  }
+
   Subject? _matchSubject(List<Subject> subjects, Subject? selected) {
     if (selected == null) return null;
     for (final subject in subjects) {
@@ -1596,6 +1760,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildSyllabusTab() {
+    final syllabusSemesterValue = _matchSemester(_semesters, _syllabusSemester);
     final chapterSubjects = _subjectSemester?.subjects ?? const <Subject>[];
     final chapterSubjectValue = _matchSubject(
       chapterSubjects,
@@ -1614,8 +1779,10 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Semester>(
-                key: ValueKey(_syllabusSemester?.id ?? ''),
-                initialValue: _syllabusSemester,
+                key: ValueKey(
+                  'syllabus_semester_${syllabusSemesterValue?.id ?? 'none'}',
+                ),
+                initialValue: syllabusSemesterValue,
                 decoration: const InputDecoration(labelText: 'Semester'),
                 items: _semesters
                     .map(
@@ -1766,7 +1933,9 @@ class _AdminScreenState extends State<AdminScreen> {
             childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
               DropdownButtonFormField<Semester>(
-                key: ValueKey(_subjectSemester?.id ?? ''),
+                key: ValueKey(
+                  'subject_semester_${_subjectSemester?.id ?? 'none'}',
+                ),
                 initialValue: _subjectSemester,
                 decoration: const InputDecoration(labelText: 'Semester'),
                 items: _semesters
@@ -1838,7 +2007,9 @@ class _AdminScreenState extends State<AdminScreen> {
             childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
               DropdownButtonFormField<Subject>(
-                key: ValueKey(chapterSubjectValue?.id ?? ''),
+                key: ValueKey(
+                  'chapter_subject_${chapterSubjectValue?.id ?? 'none'}',
+                ),
                 initialValue: chapterSubjectValue,
                 decoration: const InputDecoration(labelText: 'Subject'),
                 items: chapterSubjects
@@ -1874,6 +2045,15 @@ class _AdminScreenState extends State<AdminScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
+                    controller: _chapterSubtopics,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Subtopics (one per line)',
+                      hintText: 'e.g. CPU | ALU, CU, Registers',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
                     controller: _chapterSort,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Sort order'),
@@ -1893,6 +2073,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildNotesTab() {
+    final noteSemesterValue = _matchSemester(_semesters, _noteSemester);
     final noteSubjects = _noteSemester?.subjects ?? const <Subject>[];
     final noteSubjectValue = _matchSubject(noteSubjects, _noteSubject);
     final noteChapterValue = _matchChapter(_noteChapters, _noteChapter);
@@ -1966,8 +2147,10 @@ class _AdminScreenState extends State<AdminScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<Semester>(
-                  key: ValueKey(_noteSemester?.id ?? ''),
-                  initialValue: _noteSemester,
+                  key: ValueKey(
+                    'note_semester_${noteSemesterValue?.id ?? 'none'}',
+                  ),
+                  initialValue: noteSemesterValue,
                   decoration: const InputDecoration(labelText: 'Semester'),
                   isExpanded: true,
                   items: _semesters
@@ -1994,7 +2177,9 @@ class _AdminScreenState extends State<AdminScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<Subject>(
-                  key: ValueKey(noteSubjectValue?.id ?? ''),
+                  key: ValueKey(
+                    'note_subject_${noteSubjectValue?.id ?? 'none'}',
+                  ),
                   initialValue: noteSubjectValue,
                   decoration: const InputDecoration(labelText: 'Subject'),
                   isExpanded: true,
@@ -2019,7 +2204,9 @@ class _AdminScreenState extends State<AdminScreen> {
                 const SizedBox(height: 12),
                 if (_noteChapterWise) ...[
                   DropdownButtonFormField<Chapter>(
-                    key: ValueKey(noteChapterValue?.id ?? ''),
+                    key: ValueKey(
+                      'note_chapter_${noteChapterValue?.id ?? 'none'}',
+                    ),
                     initialValue: noteChapterValue,
                     decoration: const InputDecoration(labelText: 'Chapter'),
                     isExpanded: true,
@@ -2104,6 +2291,36 @@ class _AdminScreenState extends State<AdminScreen> {
                   onPressed: _addNote,
                   child: const Text('Save Note'),
                 ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isBulkNotesUploading
+                            ? null
+                            : _bulkUploadNotes,
+                        icon: _isBulkNotesUploading
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.upload_file_rounded),
+                        label: const Text('Bulk Upload Files'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_bulkNotesMessages.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _bulkNotesMessages.take(3).join('\n'),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.mutedInk),
+                  ),
+                ],
               ],
             ],
           ),
@@ -2474,6 +2691,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildQuestionsTab() {
+    final qaSemesterValue = _matchSemester(_semesters, _qaSemester);
     final qaSubjects = _qaSemester?.subjects ?? const <Subject>[];
     final qaSubjectValue = _matchSubject(qaSubjects, _qaSubject);
     final qaChapterValue = _matchChapter(_qaChapters, _qaChapter);
@@ -2495,8 +2713,10 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Semester>(
-                key: ValueKey(_qaSemester?.id ?? ''),
-                initialValue: _qaSemester,
+                key: ValueKey(
+                  'qa_semester_${qaSemesterValue?.id ?? 'none'}',
+                ),
+                initialValue: qaSemesterValue,
                 decoration: const InputDecoration(labelText: 'Semester'),
                 isExpanded: true,
                 items: _semesters
@@ -2524,7 +2744,9 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Subject>(
-                key: ValueKey(qaSubjectValue?.id ?? ''),
+                key: ValueKey(
+                  'qa_subject_${qaSubjectValue?.id ?? 'none'}',
+                ),
                 initialValue: qaSubjectValue,
                 decoration: const InputDecoration(labelText: 'Subject'),
                 isExpanded: true,
@@ -2549,7 +2771,9 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Chapter>(
-                key: ValueKey(qaChapterValue?.id ?? ''),
+                key: ValueKey(
+                  'qa_chapter_${qaChapterValue?.id ?? 'none'}',
+                ),
                 initialValue: qaChapterValue,
                 decoration: const InputDecoration(labelText: 'Chapter'),
                 isExpanded: true,
@@ -2607,6 +2831,7 @@ class _AdminScreenState extends State<AdminScreen> {
             childrenPadding: const EdgeInsets.only(bottom: 12),
             children: [
               DropdownButtonFormField<String>(
+                key: ValueKey('question_kind_$_questionKind'),
                 initialValue: _questionKind,
                 decoration: const InputDecoration(labelText: 'Question type'),
                 items: const [
@@ -2656,6 +2881,45 @@ class _AdminScreenState extends State<AdminScreen> {
                 onPressed: _addQuestion,
                 child: const Text('Save Question'),
               ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isBulkQuestionsUploading
+                          ? null
+                          : _bulkUploadQuestions,
+                      icon: _isBulkQuestionsUploading
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_file_rounded),
+                      label: const Text('Bulk Upload Questions'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Upload .txt/.csv (one question per line) or PDF/DOCX/PPTX for AI extraction. '
+                'Optional format: prompt | marks | year.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.mutedInk),
+              ),
+              if (_bulkQuestionMessages.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _bulkQuestionMessages.take(3).join('\n'),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+              ],
             ],
           ),
         ),
@@ -2726,6 +2990,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey('quiz_type_$_quizType'),
                 initialValue: _quizType,
                 decoration: const InputDecoration(labelText: 'Quiz type'),
                 items: const [
@@ -2741,6 +3006,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey('quiz_difficulty_$_quizDifficulty'),
                 initialValue: _quizDifficulty,
                 decoration: const InputDecoration(labelText: 'Difficulty'),
                 items: const [
@@ -2805,7 +3071,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 const Text('Create a quiz first for this chapter.')
               else
                 DropdownButtonFormField<Quiz>(
-                  key: ValueKey(qaQuizValue?.id ?? ''),
+                  key: ValueKey('qa_quiz_${qaQuizValue?.id ?? 'none'}'),
                   initialValue: qaQuizValue,
                   decoration: const InputDecoration(labelText: 'Quiz'),
                   isExpanded: true,

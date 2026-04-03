@@ -2,9 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
-import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -37,10 +35,15 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
   late final AiQuizService _aiQuizService;
   late final Chapter _subjectChapter;
   final _random = Random();
+  bool _showTitle = true;
+  bool _showTabs = true;
 
   List<QuizQuestionItem> _questions = const [];
   bool _isGeneratingQuiz = false;
   String? _quizError;
+  final Set<String> _seenQuestionPrompts = {};
+  final List<int> _pageMarkers = [];
+  final PageController _pageController = PageController();
 
   @override
   void initState() {
@@ -49,14 +52,44 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
     _subjectChapter = _buildSubjectChapter(widget.subject);
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  bool _handleScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final shouldShow = notification.metrics.pixels < 24;
+    if (shouldShow != _showTitle || shouldShow != _showTabs) {
+      setState(() {
+        _showTitle = shouldShow;
+        _showTabs = shouldShow;
+      });
+    }
+    return false;
+  }
+
   Chapter _buildSubjectChapter(Subject subject) {
     final notes = <Note>[];
     final important = <Question>[];
     final past = <Question>[];
+    final subtopics = <ChapterTopic>[];
+    final seenTopics = <String>{};
     for (final chapter in subject.chapters) {
       notes.addAll(chapter.notes);
       important.addAll(chapter.importantQuestions);
       past.addAll(chapter.pastQuestions);
+      for (final topic in chapter.subtopics) {
+        final title = topic.title.trim();
+        if (title.isEmpty) continue;
+        final key = title.toLowerCase();
+        if (seenTopics.contains(key)) continue;
+        seenTopics.add(key);
+        subtopics.add(topic);
+      }
     }
     return Chapter(
       id: 'subject_${subject.id}',
@@ -65,6 +98,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
       importantQuestions: important,
       pastQuestions: past,
       quizzes: const [],
+      subtopics: subtopics,
     );
   }
 
@@ -81,16 +115,48 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
         chapter: _subjectChapter,
         count: 10,
         baseDifficulty: QuizDifficulty.medium,
+        nonce: DateTime.now().millisecondsSinceEpoch.toString(),
       );
-      final questions = aiQuestions.isNotEmpty
+      final freshQuestions = aiQuestions.isNotEmpty
           ? aiQuestions
           : _fallbackQuestionsFromNotes();
-      if (questions.isEmpty) {
+      if (freshQuestions.isEmpty) {
         throw Exception('No questions available for this subject.');
       }
+      final merged = List<QuizQuestionItem>.from(_questions);
+      final pageStartIndex = merged.length;
+      for (final question in freshQuestions) {
+        final key = question.prompt.trim().toLowerCase();
+        if (key.isEmpty || _seenQuestionPrompts.contains(key)) {
+          continue;
+        }
+        _seenQuestionPrompts.add(key);
+        merged.add(question);
+      }
+      if (merged.length == _questions.length) {
+        throw Exception('No new questions generated. Try again.');
+      }
+      if (_pageMarkers.isEmpty) {
+        _pageMarkers.add(0);
+      } else if (pageStartIndex < merged.length) {
+        _pageMarkers.add(pageStartIndex);
+      }
+      final pageIndex = _pageMarkers.isEmpty ? 0 : _pageMarkers.length - 1;
       setState(() {
-        _questions = questions;
+        _questions = merged;
       });
+      if (pageIndex >= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_pageController.hasClients) {
+            _pageController.animateToPage(
+              pageIndex,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     } catch (error) {
       setState(() {
         _quizError = error.toString();
@@ -144,7 +210,12 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
               : i < 7
                   ? 'medium'
                   : 'hard',
-          explanation: null,
+          explanation: _trimText(
+            note.detailedAnswer.trim().isNotEmpty
+                ? note.detailedAnswer.trim()
+                : note.shortAnswer.trim(),
+            200,
+          ),
         ),
       );
     }
@@ -161,130 +232,321 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
   @override
   Widget build(BuildContext context) {
     final tabBar = TabBar(
-      labelColor: widget.useGameZoneTheme ? AppColors.ink : null,
-      unselectedLabelColor: widget.useGameZoneTheme ? AppColors.mutedInk : null,
-      indicatorColor: widget.useGameZoneTheme ? AppColors.secondary : null,
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      indicatorColor: const Color(0xFF38BDF8),
       tabs: const [
         Tab(text: 'Notes'),
         Tab(text: 'Questions'),
       ],
     );
 
-    final appBar = AppBar(
-      title: Text(widget.subject.name),
-      backgroundColor:
-          widget.useGameZoneTheme ? AppColors.paper : null,
-      foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
-      elevation: widget.useGameZoneTheme ? 0 : null,
-      scrolledUnderElevation: widget.useGameZoneTheme ? 0 : null,
-      surfaceTintColor:
-          widget.useGameZoneTheme ? Colors.transparent : null,
-      bottom: tabBar,
+    final tabBarWidget = PreferredSize(
+      preferredSize:
+          Size.fromHeight(_showTabs ? kTextTabBarHeight : 0),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: _showTabs ? kTextTabBarHeight : 0,
+          child: _showTabs ? tabBar : const SizedBox.shrink(),
+        ),
+      ),
     );
 
-    final body = TabBarView(
-      children: [
-        _SubjectNotesTab(
-          subject: widget.subject,
-          subjectChapter: _subjectChapter,
-          initialSection: widget.initialNotesSection,
+    final appBar = AppBar(
+      title: AnimatedOpacity(
+        opacity: _showTitle ? 1 : 0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          widget.subject.name,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
         ),
-        _buildQuestionsTab(),
-      ],
+      ),
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      bottom: tabBarWidget,
+    );
+
+    final body = NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: TabBarView(
+        children: [
+          _SubjectNotesTab(
+            subject: widget.subject,
+            subjectChapter: _subjectChapter,
+            initialSection: widget.initialNotesSection,
+          ),
+          _buildQuestionsTab(),
+        ],
+      ),
     );
 
     return DefaultTabController(
       length: 2,
       initialIndex: widget.initialTabIndex,
-      child: widget.useGameZoneTheme
-          ? GameZoneScaffold(
-              appBar: appBar,
-              body: body,
-              useSafeArea: false,
-            )
-          : Scaffold(
-              appBar: appBar,
-              body: body,
-            ),
+      child: GameZoneScaffold(
+        appBar: appBar,
+        body: body,
+        useSafeArea: false,
+        extendBodyBehindAppBar: true,
+      ),
     );
   }
 
   Widget _buildQuestionsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'AI Subject Quiz',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Generate MCQs using all chapters in this subject.',
+    final pages = _splitQuestionsByPage();
+    final topInset = MediaQuery.of(context).padding.top +
+        kToolbarHeight +
+        kTextTabBarHeight +
+        8;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topInset, 20, 20),
+      child: Column(
+        children: [
+          _GameCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI Subject Quiz',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Generate MCQs using all chapters in this subject.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF38BDF8),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                      _isGeneratingQuiz ? 'Generating...' : 'Generate Questions'),
+                ),
+              ],
+            ),
+          ),
+          if (_quizError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _quizError!,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Colors.white70),
+            ),
+          ],
+          if (_questions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${_questions.length} questions',
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
-                child: Text(
-                    _isGeneratingQuiz ? 'Generating...' : 'Generate Questions'),
-              ),
-            ],
-          ),
-        ),
-        if (_quizError != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _quizError!,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
-          ),
-        ],
-        if (_questions.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          ..._questions.map(
-            (question) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      question.prompt,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    ...question.options.asMap().entries.map(
-                          (entry) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              '${String.fromCharCode(65 + entry.key)}. ${entry.value}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: AppColors.mutedInk),
-                            ),
-                          ),
-                        ),
-                  ],
-                ),
+                    ?.copyWith(color: Colors.white70),
               ),
             ),
-          ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: pages.length,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (_) {},
+                itemBuilder: (context, index) {
+                  final page = pages[index];
+                  return ListView(
+                    children: [
+                      _SectionTitle(title: 'Page ${index + 1}'),
+                      const SizedBox(height: 12),
+                      ...page.map((question) => _buildQuestionCard(context, question)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        children: [
+                          if (index > 0)
+                            OutlinedButton.icon(
+                              onPressed: () => _goToPage(index - 1),
+                              icon: const Icon(Icons.chevron_left),
+                              label: const Text('Previous'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                                side: const BorderSide(
+                                  color: Color(0xFF38BDF8),
+                                ),
+                              ),
+                            ),
+                          if (index < pages.length - 1)
+                            OutlinedButton.icon(
+                              onPressed: () => _goToPage(index + 1),
+                              icon: const Icon(Icons.chevron_right),
+                              label: const Text('Next Page'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                                side: const BorderSide(
+                                  color: Color(0xFF38BDF8),
+                                ),
+                              ),
+                            )
+                          else
+                            OutlinedButton.icon(
+                              onPressed: _isGeneratingQuiz
+                                  ? null
+                                  : _generateSubjectQuiz,
+                              icon: const Icon(Icons.auto_awesome),
+                              label: const Text('Generate Next Page'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white70,
+                                side: const BorderSide(
+                                  color: Color(0xFF38BDF8),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF38BDF8),
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                _isGeneratingQuiz ? 'Generating...' : 'Generate Next Page',
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
+  }
+
+  List<List<QuizQuestionItem>> _splitQuestionsByPage() {
+    if (_questions.isEmpty) return const [];
+    final markers = _pageMarkers.isEmpty ? [0] : _pageMarkers.toList();
+    markers.sort();
+    final pages = <List<QuizQuestionItem>>[];
+    for (var i = 0; i < markers.length; i += 1) {
+      final start = markers[i];
+      final end = i + 1 < markers.length ? markers[i + 1] : _questions.length;
+      if (start >= _questions.length || start >= end) continue;
+      pages.add(_questions.sublist(start, end));
+    }
+    if (pages.isEmpty) {
+      pages.add(List<QuizQuestionItem>.from(_questions));
+    }
+    return pages;
+  }
+
+  Widget _buildQuestionCard(BuildContext context, QuizQuestionItem question) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _GameCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              question.prompt,
+              softWrap: true,
+              overflow: TextOverflow.visible,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...question.options.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${String.fromCharCode(65 + entry.key)}. ${entry.value}',
+                      softWrap: true,
+                      overflow: TextOverflow.visible,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 8),
+            Text(
+              'Answer: ${_answerFor(question)}',
+              softWrap: true,
+              overflow: TextOverflow.visible,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(
+                    color: const Color(0xFF22C55E),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            if (question.explanation != null &&
+                question.explanation!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                question.explanation!,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _goToPage(int index) {
+    if (index < 0) return;
+    final pages = _splitQuestionsByPage();
+    if (index >= pages.length) return;
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  String _answerFor(QuizQuestionItem question) {
+    final index = question.correctIndex;
+    if (index >= 0 && index < question.options.length) {
+      return question.options[index];
+    }
+    return 'Answer not available';
   }
 
 }
@@ -498,7 +760,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFF0B1220),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -518,7 +780,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   width: 40,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.outline,
+                    color: const Color(0xFF1E2A44),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -527,15 +789,20 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                 ),
                 const SizedBox(height: 16),
                 if ((fileUrl ?? '').isNotEmpty) ...[
-                  AppCard(
-                    color: AppColors.secondary.withValues(alpha: 0.06),
+                  _GameCard(
                     child: Row(
                       children: [
-                        const Icon(Icons.attach_file_rounded),
+                        const Icon(
+                          Icons.attach_file_rounded,
+                          color: Color(0xFF38BDF8),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -543,13 +810,19 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                         ),
                         TextButton(
                           onPressed: () => _openAttachment(
                             title: title,
                             url: fileUrl!,
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF38BDF8),
                           ),
                           child: const Text('Open'),
                         ),
@@ -565,7 +838,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   _buildTappableText(
@@ -573,7 +849,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     contextText: contextText,
                     mainWords: highlight.mainWords,
                     difficultWords: highlight.difficultWords,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white70),
                   ),
                 ] else if ((fileUrl ?? '').isEmpty) ...[
                   Text(
@@ -581,7 +860,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
-                        ?.copyWith(color: AppColors.mutedInk),
+                        ?.copyWith(color: Colors.white70),
                   ),
                 ],
               ],
@@ -993,7 +1272,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       final summaryText =
           detailedAnswer.trim().isNotEmpty ? detailedAnswer.trim() : shortAnswer.trim();
       final detailText = detailedAnswer.trim();
-      return AppCard(
+      return _GameCard(
         child: ExpansionTile(
           tilePadding: EdgeInsets.zero,
           title: Text(
@@ -1001,7 +1280,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           subtitle: summaryText.isEmpty
               ? null
@@ -1012,7 +1294,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
           trailing: trailing,
           childrenPadding: const EdgeInsets.only(bottom: 8),
@@ -1040,12 +1322,18 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
             if (detailText.isNotEmpty && detailText != summaryText) ...[
               Text(
                 detailText,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
               ),
             ] else if (summaryText.isNotEmpty) ...[
               Text(
                 summaryText,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
               ),
             ],
           ],
@@ -1056,7 +1344,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     final previewText = detailedAnswer.trim().isNotEmpty
         ? detailedAnswer.trim()
         : shortAnswer.trim();
-    final card = AppCard(
+    final card = _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1090,7 +1378,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
               ),
               ...?(trailing == null ? null : [trailing]),
@@ -1105,7 +1396,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             ),
           if (previewText.isNotEmpty) const SizedBox(height: 12),
           if (showTapHint && onTap != null) ...[
@@ -1115,7 +1406,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                 Icon(
                   Icons.touch_app_rounded,
                   size: 16,
-                  color: AppColors.mutedInk,
+                  color: Colors.white54,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -1123,7 +1414,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   style: Theme.of(context)
                       .textTheme
                       .labelSmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white54),
                 ),
               ],
             ),
@@ -1157,9 +1448,20 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     return RefreshIndicator(
       onRefresh: _loadUserNotes,
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          max(
+            0.0,
+            MediaQuery.of(context).padding.top +
+                kToolbarHeight +
+                kTextTabBarHeight -
+                96,
+          ),
+          20,
+          24,
+        ),
         children: [
-          AppCard(
+          _GameCard(
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
               initiallyExpanded: false,
@@ -1168,18 +1470,27 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   Expanded(
                     child: Text(
                       'AI Chapter Notes',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ),
                   if (_isGeneratingAll)
                     const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF38BDF8),
+                      ),
                     )
                   else
                     TextButton(
                       onPressed: _generateAllNotes,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                      ),
                       child: const Text('Generate All'),
                     ),
                 ],
@@ -1187,7 +1498,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               childrenPadding: const EdgeInsets.only(bottom: 8),
               children: [
                 if (_chapters.isEmpty)
-                  const Text('No chapters found for this subject.')
+                  const Text(
+                    'No chapters found for this subject.',
+                    style: TextStyle(color: Colors.white70),
+                  )
                 else
                   ..._chapters.map(
                     (chapter) {
@@ -1197,7 +1511,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       final isSaving = _savingChapters.contains(chapter.id);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: AppCard(
+                        child: _GameCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1209,7 +1523,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleMedium
-                                          ?.copyWith(fontWeight: FontWeight.w600),
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   ),
                                   if (isGenerating)
@@ -1218,13 +1535,17 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       width: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
+                                        color: Color(0xFF38BDF8),
                                       ),
                                     ),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               if (draft == null)
-                                const Text('No AI note yet for this chapter.')
+                                const Text(
+                                  'No AI note yet for this chapter.',
+                                  style: TextStyle(color: Colors.white70),
+                                )
                               else
                                 _noteCard(
                                   title: draft.title,
@@ -1253,6 +1574,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                     onPressed: isGenerating
                                         ? null
                                         : () => _generateChapterNote(chapter),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          const Color(0xFF38BDF8),
+                                      foregroundColor: Colors.white,
+                                    ),
                                     child: Text(
                                       draft == null ? 'Generate' : 'Regenerate',
                                     ),
@@ -1263,12 +1589,19 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                           ? null
                                           : () =>
                                               _saveChapterDraft(chapter),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white70,
+                                        side: const BorderSide(
+                                          color: Color(0xFF38BDF8),
+                                        ),
+                                      ),
                                       child: isSaving
                                           ? const SizedBox(
                                               height: 16,
                                               width: 16,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
+                                                color: Color(0xFF38BDF8),
                                               ),
                                             )
                                           : const Text('Save to My Notes'),
@@ -1283,6 +1616,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                                     .remove(chapter.id);
                                               });
                                             },
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.white70,
+                                      ),
                                       child: const Text('Discard'),
                                     ),
                                 ],
@@ -1300,7 +1636,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: AppColors.danger),
+                        ?.copyWith(color: const Color(0xFFF87171)),
                   ),
                 ],
               ],
@@ -1309,7 +1645,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           const SizedBox(height: 24),
           KeyedSubtree(
             key: _myNotesKey,
-            child: SectionHeader(
+            child: _SectionTitle(
               title: 'My Notes',
               actionLabel: _isLoading ? null : 'Refresh',
               onAction: _isLoading ? null : _loadUserNotes,
@@ -1317,9 +1653,16 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           ),
           const SizedBox(height: 12),
           if (_isLoading)
-            const Center(child: CircularProgressIndicator())
+            const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF38BDF8),
+              ),
+            )
           else if (_userNotes.isEmpty)
-            const Text('No saved notes yet.')
+            const Text(
+              'No saved notes yet.',
+              style: TextStyle(color: Colors.white70),
+            )
           else
             ..._userNotes.map(
               (note) => Padding(
@@ -1363,11 +1706,14 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           const SizedBox(height: 24),
           KeyedSubtree(
             key: _officialNotesKey,
-            child: const SectionHeader(title: 'Official Notes'),
+            child: const _SectionTitle(title: 'Official Notes'),
           ),
           const SizedBox(height: 12),
           if (officialNotes.isEmpty)
-            const Text('No official notes yet.')
+            const Text(
+              'No official notes yet.',
+              style: TextStyle(color: Colors.white70),
+            )
           else
             ...officialNotes.map(
               (entry) => Padding(
@@ -1391,20 +1737,21 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      color: const Color(0xFF111B2E),
                       borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFF1E2A44)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.open_in_new,
-                            size: 14, color: AppColors.secondary),
+                            size: 14, color: Color(0xFF38BDF8)),
                         const SizedBox(width: 4),
                         Text(
                           'Open',
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: AppColors.secondary,
+                                    color: const Color(0xFF38BDF8),
                                     fontWeight: FontWeight.w600,
                                   ),
                         ),
@@ -1415,6 +1762,84 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _SectionTitle({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        if (actionLabel != null && onAction != null)
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF38BDF8),
+            ),
+            child: Text(actionLabel!),
+          ),
+      ],
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+
+  const _GameCard({
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
       ),
     );
   }

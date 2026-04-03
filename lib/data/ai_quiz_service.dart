@@ -79,6 +79,29 @@ class AiQuizService {
       buffer.writeln('Chapter: ${resolvedChapter.title}');
     }
 
+    final subtopics = <ChapterTopic>[];
+    final seenSubtopics = <String>{};
+
+    void addSubtopic(ChapterTopic topic) {
+      final title = topic.title.trim();
+      if (title.isEmpty) return;
+      final key = title.toLowerCase();
+      if (seenSubtopics.contains(key)) return;
+      seenSubtopics.add(key);
+      subtopics.add(topic);
+    }
+
+    if (resolvedChapter != null) {
+      for (final topic in resolvedChapter.subtopics) {
+        addSubtopic(topic);
+      }
+    }
+    for (final chapter in subject.chapters) {
+      for (final topic in chapter.subtopics) {
+        addSubtopic(topic);
+      }
+    }
+
     final noteSnippets = <String>[];
     final seenTitles = <String>{};
 
@@ -99,6 +122,16 @@ class AiQuizService {
           : note.detailedAnswer;
       addNoteSnippet(note.title, text);
     }
+    if (notes.isEmpty) {
+      for (final chapter in subject.chapters) {
+        for (final note in chapter.notes.take(2)) {
+          final text = note.shortAnswer.isNotEmpty
+              ? note.shortAnswer
+              : note.detailedAnswer;
+          addNoteSnippet(note.title, text);
+        }
+      }
+    }
 
     if (resolvedChapter != null && resolvedChapter.id.isNotEmpty) {
       final dbNotes = await _fetchNotesForChapter(resolvedChapter.id);
@@ -107,6 +140,12 @@ class AiQuizService {
             ? note.shortAnswer
             : note.detailedAnswer;
         addNoteSnippet(note.title, text);
+      }
+
+      final dbSubtopics =
+          await _fetchSubtopicsForChapter(resolvedChapter.id);
+      for (final topic in dbSubtopics) {
+        addSubtopic(topic);
       }
 
       final userNotes = await _fetchUserNotesForChapter(resolvedChapter.id);
@@ -118,10 +157,33 @@ class AiQuizService {
       }
     }
 
+    if (subtopics.isEmpty && subject.id.isNotEmpty) {
+      final subjectSubtopics = await _fetchSubtopicsForSubject(subject.id);
+      for (final topic in subjectSubtopics) {
+        addSubtopic(topic);
+      }
+    }
+    if (noteSnippets.isEmpty && subject.id.isNotEmpty) {
+      final subjectNotes = await _fetchNotesForSubject(subject.id);
+      for (final note in subjectNotes.take(6)) {
+        final text = note.shortAnswer.isNotEmpty
+            ? note.shortAnswer
+            : note.detailedAnswer;
+        addNoteSnippet(note.title, text);
+      }
+    }
+
     if (noteSnippets.isNotEmpty) {
       buffer.writeln('Key notes:');
       for (final snippet in noteSnippets.take(8)) {
         buffer.writeln('- $snippet');
+      }
+    }
+
+    if (subtopics.isNotEmpty) {
+      buffer.writeln('Subtopics:');
+      for (final topic in subtopics.take(12)) {
+        buffer.writeln('- ${_trim(topic.title, 120)}');
       }
     }
 
@@ -190,6 +252,100 @@ class AiQuizService {
     }
   }
 
+  Future<List<ChapterTopic>> _fetchSubtopicsForChapter(
+    String chapterId,
+  ) async {
+    if (chapterId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('chapter_subtopics')
+          .select('id,title,summary,sort_order')
+          .eq('chapter_id', chapterId)
+          .order('sort_order', ascending: true)
+          .limit(24);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => ChapterTopic(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              summary: row['summary']?.toString() ?? '',
+              sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<String>> _fetchChapterIdsForSubject(String subjectId) async {
+    if (subjectId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('chapters')
+          .select('id')
+          .eq('subject_id', subjectId)
+          .order('sort_order', ascending: true)
+          .limit(40);
+      return (rows as List<dynamic>)
+          .map((row) => row['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Note>> _fetchNotesForSubject(String subjectId) async {
+    final chapterIds = await _fetchChapterIdsForSubject(subjectId);
+    if (chapterIds.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('notes')
+          .select('id,title,short_answer,detailed_answer')
+          .inFilter('chapter_id', chapterIds)
+          .order('created_at', ascending: false)
+          .limit(12);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => Note(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              shortAnswer: row['short_answer']?.toString() ?? '',
+              detailedAnswer: row['detailed_answer']?.toString() ?? '',
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ChapterTopic>> _fetchSubtopicsForSubject(String subjectId) async {
+    final chapterIds = await _fetchChapterIdsForSubject(subjectId);
+    if (chapterIds.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('chapter_subtopics')
+          .select('id,title,summary,sort_order')
+          .inFilter('chapter_id', chapterIds)
+          .order('sort_order', ascending: true)
+          .limit(40);
+      return (rows as List<dynamic>)
+          .map(
+            (row) => ChapterTopic(
+              id: row['id']?.toString() ?? '',
+              title: row['title']?.toString() ?? '',
+              summary: row['summary']?.toString() ?? '',
+              sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<List<QuizQuestionItem>> _generateWithOllama({
     required String context,
     required int count,
@@ -210,6 +366,8 @@ class AiQuizService {
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
         'Use this mix: $mix. $nonceLine'
+        'Cover different chapters and subtopics when available. '
+        'Avoid repeating the same topic.\n'
         'Use the context below.\n\n$context';
 
     final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
@@ -300,6 +458,8 @@ class AiQuizService {
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
         'Use this mix: $mix. $nonceLine'
+        'Cover different chapters and subtopics when available. '
+        'Avoid repeating the same topic.\n'
         'Use the context below.\n\n$context';
 
     final uri =
@@ -401,6 +561,8 @@ class AiQuizService {
     final userPrompt =
         'Generate $count unique MCQ questions. Base difficulty: $base. '
         'Use this mix: $mix. $nonceLine'
+        'Cover different chapters and subtopics when available. '
+        'Avoid repeating the same topic.\n'
         'Use the context below.\n\n$context';
 
     final response = await _client.functions.invoke(

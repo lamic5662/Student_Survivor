@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
-import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 
 class FreeBooksScreen extends StatefulWidget {
@@ -13,88 +11,138 @@ class FreeBooksScreen extends StatefulWidget {
 
 class _FreeBooksScreenState extends State<FreeBooksScreen> {
   _BookFilter _filter = _BookFilter.cs;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTitle = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow = _scrollController.offset < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final sources = _bookSources;
     final query = _filterQuery(_filter);
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF070B14),
       appBar: AppBar(
-        title: const Text('Free Books'),
+        title: AnimatedOpacity(
+          opacity: _showTitle ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            'Free Books',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Stack(
         children: [
-          AppCard(
-            color: AppColors.secondary.withValues(alpha: 0.08),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Free textbook libraries',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Browse open textbooks from trusted sources. Use the site '
-                  'search to find BCA topics like programming, databases, OS, '
-                  'networks, and statistics.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-              ],
+          const Positioned.fill(child: _BooksBackdrop()),
+          ListView(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+              20,
+              28,
             ),
-          ),
-          const SizedBox(height: 20),
-          const SectionHeader(title: 'Sources'),
-          const SizedBox(height: 12),
-          _FilterRow(
-            filter: _filter,
-            onChanged: (value) {
-              setState(() {
-                _filter = value;
-              });
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Showing results for: ${_filterLabel(_filter)}',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
-          ),
-          const SizedBox(height: 12),
-          ...sources.map(
-            (source) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _SourceCard(
-                source: source,
-                query: query,
-                filterLabel: _filterLabel(_filter),
+            children: [
+              _GameCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Free textbook libraries',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Browse open textbooks from trusted sources. Use the site '
+                      'search to find BCA topics like programming, databases, OS, '
+                      'networks, and statistics.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const SectionHeader(title: 'Suggested Topics'),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _TopicChip('Programming'),
-              _TopicChip('Data Structures'),
-              _TopicChip('DBMS'),
-              _TopicChip('Operating Systems'),
-              _TopicChip('Computer Networks'),
-              _TopicChip('Web Tech'),
-              _TopicChip('Discrete Math'),
-              _TopicChip('Statistics'),
+              const SizedBox(height: 20),
+              const _SectionTitle(title: 'Sources'),
+              const SizedBox(height: 12),
+              _FilterRow(
+                filter: _filter,
+                onChanged: (value) {
+                  setState(() {
+                    _filter = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Showing results for: ${_filterLabel(_filter)}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...sources.map(
+                (source) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _SourceCard(
+                    source: source,
+                    query: query,
+                    filterLabel: _filterLabel(_filter),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const _SectionTitle(title: 'Suggested Topics'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: const [
+                  _TopicChip('Programming'),
+                  _TopicChip('Data Structures'),
+                  _TopicChip('DBMS'),
+                  _TopicChip('Operating Systems'),
+                  _TopicChip('Computer Networks'),
+                  _TopicChip('Web Tech'),
+                  _TopicChip('Discrete Math'),
+                  _TopicChip('Statistics'),
+                ],
+              ),
             ],
           ),
         ],
@@ -116,7 +164,7 @@ class _SourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       padding: EdgeInsets.zero,
       child: Material(
         color: Colors.transparent,
@@ -134,8 +182,9 @@ class _SourceCard extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: source.accent.withValues(alpha: 0.14),
+                        color: const Color(0xFF111B2E),
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF1E2A44)),
                       ),
                       child: Icon(source.icon, color: source.accent),
                     ),
@@ -149,7 +198,10 @@ class _SourceCard extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -157,7 +209,7 @@ class _SourceCard extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
-                                ?.copyWith(color: AppColors.mutedInk),
+                                ?.copyWith(color: Colors.white70),
                           ),
                         ],
                       ),
@@ -167,15 +219,22 @@ class _SourceCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   source.description,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    FilledButton.tonal(
+                    FilledButton(
                       onPressed: () => _openFiltered(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF38BDF8),
+                        foregroundColor: Colors.white,
+                      ),
                       child: Text('Open $filterLabel'),
                     ),
                     TextButton(
@@ -189,6 +248,9 @@ class _SourceCard extends StatelessWidget {
                           ),
                         );
                       },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                      ),
                       child: const Text('Visit site'),
                     ),
                   ],
@@ -237,15 +299,16 @@ class _TopicChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.ink.withValues(alpha: 0.06),
+        color: const Color(0xFF111B2E),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF1E2A44)),
       ),
       child: Text(
         label,
         style: Theme.of(context)
             .textTheme
             .labelSmall
-            ?.copyWith(color: AppColors.ink),
+            ?.copyWith(color: Colors.white70),
       ),
     );
   }
@@ -323,13 +386,186 @@ class _FilterRow extends StatelessWidget {
           label: const Text('CS'),
           selected: filter == _BookFilter.cs,
           onSelected: (_) => onChanged(_BookFilter.cs),
+          selectedColor: const Color(0xFF38BDF8),
+          backgroundColor: const Color(0xFF111B2E),
+          side: const BorderSide(color: Color(0xFF1E2A44)),
+          labelStyle: TextStyle(
+            color: filter == _BookFilter.cs ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         ChoiceChip(
           label: const Text('BCA'),
           selected: filter == _BookFilter.bca,
           onSelected: (_) => onChanged(_BookFilter.bca),
+          selectedColor: const Color(0xFF38BDF8),
+          backgroundColor: const Color(0xFF111B2E),
+          side: const BorderSide(color: Color(0xFF1E2A44)),
+          labelStyle: TextStyle(
+            color: filter == _BookFilter.bca ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+    );
+  }
+}
+
+class _BooksBackdrop extends StatelessWidget {
+  const _BooksBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF070B14),
+            Color(0xFF0B1324),
+            Color(0xFF101C2E),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: const [
+          Positioned.fill(child: CustomPaint(painter: _BooksGridPainter())),
+          Positioned(
+            top: -140,
+            right: -80,
+            child: _GlowOrb(size: 280, color: Color(0x3322D3EE)),
+          ),
+          Positioned(
+            bottom: -120,
+            left: -60,
+            child: _GlowOrb(size: 240, color: Color(0x334F46E5)),
+          ),
+          Positioned(
+            top: 160,
+            left: 40,
+            child: _GlowOrb(size: 180, color: Color(0x332DD4BF)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: 80,
+            spreadRadius: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BooksGridPainter extends CustomPainter {
+  const _BooksGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    const gap = 52.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    final glowPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rect = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.08,
+      size.width * 0.84,
+      size.height * 0.76,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(28)),
+      glowPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BooksGridPainter oldDelegate) => false;
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+
+  const _GameCard({required this.child, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: padding ?? const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
     );
   }
 }

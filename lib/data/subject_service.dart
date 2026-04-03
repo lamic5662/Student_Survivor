@@ -27,7 +27,8 @@ class SubjectService {
     final select = includeContent
         ? 'subject:subjects(id,name,code,accent_color,syllabus_url,'
             'past_papers(id,title,year,file_url),'
-            'chapters(id,title,'
+            'chapters(id,title,sort_order,'
+            'chapter_subtopics(id,title,summary,sort_order),'
             'notes(id,title,short_answer,detailed_answer,file_url),'
             'questions(id,prompt,marks,kind,year),'
             'quizzes(id,title,quiz_type,difficulty,question_count,duration_minutes)'
@@ -71,7 +72,8 @@ class SubjectService {
     final select = includeContent
         ? 'id,name,code,accent_color,syllabus_url,'
             'past_papers(id,title,year,file_url),'
-            'chapters(id,title,'
+            'chapters(id,title,sort_order,'
+            'chapter_subtopics(id,title,summary,sort_order),'
             'notes(id,title,short_answer,detailed_answer,file_url),'
             'questions(id,prompt,marks,kind,year),'
             'quizzes(id,title,quiz_type,difficulty,question_count,duration_minutes)'
@@ -109,6 +111,28 @@ class SubjectService {
     }
   }
 
+  Future<List<Subject>> fetchAllSubjects({
+    bool includeContent = false,
+  }) async {
+    final select = includeContent
+        ? 'id,name,code,accent_color,syllabus_url,'
+            'past_papers(id,title,year,file_url),'
+            'chapters(id,title,sort_order,'
+            'chapter_subtopics(id,title,summary,sort_order),'
+            'notes(id,title,short_answer,detailed_answer,file_url),'
+            'questions(id,prompt,marks,kind,year),'
+            'quizzes(id,title,quiz_type,difficulty,question_count,duration_minutes)'
+            ')'
+        : 'id,name,code,accent_color,syllabus_url';
+
+    final data = await _client
+        .from('subjects')
+        .select(select)
+        .order('sort_order');
+
+    return (data as List<dynamic>).map(_subjectFromMap).toList();
+  }
+
   Semester _semesterFromMap(dynamic raw) {
     final map = raw as Map<String, dynamic>;
     final subjects = (map['subjects'] as List<dynamic>? ?? [])
@@ -124,9 +148,16 @@ class SubjectService {
 
   Subject _subjectFromMap(dynamic raw) {
     final map = raw as Map<String, dynamic>;
-    final chapters = (map['chapters'] as List<dynamic>? ?? [])
-        .map(_chapterFromMap)
+    final chapterMaps = (map['chapters'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
         .toList();
+    chapterMaps.sort((a, b) {
+      final aSort = (a['sort_order'] as num?)?.toInt() ?? 0;
+      final bSort = (b['sort_order'] as num?)?.toInt() ?? 0;
+      return aSort.compareTo(bSort);
+    });
+    final chapters = chapterMaps.map(_chapterFromMap).toList();
     final pastPapers = (map['past_papers'] as List<dynamic>? ?? [])
         .map(_pastPaperFromMap)
         .toList();
@@ -143,6 +174,9 @@ class SubjectService {
 
   Chapter _chapterFromMap(dynamic raw) {
     final map = raw as Map<String, dynamic>;
+    final subtopics = (map['chapter_subtopics'] as List<dynamic>? ?? [])
+        .map(_chapterTopicFromMap)
+        .toList();
     final notes = (map['notes'] as List<dynamic>? ?? [])
         .map(_noteFromMap)
         .toList();
@@ -165,10 +199,21 @@ class SubjectService {
     return Chapter(
       id: map['id']?.toString() ?? '',
       title: map['title']?.toString() ?? 'Chapter',
+      subtopics: subtopics,
       notes: notes,
       importantQuestions: important,
       pastQuestions: past,
       quizzes: quizzes,
+    );
+  }
+
+  ChapterTopic _chapterTopicFromMap(dynamic raw) {
+    final map = raw as Map<String, dynamic>;
+    return ChapterTopic(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      summary: map['summary']?.toString() ?? '',
+      sortOrder: (map['sort_order'] as num?)?.toInt() ?? 0,
     );
   }
 

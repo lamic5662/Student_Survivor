@@ -1,7 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -23,7 +24,11 @@ class _AdminAuthScreenState
   final _passwordController = TextEditingController();
 
   @override
-  AuthPresenter createPresenter() => AuthPresenter();
+  AuthPresenter createPresenter() => AuthPresenter(
+        signupMetadata: const {
+          'admin_signup': true,
+        },
+      );
 
   @override
   void dispose() {
@@ -47,9 +52,9 @@ class _AdminAuthScreenState
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFF0B1020),
-                  Color(0xFF111827),
-                  Color(0xFF1F2937),
+                  Color(0xFF071526),
+                  Color(0xFF0F2E3F),
+                  Color(0xFF0B3558),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -57,7 +62,7 @@ class _AdminAuthScreenState
             ),
             child: Stack(
               children: [
-                const _BackdropOrbs(),
+                const _AdminBackdrop(),
                 SafeArea(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -111,38 +116,65 @@ class _AdminAuthScreenState
   }
 }
 
-class _BackdropOrbs extends StatelessWidget {
-  const _BackdropOrbs();
+class _AdminBackdrop extends StatelessWidget {
+  const _AdminBackdrop();
 
   @override
   Widget build(BuildContext context) {
     return Stack(
-      children: [
+      children: const [
+        Positioned.fill(child: CustomPaint(painter: _AdminPatternPainter())),
         Positioned(
-          top: -60,
-          right: -40,
-          child: Container(
-            width: 180,
-            height: 180,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.accent.withValues(alpha: 0.2),
-            ),
+          top: -80,
+          right: -50,
+          child: _GlowOrb(
+            size: 220,
+            color: Color(0x3344C3FF),
           ),
         ),
         Positioned(
-          bottom: -40,
-          left: -20,
-          child: Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.secondary.withValues(alpha: 0.2),
-            ),
+          bottom: -70,
+          left: -40,
+          child: _GlowOrb(
+            size: 200,
+            color: Color(0x33F97316),
+          ),
+        ),
+        Positioned(
+          top: 140,
+          left: 24,
+          child: _GlowOrb(
+            size: 140,
+            color: Color(0x3322D3EE),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: 70,
+            spreadRadius: 12,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -158,17 +190,13 @@ class _HeroHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.headlineLarge?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        );
     final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Colors.white.withValues(alpha: 0.8),
+          color: Colors.white.withValues(alpha: 0.76),
         );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Admin Studio', style: titleStyle),
+        const _GradientTitle(text: 'Admin Studio'),
         const SizedBox(height: 8),
         Text(
           'Control notes, quizzes, and announcements with confidence.',
@@ -209,19 +237,26 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.85)),
+          Icon(icon, size: 16, color: Colors.white),
           const SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
+                  color: Colors.white,
                   fontWeight: FontWeight.w600,
                 ),
           ),
@@ -242,9 +277,9 @@ class _ModeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
       child: Row(
         children: [
@@ -285,8 +320,25 @@ class _ModeToggleButton extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       decoration: BoxDecoration(
-        color: isActive ? Colors.white : Colors.transparent,
+        gradient: isActive
+            ? const LinearGradient(
+                colors: [
+                  Color(0xFF38BDF8),
+                  Color(0xFF6366F1),
+                ],
+              )
+            : null,
+        color: isActive ? null : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
       ),
       child: InkWell(
         onTap: onTap,
@@ -297,7 +349,9 @@ class _ModeToggleButton extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: isActive ? AppColors.ink : Colors.white,
+                    color: isActive
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -331,119 +385,142 @@ class _AdminAuthCard extends StatelessWidget {
     final subheading = model.isLogin
         ? 'Sign in to manage content.'
         : 'Create an admin profile to publish content.';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 24,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Form(
-        key: formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              heading,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.92),
+                const Color(0xFFF1F5F9).withValues(alpha: 0.88),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 6),
-            Text(
-              subheading,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppColors.mutedInk),
-            ),
-            const SizedBox(height: 16),
-            _AuthMethodSelector(
-              selected: model.method,
-              onChanged: onMethodChanged,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: identifierController,
-              keyboardType: model.method == AuthMethod.email
-                  ? TextInputType.emailAddress
-                  : TextInputType.phone,
-              decoration: InputDecoration(
-                labelText:
-                    model.method == AuthMethod.email ? 'Email' : 'Phone',
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 30,
+                offset: const Offset(0, 18),
               ),
-              validator: (value) {
-                final input = value?.trim() ?? '';
-                if (input.isEmpty) {
-                  return model.method == AuthMethod.email
-                      ? 'Email is required'
-                      : 'Phone is required';
-                }
-                if (model.method == AuthMethod.email && !input.contains('@')) {
-                  return 'Enter a valid email';
-                }
-                if (model.method == AuthMethod.phone && input.length < 8) {
-                  return 'Enter a valid phone number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-              validator: (value) {
-                final input = value?.trim() ?? '';
-                if (input.isEmpty) {
-                  return 'Password is required';
-                }
-                if (input.length < 6) {
-                  return 'Minimum 6 characters';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 18),
-            AppCard(
-              color: AppColors.accentSoft,
-              child: Row(
-                children: [
-                  const Icon(Icons.verified_user, size: 26),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      model.isLogin
-                          ? 'Only verified admin accounts can access the dashboard.'
-                          : 'New accounts must be verified as admin before access.',
-                      style: Theme.of(context).textTheme.bodyMedium,
+            ],
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  heading,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subheading,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.mutedInk),
+                ),
+                const SizedBox(height: 16),
+                _AuthMethodSelector(
+                  selected: model.method,
+                  onChanged: onMethodChanged,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: identifierController,
+                  keyboardType: model.method == AuthMethod.email
+                      ? TextInputType.emailAddress
+                      : TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText:
+                        model.method == AuthMethod.email ? 'Email' : 'Phone',
+                  ),
+                  validator: (value) {
+                    final input = value?.trim() ?? '';
+                    if (input.isEmpty) {
+                      return model.method == AuthMethod.email
+                          ? 'Email is required'
+                          : 'Phone is required';
+                    }
+                    if (model.method == AuthMethod.email &&
+                        !input.contains('@')) {
+                      return 'Enter a valid email';
+                    }
+                    if (model.method == AuthMethod.phone &&
+                        input.length < 8) {
+                      return 'Enter a valid phone number';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  validator: (value) {
+                    final input = value?.trim() ?? '';
+                    if (input.isEmpty) {
+                      return 'Password is required';
+                    }
+                    if (input.length < 6) {
+                      return 'Minimum 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSoft.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.accent.withValues(alpha: 0.3),
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_user, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          model.isLogin
+                              ? 'Only admin accounts can access the dashboard.'
+                              : 'New accounts are granted admin access automatically.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: model.isSubmitting ? null : onSubmit,
+                    child: model.isSubmitting
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(model.isLogin ? 'Login' : 'Create Account'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: model.isSubmitting ? null : onSubmit,
-                child: model.isSubmitting
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(model.isLogin ? 'Login' : 'Create Account'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -458,7 +535,7 @@ class _AdminFooterNote extends StatelessWidget {
     return Text(
       'Need help? Contact the main admin to enable access for your account.',
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: Colors.white.withValues(alpha: 0.75),
           ),
     );
   }
@@ -493,18 +570,18 @@ class _AuthMethodSelector extends StatelessWidget {
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.secondary.withValues(alpha: 0.12);
+            return const Color(0xFF38BDF8).withValues(alpha: 0.18);
           }
-          return AppColors.surface;
+          return Colors.white.withValues(alpha: 0.6);
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.secondary;
+            return const Color(0xFF0F172A);
           }
-          return AppColors.mutedInk;
+          return const Color(0xFF0F172A).withValues(alpha: 0.7);
         }),
         side: WidgetStateProperty.resolveWith(
-          (_) => const BorderSide(color: AppColors.outline),
+          (_) => BorderSide(color: Colors.white.withValues(alpha: 0.6)),
         ),
         textStyle: WidgetStateProperty.all(
           Theme.of(context)
@@ -518,4 +595,89 @@ class _AuthMethodSelector extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GradientTitle extends StatelessWidget {
+  final String text;
+
+  const _GradientTitle({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          color: Colors.white,
+        );
+    return ShaderMask(
+      shaderCallback: (rect) => const LinearGradient(
+        colors: [
+          Color(0xFF38BDF8),
+          Color(0xFF22D3EE),
+          Color(0xFF6366F1),
+        ],
+      ).createShader(rect),
+      child: Text(text, style: style),
+    );
+  }
+}
+
+class _AdminPatternPainter extends CustomPainter {
+  static final List<Offset> _dots = List.generate(
+    24,
+    (index) => Offset(
+      (0.06 + (index * 0.23)) % 1.0,
+      (0.14 + (index * 0.31)) % 1.0,
+    ),
+  );
+
+  const _AdminPatternPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..strokeWidth = 1;
+    for (int i = 0; i < 5; i += 1) {
+      final y = size.height * (0.2 + i * 0.14);
+      canvas.drawLine(
+        Offset(-20, y),
+        Offset(size.width + 20, y - 50),
+        linePaint,
+      );
+    }
+
+    final wavePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final path = Path()
+      ..moveTo(0, size.height * 0.74)
+      ..quadraticBezierTo(
+        size.width * 0.4,
+        size.height * 0.62,
+        size.width * 0.72,
+        size.height * 0.7,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.92,
+        size.height * 0.78,
+        size.width,
+        size.height * 0.7,
+      );
+    canvas.drawPath(path, wavePaint);
+
+    final dotPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.22);
+    for (final point in _dots) {
+      canvas.drawCircle(
+        Offset(size.width * point.dx, size.height * point.dy),
+        2,
+        dotPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AdminPatternPainter oldDelegate) => false;
 }

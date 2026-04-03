@@ -1,6 +1,6 @@
-# Student Survivor
+# StudentSurge
 
-Flutter app for the Student Survivor learning platform. Includes Supabase-backed data, AI study tools, games, and progress tracking.
+Flutter app for the StudentSurge learning platform. Includes Supabase-backed data, AI study tools, games, and progress tracking.
 
 ## Features
 
@@ -10,6 +10,7 @@ Flutter app for the Student Survivor learning platform. Includes Supabase-backed
 - AI notes (chapter + subject), saved user notes
 - AI study assistant chat + AI personal coach
 - Games: flashcards, battle quiz, study survivor
+- Gaming-themed UI across core screens
 - Programming World (learning tracks + practice links)
 - Free Books hub (OpenStax, Open Textbook Library, LibreTexts)
 - Note attachment reader with word meanings + generated Q/A (owner-only)
@@ -22,6 +23,7 @@ Flutter app for the Student Survivor learning platform. Includes Supabase-backed
 - Progress tracking
 - Syllabus & past papers
 - Profile hub
+- Activity logging + rule-based progress scoring
 
 ## Architecture
 
@@ -38,6 +40,15 @@ Latest additions:
 - `0020_community_qna.sql` (Community Q&A tables + RLS)
 - `0021_community_qna_semester_rls.sql` (same-semester visibility)
 - `0022_note_generated_questions.sql` (note-generated Q/A, owner-only)
+- `0023_user_activity_log.sql` (user activity logging)
+- `0024_admin_signup_metadata.sql` (admin signup metadata)
+- `0025_seed_bca_electives.sql` (BCA electives)
+- `0026_seed_bca101_chapters.sql` + `0028_seed_bca101_subtopics.sql`
+- `0029_seed_bca102_chapters.sql` + `0030_seed_bca102_subtopics.sql`
+- `0031_update_bca102_detailed_subtopics.sql`
+- `0032_seed_bca_chapters_year1_2.sql` + `0033_seed_bca_subtopics_year1_2.sql`
+- `0034_seed_bca_questions_from_subtopics.sql`
+- `0035_update_syllabus_urls.sql` + `0036_update_syllabus_urls_by_semester.sql`
 
 ## Backend Workflow (Supabase)
 

@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
-import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
@@ -26,6 +24,8 @@ class _QuizHubScreenState
   bool _showIntro = true;
   Timer? _introTimer;
   AnimationController? _introController;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTitle = true;
 
   @override
   QuizHubPresenter createPresenter() => QuizHubPresenter();
@@ -36,6 +36,7 @@ class _QuizHubScreenState
     _ensureIntroController();
     _triggerIntro();
     AppState.gameHubVisits.addListener(_handleGameHubVisit);
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
@@ -43,7 +44,16 @@ class _QuizHubScreenState
     AppState.gameHubVisits.removeListener(_handleGameHubVisit);
     _introTimer?.cancel();
     _introController?.dispose();
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow = _scrollController.offset < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
   }
 
   void _ensureIntroController() {
@@ -85,14 +95,18 @@ class _QuizHubScreenState
       builder: (context, model, _) {
         if (model.isLoading) {
           return const Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              color: Color(0xFF38BDF8),
+            ),
           );
         }
         if (model.errorMessage != null) {
           return Center(
             child: Text(
               model.errorMessage!,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                  ),
             ),
           );
         }
@@ -106,10 +120,13 @@ class _QuizHubScreenState
                   Text(
                     'Select a semester to start playing.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white70,
+                        ),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
+                  _PrimaryActionButton(
+                    label: 'Choose Semester',
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -117,7 +134,6 @@ class _QuizHubScreenState
                         ),
                       );
                     },
-                    child: const Text('Choose Semester'),
                   ),
                 ],
               ),
@@ -125,7 +141,13 @@ class _QuizHubScreenState
           );
         }
         return ListView(
-          padding: const EdgeInsets.all(20),
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+            20,
+            28,
+          ),
           children: [
             _GameHubHero(
               semesterName: model.semesterName,
@@ -152,7 +174,10 @@ class _QuizHubScreenState
             const SizedBox(height: 24),
             Text(
               'Select a subject',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
             const SizedBox(height: 12),
             if (model.subjects.isEmpty)
@@ -161,7 +186,7 @@ class _QuizHubScreenState
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: Colors.white70),
               )
             else
               ...model.subjects.map((subject) => _SubjectCard(subject: subject)),
@@ -169,9 +194,30 @@ class _QuizHubScreenState
         );
       },
     );
+    final appBar = AppBar(
+      title: AnimatedOpacity(
+        opacity: _showTitle ? 1 : 0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          'Game Hub',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      foregroundColor: Colors.white,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    );
     return GameZoneScaffold(
+      appBar: appBar,
       body: content,
       overlay: _showIntro ? _buildIntroOverlay(context) : null,
+      extendBodyBehindAppBar: true,
+      useSafeArea: false,
     );
   }
 
@@ -193,9 +239,9 @@ class _QuizHubScreenState
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFF0B1220),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.outline),
+                border: Border.all(color: const Color(0xFF1E2A44)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.08),
@@ -213,7 +259,7 @@ class _QuizHubScreenState
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.ink,
+                          color: Colors.white,
                           letterSpacing: 0.4,
                         ),
                   ),
@@ -221,7 +267,7 @@ class _QuizHubScreenState
                   Text(
                     'Learn with fun',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppColors.secondary,
+                          color: const Color(0xFF38BDF8),
                           fontWeight: FontWeight.w600,
                         ),
                   ),
@@ -229,7 +275,7 @@ class _QuizHubScreenState
                   Text(
                     'Tap to continue',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.mutedInk,
+                          color: Colors.white70,
                         ),
                   ),
                 ],
@@ -257,20 +303,7 @@ class _GameHubHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.secondary.withValues(alpha: 0.18),
-            AppColors.accent.withValues(alpha: 0.1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
-      ),
+    return _GameCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -278,10 +311,12 @@ class _GameHubHero extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.18),
+              color: const Color(0xFF111B2E),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1E2A44)),
             ),
-            child: const Icon(Icons.sports_esports_rounded),
+            child: const Icon(Icons.sports_esports_rounded,
+                color: Color(0xFF38BDF8)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -292,6 +327,7 @@ class _GameHubHero extends StatelessWidget {
                   'Game Zone',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
+                        color: Colors.white,
                       ),
                 ),
                 const SizedBox(height: 6),
@@ -300,14 +336,17 @@ class _GameHubHero extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _HeroChip(label: semesterName.isEmpty ? 'Semester' : semesterName),
+                    _HeroChip(
+                        label: semesterName.isEmpty
+                            ? 'Semester'
+                            : semesterName),
                     _HeroChip(label: '$subjects subjects'),
                     _HeroChip(label: '$chapters chapters'),
                     _HeroChip(label: '$quizzes quizzes'),
@@ -332,16 +371,16 @@ class _HeroChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF111B2E),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: const Color(0xFF1E2A44)),
       ),
       child: Text(
         label,
         style: Theme.of(context)
             .textTheme
             .labelSmall
-            ?.copyWith(color: AppColors.mutedInk, fontWeight: FontWeight.w600),
+            ?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -358,32 +397,34 @@ class _GameStatStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          const Icon(Icons.school_rounded, color: AppColors.secondary),
+          const Icon(Icons.school_rounded, color: Color(0xFF38BDF8)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               semesterName.isEmpty ? 'Semester not selected' : semesterName,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.12),
+              color: const Color(0xFF111B2E),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: Text(
               '$subjectCount subjects',
               style: Theme.of(context)
                   .textTheme
                   .labelSmall
-                  ?.copyWith(color: AppColors.secondary),
+                  ?.copyWith(color: Colors.white70),
             ),
           ),
         ],
@@ -491,7 +532,7 @@ class _SubjectCard extends StatelessWidget {
     );
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: AppCard(
+      child: _GameCard(
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () {
@@ -510,8 +551,9 @@ class _SubjectCard extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: subject.accentColor.withValues(alpha: 0.18),
+                  color: const Color(0xFF111B2E),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Icon(Icons.sports_esports, color: subject.accentColor),
               ),
@@ -525,7 +567,10 @@ class _SubjectCard extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -533,7 +578,7 @@ class _SubjectCard extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(color: Colors.white70),
                     ),
                   ],
                 ),
@@ -541,18 +586,113 @@ class _SubjectCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: subject.accentColor.withValues(alpha: 0.12),
+                  color: const Color(0xFF111B2E),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Text(
                   'Play',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: subject.accentColor,
+                        color: const Color(0xFF38BDF8),
                         fontWeight: FontWeight.w700,
                       ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _GameCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _PrimaryActionButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _PrimaryActionButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF38BDF8),
+              Color(0xFF4F46E5),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(
+            label.toUpperCase(),
+            style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
           ),
         ),
       ),

@@ -1,5 +1,12 @@
+import 'dart:convert';
+
+import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:xml/xml.dart';
+import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -16,6 +23,18 @@ class SyllabusBulkResult {
     required this.messages,
     this.unmatchedFiles = const [],
     this.ambiguousFiles = const [],
+  });
+}
+
+class BulkUploadResult {
+  final int uploaded;
+  final int skipped;
+  final List<String> messages;
+
+  const BulkUploadResult({
+    required this.uploaded,
+    required this.skipped,
+    required this.messages,
   });
 }
 
@@ -59,6 +78,7 @@ class AdminService {
     required String title,
     String? summary,
     int sortOrder = 0,
+    List<Map<String, dynamic>> subtopics = const [],
   }) async {
     final inserted = await _client
         .from('chapters')
@@ -72,6 +92,19 @@ class AdminService {
         .single();
     final chapterId = inserted['id']?.toString() ?? '';
     if (chapterId.isNotEmpty) {
+      if (subtopics.isNotEmpty) {
+        final payload = subtopics
+            .map(
+              (topic) => {
+                'chapter_id': chapterId,
+                'title': topic['title'],
+                'summary': topic['summary'],
+                'sort_order': topic['sort_order'] ?? 0,
+              },
+            )
+            .toList();
+        await _client.from('chapter_subtopics').insert(payload);
+      }
       await _client.from('quizzes').insert({
         'chapter_id': chapterId,
         'title': 'AI Quick Quiz',
@@ -102,6 +135,50 @@ class AdminService {
       payload['file_url'] = fileUrl;
     }
     await _client.from('notes').insert(payload);
+  }
+
+  Future<BulkUploadResult> uploadNotesBatch({
+    required String chapterId,
+    required List<PlatformFile> files,
+    List<String> tags = const [],
+  }) async {
+    var uploaded = 0;
+    var skipped = 0;
+    final messages = <String>[];
+
+    for (final file in files) {
+      if (file.bytes == null || file.bytes!.isEmpty) {
+        skipped += 1;
+        messages.add('Skipped ${file.name} (no data).');
+        continue;
+      }
+
+      final fileUrl = await uploadNoteAttachment(
+        chapterId: chapterId,
+        file: file,
+      );
+      final title = _baseName(file.name);
+      final short = 'Attachment: ${file.name}';
+      final detailed =
+          'This note contains an uploaded file. Open the attachment to read the content.';
+
+      await addNote(
+        chapterId: chapterId,
+        title: title.isEmpty ? 'Uploaded note' : title,
+        shortAnswer: short,
+        detailedAnswer: detailed,
+        tags: tags,
+        fileUrl: fileUrl,
+      );
+      uploaded += 1;
+      messages.add('Uploaded ${file.name}');
+    }
+
+    return BulkUploadResult(
+      uploaded: uploaded,
+      skipped: skipped,
+      messages: messages,
+    );
   }
 
   Future<List<AdminNote>> fetchNotesForChapter(String chapterId) async {
@@ -305,6 +382,80 @@ class AdminService {
       payload['year'] = year;
     }
     await _client.from('questions').insert(payload);
+  }
+
+  Future<BulkUploadResult> uploadQuestionsBatch({
+    required String chapterId,
+    required List<PlatformFile> files,
+    required String kind,
+    int marks = 5,
+    int? defaultYear,
+  }) async {
+    var uploaded = 0;
+    var skipped = 0;
+    final messages = <String>[];
+
+    for (final file in files) {
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        skipped += 1;
+        messages.add('Skipped ${file.name} (no data).');
+        continue;
+      }
+
+      final ext = file.extension?.toLowerCase() ?? '';
+      List<_QuestionLine> questions;
+      if (ext == 'txt' || ext == 'csv') {
+        final content = utf8.decode(bytes, allowMalformed: true);
+        questions = _extractQuestionLines(
+          content,
+          isCsv: ext == 'csv',
+        );
+      } else {
+        final content = _extractTextFromBytes(bytes, ext);
+        if (content.trim().isEmpty) {
+          skipped += 1;
+          messages.add('Skipped ${file.name} (no readable text).');
+          continue;
+        }
+        questions = await _generateQuestionsFromContent(
+          content: content,
+          kind: kind,
+          defaultMarks: marks,
+          defaultYear: defaultYear,
+        );
+        if (questions.isEmpty) {
+          questions = _extractQuestionsFromText(content);
+        }
+      }
+
+      if (questions.isEmpty) {
+        skipped += 1;
+        messages.add('Skipped ${file.name} (no questions found).');
+        continue;
+      }
+
+      var fileCount = 0;
+      for (final item in questions) {
+        if (item.prompt.trim().isEmpty) continue;
+        await addQuestion(
+          chapterId: chapterId,
+          prompt: item.prompt.trim(),
+          marks: item.marks ?? marks,
+          kind: kind,
+          year: item.year ?? defaultYear,
+        );
+        uploaded += 1;
+        fileCount += 1;
+      }
+      messages.add('Imported $fileCount question(s) from ${file.name}.');
+    }
+
+    return BulkUploadResult(
+      uploaded: uploaded,
+      skipped: skipped,
+      messages: messages,
+    );
   }
 
   Future<String> addQuiz({
@@ -650,6 +801,328 @@ class AdminService {
         return 'application/octet-stream';
     }
   }
+
+  String _baseName(String filename) {
+    return filename.replaceAll(RegExp(r'\.[^.]+$'), '').trim();
+  }
+
+  List<_QuestionLine> _extractQuestionLines(
+    String content, {
+    required bool isCsv,
+  }) {
+    final lines = content.split(RegExp(r'\r?\n'));
+    final items = <_QuestionLine>[];
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      final parsed = _parseQuestionLine(line, isCsv: isCsv);
+      if (parsed.prompt.trim().isEmpty) continue;
+      items.add(parsed);
+    }
+    return items;
+  }
+
+  _QuestionLine _parseQuestionLine(
+    String line, {
+    required bool isCsv,
+  }) {
+    List<String> parts;
+    if (line.contains('|')) {
+      parts = line.split('|');
+    } else if (line.contains('\t')) {
+      parts = line.split('\t');
+    } else if (isCsv && line.contains(',')) {
+      parts = line.split(',');
+    } else {
+      parts = [line];
+    }
+    final prompt = parts.isNotEmpty ? parts[0].trim() : '';
+    final marks = parts.length > 1 ? int.tryParse(parts[1].trim()) : null;
+    final year = parts.length > 2 ? int.tryParse(parts[2].trim()) : null;
+    return _QuestionLine(prompt: prompt, marks: marks, year: year);
+  }
+
+  String _extractTextFromBytes(List<int> bytes, String ext) {
+    final lower = ext.toLowerCase();
+    if (lower == 'pdf') {
+      try {
+        final document = PdfDocument(inputBytes: bytes);
+        final text = PdfTextExtractor(document).extractText();
+        document.dispose();
+        return text;
+      } catch (_) {
+        return '';
+      }
+    }
+    if (lower == 'pptx' || lower == 'ppt') {
+      return _extractTextFromPptx(bytes);
+    }
+    if (lower == 'docx' || lower == 'doc') {
+      return _extractTextFromDocx(bytes);
+    }
+    return utf8.decode(bytes, allowMalformed: true);
+  }
+
+  String _extractTextFromPptx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final buffer = StringBuffer();
+      for (final file in archive) {
+        if (!file.isFile) continue;
+        final name = file.name;
+        if (!name.startsWith('ppt/slides/slide') || !name.endsWith('.xml')) {
+          continue;
+        }
+        final content = utf8.decode(file.content as List<int>,
+            allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+      }
+      return buffer.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _extractTextFromDocx(List<int> bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final documentFile = archive.firstWhere(
+        (file) => file.isFile && file.name == 'word/document.xml',
+        orElse: () => ArchiveFile.noCompress('', 0, []),
+      );
+      if (documentFile.isFile && documentFile.size > 0) {
+        final content = utf8.decode(documentFile.content as List<int>,
+            allowMalformed: true);
+        final doc = XmlDocument.parse(content);
+        final buffer = StringBuffer();
+        for (final node in doc.descendants.whereType<XmlElement>()) {
+          if (node.name.local != 't') continue;
+          final text = node.innerText.trim();
+          if (text.isNotEmpty) {
+            buffer.writeln(text);
+          }
+        }
+        return buffer.toString();
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<List<_QuestionLine>> _generateQuestionsFromContent({
+    required String content,
+    required String kind,
+    required int defaultMarks,
+    int? defaultYear,
+  }) async {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    if (!_isSupportedAi(mode)) {
+      return [];
+    }
+
+    final safeContent = _trim(content.replaceAll(RegExp(r'\s+'), ' '), 3500);
+    final systemPrompt =
+        'You are a BCA exam question generator. Return ONLY valid JSON.\n'
+        'Schema: [{"prompt":"...","marks":5,"year":2024}]\n'
+        'Rules: 8-15 questions. Use clear exam-style prompts. '
+        'Use marks only if given; otherwise leave it null.';
+    final userPrompt =
+        'Question type: $kind\n'
+        'Default marks: $defaultMarks\n'
+        'Default year: ${defaultYear ?? ''}\n'
+        'Notes:\n$safeContent';
+
+    final raw = await _sendChat(
+      mode: mode,
+      systemPrompt: systemPrompt,
+      userPrompt: userPrompt,
+    );
+    if (raw.trim().isEmpty) return [];
+
+    final jsonText = _extractJson(raw);
+    final decoded = jsonDecode(jsonText);
+    final list = decoded is Map<String, dynamic>
+        ? (decoded['questions'] as List<dynamic>? ?? [])
+        : decoded as List<dynamic>;
+    if (list.isEmpty) return [];
+
+    final items = <_QuestionLine>[];
+    for (final entry in list) {
+      if (entry is! Map<String, dynamic>) continue;
+      final prompt = entry['prompt']?.toString().trim() ?? '';
+      if (prompt.isEmpty) continue;
+      final marks = _parseInt(entry['marks']) ?? defaultMarks;
+      final year = _parseInt(entry['year']) ?? defaultYear;
+      items.add(_QuestionLine(prompt: prompt, marks: marks, year: year));
+    }
+    return items;
+  }
+
+  List<_QuestionLine> _extractQuestionsFromText(String content) {
+    var candidates = content
+        .split(RegExp(r'[\n\r]+'))
+        .map((line) => line.trim())
+        .where((line) => line.length > 20)
+        .toList();
+    if (candidates.isEmpty) {
+      candidates = content
+          .split(RegExp(r'(?<=[.!?])\\s+'))
+          .map((line) => line.trim())
+          .where((line) => line.length > 25)
+          .toList();
+    }
+    if (candidates.isEmpty) {
+      return [];
+    }
+    return candidates.take(20).map((line) {
+      final prompt = line.endsWith('?') ? line : 'Explain: $line';
+      return _QuestionLine(prompt: prompt, marks: null, year: null);
+    }).toList();
+  }
+
+  bool _isSupportedAi(String mode) {
+    final normalized = mode.toLowerCase();
+    return normalized == 'ollama' ||
+        normalized == 'lmstudio' ||
+        normalized == 'lm-studio' ||
+        normalized == 'lm_studio' ||
+        normalized == 'backend';
+  }
+
+  Future<String> _sendChat({
+    required String mode,
+    required String systemPrompt,
+    required String userPrompt,
+  }) async {
+    if (mode == 'ollama') {
+      final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
+      final response = await http.post(
+        uri,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'model': SupabaseConfig.ollamaModel,
+          'stream': false,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userPrompt},
+          ],
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Ollama error: ${response.body}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['message']?['content'] as String?)?.trim() ?? '';
+    }
+
+    if (mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio') {
+      final uri =
+          Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final apiKey = SupabaseConfig.lmStudioApiKey;
+      if (apiKey.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $apiKey';
+      }
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({
+          'model': SupabaseConfig.lmStudioModel,
+          'temperature': 0.3,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userPrompt},
+          ],
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('LM Studio error: ${response.body}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final choices = data['choices'] as List<dynamic>? ?? [];
+      if (choices.isEmpty) return '';
+      final message = choices.first as Map<String, dynamic>;
+      return (message['message']?['content'] as String?)?.trim() ?? '';
+    }
+
+    if (mode == 'backend') {
+      final response = await _client.functions.invoke(
+        'ai-generate',
+        body: {
+          'system_prompt': systemPrompt,
+          'user_prompt': userPrompt,
+        },
+      );
+      final data = response.data as Map<String, dynamic>? ?? {};
+      final reply = data['reply']?.toString().trim() ?? '';
+      if (reply.isEmpty) {
+        throw Exception('AI backend returned empty response.');
+      }
+      return reply;
+    }
+
+    throw Exception('AI mode not supported.');
+  }
+
+  String _extractJson(String text) {
+    final fenceStart = text.indexOf('```');
+    if (fenceStart != -1) {
+      final fenceEnd = text.indexOf('```', fenceStart + 3);
+      if (fenceEnd != -1) {
+        var fenced = text.substring(fenceStart + 3, fenceEnd).trim();
+        if (fenced.toLowerCase().startsWith('json')) {
+          fenced = fenced.substring(4).trim();
+        }
+        if (fenced.isNotEmpty) {
+          return fenced;
+        }
+      }
+    }
+    final listStart = text.indexOf('[');
+    final listEnd = text.lastIndexOf(']');
+    if (listStart != -1 && listEnd != -1 && listEnd > listStart) {
+      return text.substring(listStart, listEnd + 1);
+    }
+    final braceStart = text.indexOf('{');
+    final braceEnd = text.lastIndexOf('}');
+    if (braceStart != -1 && braceEnd != -1 && braceEnd > braceStart) {
+      return text.substring(braceStart, braceEnd + 1);
+    }
+    return text;
+  }
+
+  int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  String _trim(String value, int max) {
+    if (value.length <= max) return value;
+    return value.substring(0, max);
+  }
+}
+
+class _QuestionLine {
+  final String prompt;
+  final int? marks;
+  final int? year;
+
+  const _QuestionLine({
+    required this.prompt,
+    this.marks,
+    this.year,
+  });
 }
 
 class AdminNote {

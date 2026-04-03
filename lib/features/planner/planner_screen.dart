@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/planner_service.dart';
 import 'package:student_survivor/data/subject_service.dart';
@@ -55,6 +54,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
   bool _focusRunning = false;
   bool _inBreak = false;
   Timer? _focusTimer;
+  final ScrollController _scrollController = ScrollController();
+  bool _showTitle = true;
 
   int _studiedMinutes = 0;
   int _streakDays = 0;
@@ -68,6 +69,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _loadLocalPrefs();
     _load();
     _loadNoteSuggestions();
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
@@ -81,7 +83,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
   @override
   void dispose() {
     _focusTimer?.cancel();
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow = _scrollController.offset < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
   }
 
   Future<void> _load() async {
@@ -287,6 +298,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
@@ -303,21 +318,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 children: [
                   Text(
                     'Add Study Task',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Task title',
-                    ),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _darkInputDecoration('Task title'),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
                     initialValue: selectedSubject,
-                    decoration: const InputDecoration(
-                      labelText: 'Subject (optional)',
-                    ),
+                    decoration: _darkInputDecoration('Subject (optional)'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: subjects
                         .map(
                           (subject) => DropdownMenuItem(
@@ -335,9 +352,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     initialValue: estimate,
-                    decoration: const InputDecoration(
-                      labelText: 'Time estimate',
-                    ),
+                    decoration: _darkInputDecoration('Time estimate'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: _estimateOptions
                         .map(
                           (value) => DropdownMenuItem(
@@ -355,9 +372,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: priority,
-                    decoration: const InputDecoration(
-                      labelText: 'Priority',
-                    ),
+                    decoration: _darkInputDecoration('Priority'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: _priorityOptions
                         .map(
                           (value) => DropdownMenuItem(
@@ -375,14 +392,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Reminder'),
-                    subtitle: const Text('Get a reminder for this task'),
+                    title: const Text(
+                      'Reminder',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Get a reminder for this task',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                     value: remind,
                     onChanged: (value) {
                       setSheetState(() {
                         remind = value;
                       });
                     },
+                    activeThumbColor: const Color(0xFF38BDF8),
+                    activeTrackColor:
+                        const Color(0xFF38BDF8).withValues(alpha: 0.35),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -395,7 +421,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
+                              ?.copyWith(color: Colors.white70),
                         ),
                       ),
                       TextButton(
@@ -413,37 +439,38 @@ class _PlannerScreenState extends State<PlannerScreen> {
                             });
                           }
                         },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
                         child: const Text('Pick Date'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final title = titleController.text.trim();
-                        if (title.isEmpty) {
-                          return;
-                        }
-                        Navigator.of(context).pop();
-                        final id = await _plannerService.addTask(
-                          title: title,
-                          subjectId: selectedSubject?.id,
-                          dueDate: dueDate,
+                  _PrimaryActionButton(
+                    label: 'Save Task',
+                    enabled: true,
+                    onPressed: () async {
+                      final title = titleController.text.trim();
+                      if (title.isEmpty) {
+                        return;
+                      }
+                      Navigator.of(context).pop();
+                      final id = await _plannerService.addTask(
+                        title: title,
+                        subjectId: selectedSubject?.id,
+                        dueDate: dueDate,
+                      );
+                      if (id.isNotEmpty) {
+                        _taskMeta[id] = _TaskMeta(
+                          estimateMinutes: estimate,
+                          priority: priority,
+                          remind: remind,
                         );
-                        if (id.isNotEmpty) {
-                          _taskMeta[id] = _TaskMeta(
-                            estimateMinutes: estimate,
-                            priority: priority,
-                            remind: remind,
-                          );
-                          _persistTaskMeta();
-                        }
-                        await _load();
-                      },
-                      child: const Text('Save Task'),
-                    ),
+                        _persistTaskMeta();
+                      }
+                      await _load();
+                    },
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -479,6 +506,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
@@ -495,21 +526,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 children: [
                   Text(
                     'Edit Task',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Task title',
-                    ),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _darkInputDecoration('Task title'),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
                     initialValue: selectedSubject,
-                    decoration: const InputDecoration(
-                      labelText: 'Subject (optional)',
-                    ),
+                    decoration: _darkInputDecoration('Subject (optional)'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: subjects
                         .map(
                           (subject) => DropdownMenuItem(
@@ -527,9 +560,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     initialValue: estimate,
-                    decoration: const InputDecoration(
-                      labelText: 'Time estimate',
-                    ),
+                    decoration: _darkInputDecoration('Time estimate'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: _estimateOptions
                         .map(
                           (value) => DropdownMenuItem(
@@ -547,9 +580,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: priority,
-                    decoration: const InputDecoration(
-                      labelText: 'Priority',
-                    ),
+                    decoration: _darkInputDecoration('Priority'),
+                    dropdownColor: const Color(0xFF0B1220),
+                    style: const TextStyle(color: Colors.white),
                     items: _priorityOptions
                         .map(
                           (value) => DropdownMenuItem(
@@ -567,14 +600,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Reminder'),
-                    subtitle: const Text('Get a reminder for this task'),
+                    title: const Text(
+                      'Reminder',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Get a reminder for this task',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                     value: remind,
                     onChanged: (value) {
                       setSheetState(() {
                         remind = value;
                       });
                     },
+                    activeThumbColor: const Color(0xFF38BDF8),
+                    activeTrackColor:
+                        const Color(0xFF38BDF8).withValues(alpha: 0.35),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -587,7 +629,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppColors.mutedInk),
+                              ?.copyWith(color: Colors.white70),
                         ),
                       ),
                       TextButton(
@@ -605,36 +647,37 @@ class _PlannerScreenState extends State<PlannerScreen> {
                             });
                           }
                         },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
                         child: const Text('Pick Date'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final title = titleController.text.trim();
-                        if (title.isEmpty) {
-                          return;
-                        }
-                        Navigator.of(context).pop();
-                        await _plannerService.updateTask(
-                          taskId: task.id,
-                          title: title,
-                          subjectId: selectedSubject?.id,
-                          dueDate: dueDate,
-                        );
-                        _taskMeta[task.id] = _TaskMeta(
-                          estimateMinutes: estimate,
-                          priority: priority,
-                          remind: remind,
-                        );
-                        _persistTaskMeta();
-                        await _load();
-                      },
-                      child: const Text('Update Task'),
-                    ),
+                  _PrimaryActionButton(
+                    label: 'Update Task',
+                    enabled: true,
+                    onPressed: () async {
+                      final title = titleController.text.trim();
+                      if (title.isEmpty) {
+                        return;
+                      }
+                      Navigator.of(context).pop();
+                      await _plannerService.updateTask(
+                        taskId: task.id,
+                        title: title,
+                        subjectId: selectedSubject?.id,
+                        dueDate: dueDate,
+                      );
+                      _taskMeta[task.id] = _TaskMeta(
+                        estimateMinutes: estimate,
+                        priority: priority,
+                        remind: remind,
+                      );
+                      _persistTaskMeta();
+                      await _load();
+                    },
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -819,8 +862,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
     );
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF070B14),
       appBar: AppBar(
-        title: const Text('Study Planner'),
+        title: AnimatedOpacity(
+          opacity: _showTitle ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            'Study Planner',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             onPressed: _openAddTaskSheet,
@@ -829,228 +887,265 @@ class _PlannerScreenState extends State<PlannerScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Stack(
         children: [
-          _PlannerHero(
-            progress: overallProgress,
-            totalTasks: totalTasks,
-            doneTasks: doneTasks,
-            semesterName: AppState.profile.value.semester.name,
-          ),
-          const SizedBox(height: 16),
-          _FilterRow(
-            subjectNames: subjectNames,
-            selectedSubject: _subjectFilter,
-            rangeFilter: _rangeFilter,
-            onSubjectChanged: (value) {
-              setState(() {
-                _subjectFilter = value;
-              });
-            },
-            onRangeChanged: (value) {
-              setState(() {
-                _rangeFilter = value;
-                _selectedDate = null;
-              });
-            },
-          ),
-          const SizedBox(height: 16),
-          _WeekStrip(
-            dates: weekDates,
-            selectedDate: _selectedDate,
-            countForDate: (date) {
-              var count = 0;
-              for (final day in _days) {
-                for (final task in day.tasks) {
-                  if (_subjectFilter != 'All' &&
-                      task.subject != _subjectFilter) {
-                    continue;
-                  }
-                  final taskDate = _taskDate(task, day.label);
-                  if (taskDate == null) continue;
-                  if (taskDate.year == date.year &&
-                      taskDate.month == date.month &&
-                      taskDate.day == date.day) {
-                    count += 1;
-                  }
-                }
-              }
-              return count;
-            },
-            onSelect: (date) {
-              setState(() {
-                if (_selectedDate != null &&
-                    _selectedDate!.year == date.year &&
-                    _selectedDate!.month == date.month &&
-                    _selectedDate!.day == date.day) {
-                  _selectedDate = null;
-                } else {
-                  _selectedDate = date;
-                }
-              });
-            },
-          ),
-          const SizedBox(height: 16),
-          _StatsRow(
-            studiedMinutes: _studiedMinutes,
-            streakDays: _streakDays,
-          ),
-          const SizedBox(height: 16),
-          _FocusSessionCard(
-            focusMinutes: _focusMinutes,
-            breakMinutes: _breakMinutes,
-            remaining: _focusRemaining,
-            running: _focusRunning,
-            inBreak: _inBreak,
-            onStart: _startFocus,
-            onPause: _pauseFocus,
-            onReset: _resetFocus,
-            onChangeFocus: (value) {
-              setState(() {
-                _focusMinutes = value;
-                if (!_focusRunning && !_inBreak) {
-                  _focusRemaining = Duration(minutes: _focusMinutes);
-                }
-              });
-              _persistSettings();
-            },
-            onChangeBreak: (value) {
-              setState(() {
-                _breakMinutes = value;
-              });
-              _persistSettings();
-            },
-            formatDuration: _formatDuration,
-          ),
-          const SizedBox(height: 16),
-          _ReminderCard(
-            enabled: _reminderEnabled,
-            time: _reminderTime,
-            onToggle: (value) {
-              setState(() {
-                _reminderEnabled = value;
-              });
-              _persistSettings();
-            },
-            onPickTime: () async {
-              final picked = await showTimePicker(
-                context: context,
-                initialTime: _reminderTime,
-              );
-              if (picked != null) {
-                setState(() {
-                  _reminderTime = picked;
-                });
-                _persistSettings();
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          if (_isNotesLoading)
-            const AppCard(
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(child: Text('Loading note suggestions...')),
-                ],
+          const Positioned.fill(child: _PlannerBackdrop()),
+          ListView(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+              20,
+              28,
+            ),
+            children: [
+              _PlannerHero(
+                progress: overallProgress,
+                totalTasks: totalTasks,
+                doneTasks: doneTasks,
+                semesterName: AppState.profile.value.semester.name,
               ),
-            )
-          else
-            _SubjectNotesCard(notesBySubject: _subjectNotes),
-          const SizedBox(height: 16),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI Study Plan',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+              const SizedBox(height: 16),
+              _FilterRow(
+                subjectNames: subjectNames,
+                selectedSubject: _subjectFilter,
+                rangeFilter: _rangeFilter,
+                onSubjectChanged: (value) {
+                  setState(() {
+                    _subjectFilter = value;
+                  });
+                },
+                onRangeChanged: (value) {
+                  setState(() {
+                    _rangeFilter = value;
+                    _selectedDate = null;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              _WeekStrip(
+                dates: weekDates,
+                selectedDate: _selectedDate,
+                countForDate: (date) {
+                  var count = 0;
+                  for (final day in _days) {
+                    for (final task in day.tasks) {
+                      if (_subjectFilter != 'All' &&
+                          task.subject != _subjectFilter) {
+                        continue;
+                      }
+                      final taskDate = _taskDate(task, day.label);
+                      if (taskDate == null) continue;
+                      if (taskDate.year == date.year &&
+                          taskDate.month == date.month &&
+                          taskDate.day == date.day) {
+                        count += 1;
+                      }
+                    }
+                  }
+                  return count;
+                },
+                onSelect: (date) {
+                  setState(() {
+                    if (_selectedDate != null &&
+                        _selectedDate!.year == date.year &&
+                        _selectedDate!.month == date.month &&
+                        _selectedDate!.day == date.day) {
+                      _selectedDate = null;
+                    } else {
+                      _selectedDate = date;
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              _StatsRow(
+                studiedMinutes: _studiedMinutes,
+                streakDays: _streakDays,
+              ),
+              const SizedBox(height: 16),
+              _FocusSessionCard(
+                focusMinutes: _focusMinutes,
+                breakMinutes: _breakMinutes,
+                remaining: _focusRemaining,
+                running: _focusRunning,
+                inBreak: _inBreak,
+                onStart: _startFocus,
+                onPause: _pauseFocus,
+                onReset: _resetFocus,
+                onChangeFocus: (value) {
+                  setState(() {
+                    _focusMinutes = value;
+                    if (!_focusRunning && !_inBreak) {
+                      _focusRemaining = Duration(minutes: _focusMinutes);
+                    }
+                  });
+                  _persistSettings();
+                },
+                onChangeBreak: (value) {
+                  setState(() {
+                    _breakMinutes = value;
+                  });
+                  _persistSettings();
+                },
+                formatDuration: _formatDuration,
+              ),
+              const SizedBox(height: 16),
+              _ReminderCard(
+                enabled: _reminderEnabled,
+                time: _reminderTime,
+                onToggle: (value) {
+                  setState(() {
+                    _reminderEnabled = value;
+                  });
+                  _persistSettings();
+                },
+                onPickTime: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _reminderTime,
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _reminderTime = picked;
+                    });
+                    _persistSettings();
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              if (_isNotesLoading)
+                const _GameCard(
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF38BDF8),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Loading note suggestions...',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _SubjectNotesCard(notesBySubject: _subjectNotes),
+              const SizedBox(height: 16),
+              _GameCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Study Plan',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Generate a 7-day plan from your subjects.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _PrimaryActionButton(
+                        label:
+                            _isGenerating ? 'Generating...' : 'Generate Plan',
+                        enabled: !_isGenerating,
+                        onPressed: _isGenerating ? null : _generatePlan,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Generate a 7-day plan from your subjects.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _isGenerating ? null : _generatePlan,
-                    child: Text(
-                      _isGenerating ? 'Generating...' : 'Generate Plan',
+              ),
+              const SizedBox(height: 16),
+              if (_isLoading)
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF38BDF8),
+                  ),
+                )
+              else if (_errorMessage != null)
+                _GameCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Color(0xFFF87171)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Color(0xFFF87171)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_days.isEmpty)
+                const Text(
+                  'No study tasks yet. Create a plan to get started.',
+                  style: TextStyle(color: Colors.white70),
+                )
+              else if (filteredDays.isEmpty)
+                const Text(
+                  'No tasks match your filters.',
+                  style: TextStyle(color: Colors.white70),
+                )
+              else
+                ...filteredDays.map(
+                  (day) => Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: _TaskGroupCard(
+                      label: day.label,
+                      tasks: day.tasks,
+                      metaFor: (task) => _taskMeta[task.id],
+                      priorityColor: _priorityColor,
+                      onToggle: (task, value) async {
+                        final done = value == true;
+                        setState(() {
+                          day.tasks[day.tasks.indexOf(task)] = StudyTask(
+                            id: task.id,
+                            title: task.title,
+                            subject: task.subject,
+                            isDone: done,
+                            dueDate: task.dueDate,
+                          );
+                        });
+                        if (task.id.isNotEmpty) {
+                          await _plannerService.setTaskDone(
+                            taskId: task.id,
+                            isDone: done,
+                          );
+                        }
+                      },
+                      onEdit: (task) => _openEditTaskSheet(task),
+                      onDelete: (task) async {
+                        await _plannerService.deleteTask(task.id);
+                        _taskMeta.remove(task.id);
+                        _persistTaskMeta();
+                        await _load();
+                      },
                     ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-          const SizedBox(height: 16),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_errorMessage != null)
-            AppCard(
-              color: AppColors.danger.withValues(alpha: 0.08),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: AppColors.danger),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(_errorMessage!)),
-                ],
-              ),
-            )
-          else if (_days.isEmpty)
-            const Text('No study tasks yet. Create a plan to get started.')
-          else if (filteredDays.isEmpty)
-            const Text('No tasks match your filters.')
-          else
-            ...filteredDays.map(
-              (day) => Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: _TaskGroupCard(
-                  label: day.label,
-                  tasks: day.tasks,
-                  metaFor: (task) => _taskMeta[task.id],
-                  priorityColor: _priorityColor,
-                  onToggle: (task, value) async {
-                    final done = value == true;
-                    setState(() {
-                      day.tasks[day.tasks.indexOf(task)] = StudyTask(
-                        id: task.id,
-                        title: task.title,
-                        subject: task.subject,
-                        isDone: done,
-                        dueDate: task.dueDate,
-                      );
-                    });
-                    if (task.id.isNotEmpty) {
-                      await _plannerService.setTaskDone(
-                        taskId: task.id,
-                        isDone: done,
-                      );
-                    }
-                  },
-                  onEdit: (task) => _openEditTaskSheet(task),
-                  onDelete: (task) async {
-                    await _plannerService.deleteTask(task.id);
-                    _taskMeta.remove(task.id);
-                    _persistTaskMeta();
-                    await _load();
-                  },
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -1086,6 +1181,8 @@ class _TaskTile extends StatelessWidget {
         Checkbox(
           value: isDone,
           onChanged: onChanged,
+          activeColor: const Color(0xFF38BDF8),
+          checkColor: Colors.white,
         ),
         Expanded(
           child: Column(
@@ -1098,6 +1195,7 @@ class _TaskTile extends StatelessWidget {
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
                       fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
               ),
               if (task.subject.isNotEmpty) ...[
@@ -1107,7 +1205,7 @@ class _TaskTile extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
               const SizedBox(height: 8),
@@ -1146,13 +1244,13 @@ class _TaskTile extends StatelessWidget {
           IconButton(
             onPressed: onEdit,
             icon: const Icon(Icons.edit_outlined),
-            color: AppColors.mutedInk,
+            color: Colors.white54,
           ),
         if (onDelete != null)
           IconButton(
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline),
-            color: AppColors.mutedInk,
+            color: Colors.white54,
           ),
       ],
     );
@@ -1193,20 +1291,7 @@ class _PlannerHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (progress * 100).clamp(0, 100).toStringAsFixed(0);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.secondary.withValues(alpha: 0.18),
-            AppColors.accent.withValues(alpha: 0.12),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.outline),
-      ),
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1221,7 +1306,10 @@ class _PlannerHero extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1229,7 +1317,7 @@ class _PlannerHero extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(color: Colors.white70),
                     ),
                   ],
                 ),
@@ -1237,16 +1325,19 @@ class _PlannerHero extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: const Color(0xFF111B2E),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.outline),
+                  border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Text(
                   '$percent%',
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                 ),
               ),
             ],
@@ -1256,8 +1347,8 @@ class _PlannerHero extends StatelessWidget {
             value: progress,
             minHeight: 8,
             borderRadius: BorderRadius.circular(8),
-            backgroundColor: AppColors.outline,
-            color: AppColors.secondary,
+            backgroundColor: const Color(0xFF1E2A44),
+            color: const Color(0xFF38BDF8),
           ),
           const SizedBox(height: 10),
           Text(
@@ -1265,7 +1356,7 @@ class _PlannerHero extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: Colors.white70),
           ),
         ],
       ),
@@ -1290,7 +1381,7 @@ class _FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1299,17 +1390,26 @@ class _FilterRow extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: selectedSubject,
-            decoration: const InputDecoration(labelText: 'Subject'),
+            isExpanded: true,
+            decoration: _darkInputDecoration('Subject'),
+            dropdownColor: const Color(0xFF0B1220),
+            style: const TextStyle(color: Colors.white),
             items: subjectNames
                 .map(
                   (value) => DropdownMenuItem(
                     value: value,
-                    child: Text(value),
+                    child: Text(
+                      value,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 )
                 .toList(),
@@ -1328,11 +1428,12 @@ class _FilterRow extends StatelessWidget {
                     label: Text(label),
                     selected: rangeFilter == label,
                     onSelected: (_) => onRangeChanged(label),
-                    selectedColor: AppColors.secondary.withValues(alpha: 0.18),
+                    selectedColor: const Color(0xFF38BDF8),
+                    backgroundColor: const Color(0xFF111B2E),
+                    side: const BorderSide(color: Color(0xFF1E2A44)),
                     labelStyle: TextStyle(
-                      color: rangeFilter == label
-                          ? AppColors.secondary
-                          : AppColors.mutedInk,
+                      color:
+                          rangeFilter == label ? Colors.white : Colors.white70,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1360,7 +1461,7 @@ class _WeekStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1369,7 +1470,10 @@ class _WeekStrip extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -1394,10 +1498,10 @@ class _WeekStrip extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.secondary
-                          : AppColors.surface,
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF0B1220),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.outline),
+                      border: Border.all(color: const Color(0xFF1E2A44)),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1410,7 +1514,7 @@ class _WeekStrip extends StatelessWidget {
                               ?.copyWith(
                                 color: isSelected
                                     ? Colors.white
-                                    : AppColors.mutedInk,
+                                    : Colors.white70,
                               ),
                         ),
                         const SizedBox(height: 2),
@@ -1420,9 +1524,8 @@ class _WeekStrip extends StatelessWidget {
                               .textTheme
                               .titleSmall
                               ?.copyWith(
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.ink,
+                                color:
+                                    isSelected ? Colors.white : Colors.white,
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -1435,7 +1538,7 @@ class _WeekStrip extends StatelessWidget {
                               ?.copyWith(
                                 color: isSelected
                                     ? Colors.white70
-                                    : AppColors.mutedInk,
+                                    : Colors.white54,
                                 fontSize: 11,
                               ),
                         ),
@@ -1466,7 +1569,7 @@ class _StatsRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: AppCard(
+          child: _GameCard(
             child: _StatTile(
               label: 'Study Minutes',
               value: '$studiedMinutes',
@@ -1476,7 +1579,7 @@ class _StatsRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: AppCard(
+          child: _GameCard(
             child: _StatTile(
               label: 'Streak Days',
               value: '$streakDays',
@@ -1507,10 +1610,11 @@ class _StatTile extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.secondary.withValues(alpha: 0.12),
+            color: const Color(0xFF111B2E),
             borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF1E2A44)),
           ),
-          child: Icon(icon, color: AppColors.secondary, size: 20),
+          child: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1522,7 +1626,7 @@ class _StatTile extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: Colors.white70),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1530,7 +1634,10 @@ class _StatTile extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                    ?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
               ),
             ],
           ),
@@ -1574,7 +1681,7 @@ class _FocusSessionCard extends StatelessWidget {
     final progress = totalSeconds == 0
         ? 0.0
         : remaining.inSeconds / totalSeconds;
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1586,7 +1693,10 @@ class _FocusSessionCard extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
               ),
               Container(
@@ -1594,9 +1704,10 @@ class _FocusSessionCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: inBreak
-                      ? AppColors.warning.withValues(alpha: 0.12)
-                      : AppColors.secondary.withValues(alpha: 0.12),
+                      ? const Color(0xFF3A2A12)
+                      : const Color(0xFF111B2E),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Text(
                   inBreak ? 'Break' : 'Focus',
@@ -1605,8 +1716,8 @@ class _FocusSessionCard extends StatelessWidget {
                       .bodySmall
                       ?.copyWith(
                         color: inBreak
-                            ? AppColors.warning
-                            : AppColors.secondary,
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFF38BDF8),
                         fontWeight: FontWeight.w600,
                       ),
                 ),
@@ -1619,15 +1730,20 @@ class _FocusSessionCard extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .headlineMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+                ?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress,
             minHeight: 6,
             borderRadius: BorderRadius.circular(6),
-            backgroundColor: AppColors.outline,
-            color: inBreak ? AppColors.warning : AppColors.secondary,
+            backgroundColor: const Color(0xFF1E2A44),
+            color: inBreak
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF38BDF8),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1636,12 +1752,19 @@ class _FocusSessionCard extends StatelessWidget {
                 onPressed: running ? onPause : onStart,
                 icon: Icon(running ? Icons.pause : Icons.play_arrow),
                 label: Text(running ? 'Pause' : 'Start'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF38BDF8),
+                  foregroundColor: Colors.white,
+                ),
               ),
               const SizedBox(width: 10),
               TextButton.icon(
                 onPressed: onReset,
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('Reset'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                ),
               ),
             ],
           ),
@@ -1651,7 +1774,9 @@ class _FocusSessionCard extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<int>(
                   initialValue: focusMinutes,
-                  decoration: const InputDecoration(labelText: 'Focus'),
+                  decoration: _darkInputDecoration('Focus'),
+                  dropdownColor: const Color(0xFF0B1220),
+                  style: const TextStyle(color: Colors.white),
                   items: const [15, 20, 25, 30, 45]
                       .map(
                         (value) => DropdownMenuItem(
@@ -1671,7 +1796,9 @@ class _FocusSessionCard extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<int>(
                   initialValue: breakMinutes,
-                  decoration: const InputDecoration(labelText: 'Break'),
+                  decoration: _darkInputDecoration('Break'),
+                  dropdownColor: const Color(0xFF0B1220),
+                  style: const TextStyle(color: Colors.white),
                   items: const [0, 5, 10, 15]
                       .map(
                         (value) => DropdownMenuItem(
@@ -1710,7 +1837,7 @@ class _ReminderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1722,12 +1849,18 @@ class _ReminderCard extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
               ),
               Switch.adaptive(
                 value: enabled,
                 onChanged: onToggle,
+                activeThumbColor: const Color(0xFF38BDF8),
+                activeTrackColor:
+                    const Color(0xFF38BDF8).withValues(alpha: 0.35),
               ),
             ],
           ),
@@ -1739,7 +1872,7 @@ class _ReminderCard extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 12),
           Align(
@@ -1748,6 +1881,9 @@ class _ReminderCard extends StatelessWidget {
               onPressed: enabled ? onPickTime : null,
               icon: const Icon(Icons.schedule),
               label: const Text('Pick Time'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+              ),
             ),
           ),
         ],
@@ -1766,7 +1902,7 @@ class _SubjectNotesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (notesBySubject.isEmpty) {
-      return AppCard(
+      return _GameCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1775,7 +1911,10 @@ class _SubjectNotesCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+                  ?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1783,14 +1922,14 @@ class _SubjectNotesCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             ),
           ],
         ),
       );
     }
 
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1799,7 +1938,10 @@ class _SubjectNotesCard extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 12),
           ...notesBySubject.entries.map(
@@ -1814,7 +1956,10 @@ class _SubjectNotesCard extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -1870,8 +2015,9 @@ class _NoteChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.accent.withValues(alpha: 0.12),
+          color: const Color(0xFF111B2E),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF1E2A44)),
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
@@ -1883,7 +2029,7 @@ class _NoteChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.accent,
+                      color: const Color(0xFF38BDF8),
                       fontWeight: FontWeight.w600,
                     ),
               ),
@@ -1893,7 +2039,7 @@ class _NoteChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.mutedInk,
+                      color: Colors.white70,
                       fontSize: 11,
                     ),
               ),
@@ -1941,7 +2087,7 @@ class _TaskGroupCard extends StatelessWidget {
     final done = tasks.where((task) => task.isDone).length;
     final progress = tasks.isEmpty ? 0.0 : done / tasks.length;
     final formattedLabel = _formatDayLabel(label);
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1953,7 +2099,10 @@ class _TaskGroupCard extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
               ),
               Text(
@@ -1961,7 +2110,7 @@ class _TaskGroupCard extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: Colors.white70),
               ),
             ],
           ),
@@ -1970,8 +2119,8 @@ class _TaskGroupCard extends StatelessWidget {
             value: progress,
             minHeight: 6,
             borderRadius: BorderRadius.circular(6),
-            backgroundColor: AppColors.outline,
-            color: AppColors.secondary,
+            backgroundColor: const Color(0xFF1E2A44),
+            color: const Color(0xFF38BDF8),
           ),
           const SizedBox(height: 12),
           ...tasks.asMap().entries.map(
@@ -1996,7 +2145,10 @@ class _TaskGroupCard extends StatelessWidget {
                         onDelete: () => onDelete(task),
                       ),
                       if (index != tasks.length - 1)
-                        const Divider(height: 20),
+                        const Divider(
+                          height: 20,
+                          color: Color(0xFF1E2A44),
+                        ),
                     ],
                   );
                 },
@@ -2023,8 +2175,9 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: const Color(0xFF111B2E),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF1E2A44)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2076,4 +2229,221 @@ String _formatDayLabel(String label) {
     return label;
   }
   return '${_weekdayShort(date)}, ${_shortDate(date)}';
+}
+
+InputDecoration _darkInputDecoration(String label) {
+  return InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: Colors.white70),
+    filled: true,
+    fillColor: const Color(0xFF0B1220),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
+    ),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+    ),
+  );
+}
+
+class _PlannerBackdrop extends StatelessWidget {
+  const _PlannerBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF070B14),
+            Color(0xFF0B1324),
+            Color(0xFF101C2E),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: const [
+          Positioned.fill(child: CustomPaint(painter: _PlannerGridPainter())),
+          Positioned(
+            top: -140,
+            right: -80,
+            child: _GlowOrb(size: 280, color: Color(0x3322D3EE)),
+          ),
+          Positioned(
+            bottom: -120,
+            left: -60,
+            child: _GlowOrb(size: 240, color: Color(0x334F46E5)),
+          ),
+          Positioned(
+            top: 180,
+            left: 40,
+            child: _GlowOrb(size: 180, color: Color(0x332DD4BF)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: 80,
+            spreadRadius: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlannerGridPainter extends CustomPainter {
+  const _PlannerGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    const gap = 52.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    final glowPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rect = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.08,
+      size.width * 0.84,
+      size.height * 0.76,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(28)),
+      glowPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlannerGridPainter oldDelegate) => false;
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+
+  const _GameCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _PrimaryActionButton extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  const _PrimaryActionButton({
+    required this.label,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF38BDF8),
+              Color(0xFF4F46E5),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: enabled ? onPressed : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(
+            label.toUpperCase(),
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1),
+          ),
+        ),
+      ),
+    );
+  }
 }

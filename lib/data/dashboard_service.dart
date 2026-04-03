@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/data/progress_service.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -102,7 +103,8 @@ class DashboardService {
       }
     }
 
-    final progress = await _computeProgress(subjects);
+    final progress =
+        await ProgressService(_client).fetchOverallProgress(subjects);
 
     return DashboardData(
       progress: progress,
@@ -214,35 +216,6 @@ class DashboardService {
         .replaceAll(',', ' ')
         .replaceAll(';', ' ')
         .trim();
-  }
-
-  Future<double> _computeProgress(List<Subject> subjects) async {
-    final chapterIds = <String>{};
-    for (final subject in subjects) {
-      for (final chapter in subject.chapters) {
-        chapterIds.add(chapter.id);
-      }
-    }
-
-    if (chapterIds.isEmpty) {
-      return 0;
-    }
-
-    final rows = await _client
-        .from('user_chapter_progress')
-        .select('chapter_id, completion_percent')
-        .inFilter('chapter_id', chapterIds.toList());
-
-    double total = 0;
-    for (final row in rows as List<dynamic>) {
-      total += (row['completion_percent'] as num?)?.toDouble() ?? 0;
-    }
-
-    final maxTotal = chapterIds.length * 100.0;
-    if (maxTotal == 0) {
-      return 0;
-    }
-    return (total / maxTotal).clamp(0, 1);
   }
 
   Note _noteFromMap(dynamic raw) {

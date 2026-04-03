@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
@@ -34,12 +35,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   bool _usingAi = false;
   List<_FlashcardItem> _noteCards = const [];
   List<_FlashcardItem> _cards = const [];
+  late final ActivityLogService _activityLogService;
 
   @override
   void initState() {
     super.initState();
     _userNotesService = UserNotesService(SupabaseConfig.client);
     _aiNotesService = AiNotesService(SupabaseConfig.client);
+    _activityLogService = ActivityLogService(SupabaseConfig.client);
     _loadCards();
   }
 
@@ -152,6 +155,17 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
       _index = (_index + 1) % _cards.length;
       _showBack = false;
     });
+    _activityLogService.logActivityUnawaited(
+      type: 'flashcard_review',
+      source: 'flashcards',
+      points: 1,
+      subjectId: widget.subject.id,
+      chapterId: widget.chapter.id,
+      metadata: {
+        'source': _cards[_index].source,
+        'deck': _usingAi ? 'ai' : 'notes',
+      },
+    );
   }
 
   void _prevCard() {

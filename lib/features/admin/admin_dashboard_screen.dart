@@ -29,6 +29,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String? _clearingSyllabusId;
   int _pendingSubmissionCount = 0;
   bool _isPendingCountLoading = false;
+  List<Subject> _adminSubjects = const [];
+  bool _isAdminContentLoading = false;
 
   @override
   void initState() {
@@ -37,6 +39,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _adminService = AdminService(client);
     _subjectService = SubjectService(client);
     _loadPendingCount();
+    _loadAdminContent();
   }
 
   void _openSyllabus(BuildContext context) {
@@ -93,6 +96,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         isAdmin: profile.isAdmin,
       ),
     );
+    await _loadAdminContent();
+  }
+
+  Future<void> _loadAdminContent() async {
+    if (_isAdminContentLoading) return;
+    setState(() {
+      _isAdminContentLoading = true;
+    });
+    try {
+      final subjects =
+          await _subjectService.fetchAllSubjects(includeContent: true);
+      if (!mounted) return;
+      setState(() {
+        _adminSubjects = subjects;
+        _isAdminContentLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isAdminContentLoading = false;
+      });
+    }
   }
 
   Future<void> _loadPendingCount() async {
@@ -232,7 +257,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _loadPendingCount,
+            onPressed: () {
+              _loadPendingCount();
+              _loadAdminContent();
+            },
             icon: _isPendingCountLoading
                 ? const SizedBox(
                     height: 18,
@@ -252,7 +280,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: ValueListenableBuilder(
         valueListenable: AppState.profile,
         builder: (context, profile, _) {
-          final subjects = profile.subjects;
+          final subjects =
+              _adminSubjects.isNotEmpty ? _adminSubjects : profile.subjects;
           final subjectCount = subjects.length;
           final chapterCount = subjects.fold<int>(
             0,
@@ -473,7 +502,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ],
                   );
-
                   if (!wide) {
                     return leftColumn;
                   }

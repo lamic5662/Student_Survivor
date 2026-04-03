@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -29,6 +30,7 @@ class BattleQuizScreen extends StatefulWidget {
 class _BattleQuizScreenState extends State<BattleQuizScreen> {
   late final SupabaseClient _client;
   late final AiQuizService _aiQuizService;
+  late final ActivityLogService _activityLogService;
   RealtimeChannel? _roomChannel;
   final _random = Random();
   bool _isLoading = true;
@@ -54,6 +56,7 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
     super.initState();
     _client = SupabaseConfig.client;
     _aiQuizService = AiQuizService(_client);
+    _activityLogService = ActivityLogService(_client);
     _isLoading = false;
   }
 
@@ -612,6 +615,18 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
         _correctStreak = 0;
       }
     });
+    _activityLogService.logActivityUnawaited(
+      type: 'battle_answer',
+      source: 'battle_quiz',
+      points: points,
+      subjectId: widget.subject.id,
+      chapterId: widget.chapter.id,
+      metadata: {
+        'correct': isCorrect,
+        'streak': _correctStreak,
+        'difficulty': question.difficulty,
+      },
+    );
 
     try {
       await _client.from('battle_answers').insert({

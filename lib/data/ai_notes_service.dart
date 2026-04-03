@@ -222,6 +222,12 @@ class AiNotesService {
     final buffer = StringBuffer();
     buffer.writeln('Subject: ${subject.name} (${subject.code})');
     buffer.writeln('Chapter: ${chapter.title}');
+    if (chapter.subtopics.isNotEmpty) {
+      buffer.writeln('Subtopics:');
+      for (final subtopic in chapter.subtopics.take(12)) {
+        buffer.writeln('- ${_trim(subtopic.title, 120)}');
+      }
+    }
 
     if (chapter.notes.isNotEmpty) {
       buffer.writeln('Existing notes:');

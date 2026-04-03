@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
-import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/features/shell/app_shell.dart';
@@ -15,16 +15,28 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState
     extends PresenterState<AuthScreen, AuthView, AuthPresenter>
+    with SingleTickerProviderStateMixin
     implements AuthView {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
+  AnimationController? _scanline;
 
   @override
   AuthPresenter createPresenter() => AuthPresenter();
 
   @override
+  void initState() {
+    super.initState();
+    _scanline = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
   void dispose() {
+    _scanline?.dispose();
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -39,46 +51,118 @@ class _AuthScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: ValueListenableBuilder<AuthViewModel>(
-        valueListenable: presenter.state,
-        builder: (context, model, _) {
-          final theme = Theme.of(context);
-          return Stack(
-            children: [
-              const _AuthBackdrop(),
-              SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _AuthHero(
-                        isLogin: model.isLogin,
-                        onToggle: presenter.toggleMode,
-                      ),
-                      const SizedBox(height: 20),
-                      _AuthCard(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        body: ValueListenableBuilder<AuthViewModel>(
+          valueListenable: presenter.state,
+          builder: (context, model, _) {
+            final theme = Theme.of(context);
+            InputDecoration gameInputDecoration({
+              required String label,
+              required IconData icon,
+            }) {
+              return InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(color: Color(0xFFB6C2D9)),
+                floatingLabelStyle: const TextStyle(color: Color(0xFF7DD3FC)),
+                prefixIcon: Icon(icon, color: const Color(0xFF9FB3C8)),
+                filled: true,
+                fillColor: const Color(0xFF0B1220),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF38BDF8),
+                    width: 1.4,
+                  ),
+                ),
+              );
+            }
+            return Stack(
+              children: [
+                const _AuthBackdrop(),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: _ScanlineOverlay(
+                      animation: _scanline ??=
+                          AnimationController(
+                            vsync: this,
+                            duration: const Duration(milliseconds: 2200),
+                          )..repeat(),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 860;
+                      const hero = _AuthHero();
+                      final card = _AuthCard(
                         child: Form(
                           key: _formKey,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'ACCESS PORTAL',
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.6),
+                                      letterSpacing: 1.4,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  _StatusChip(
+                                    label: model.isLogin ? 'LOGIN' : 'SIGN UP',
+                                    glow: model.isLogin
+                                        ? const Color(0xFF38BDF8)
+                                        : const Color(0xFFA78BFA),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                height: 1,
+                                width: double.infinity,
+                                color: const Color(0xFF1E2A44),
+                              ),
+                              const SizedBox(height: 16),
+                              Center(
+                                child: _ModeToggle(
+                                  isLogin: model.isLogin,
+                                  onToggle: presenter.toggleMode,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
                               Text(
                                 model.isLogin
-                                    ? 'Login to continue'
+                                    ? 'Welcome back'
                                     : 'Create your account',
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
+                                  color: Colors.white,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 model.isLogin
-                                    ? 'Pick a method and jump back in.'
-                                    : 'Start with email or phone in seconds.',
+                                    ? 'Sign in to continue your study streak.'
+                                    : 'Start in seconds with email or phone.',
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.mutedInk,
+                                  color: Colors.white.withValues(alpha: 0.7),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -92,15 +176,14 @@ class _AuthScreenState
                                 keyboardType: model.method == AuthMethod.email
                                     ? TextInputType.emailAddress
                                     : TextInputType.phone,
-                                decoration: InputDecoration(
-                                  labelText: model.method == AuthMethod.email
+                                style: const TextStyle(color: Colors.white),
+                                decoration: gameInputDecoration(
+                                  label: model.method == AuthMethod.email
                                       ? 'Email'
                                       : 'Phone',
-                                  prefixIcon: Icon(
-                                    model.method == AuthMethod.email
-                                        ? Icons.alternate_email
-                                        : Icons.phone_iphone,
-                                  ),
+                                  icon: model.method == AuthMethod.email
+                                      ? Icons.alternate_email
+                                      : Icons.phone_iphone,
                                 ),
                                 validator: (value) {
                                   final input = value?.trim() ?? '';
@@ -124,9 +207,10 @@ class _AuthScreenState
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Password',
-                                  prefixIcon: Icon(Icons.lock_outline),
+                                style: const TextStyle(color: Colors.white),
+                                decoration: gameInputDecoration(
+                                  label: 'Password',
+                                  icon: Icons.lock_outline,
                                 ),
                                 validator: (value) {
                                   final input = value?.trim() ?? '';
@@ -142,50 +226,61 @@ class _AuthScreenState
                               const SizedBox(height: 18),
                               const _InfoCallout(),
                               const SizedBox(height: 22),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: model.isSubmitting
-                                      ? null
-                                      : () {
-                                          if (_formKey.currentState
-                                                  ?.validate() !=
-                                              true) {
-                                            return;
-                                          }
-                                          presenter.submit(
-                                            identifier: _identifierController
-                                                .text
-                                                .trim(),
-                                            password: _passwordController.text,
-                                          );
-                                        },
-                                  child: model.isSubmitting
-                                      ? const SizedBox(
-                                          height: 18,
-                                          width: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Text(
-                                          model.isLogin
-                                              ? 'Continue'
-                                              : 'Create Account',
-                                        ),
-                                ),
+                              _AuthPrimaryButton(
+                                isLoading: model.isSubmitting,
+                                label: model.isLogin
+                                    ? 'Continue'
+                                    : 'Create Account',
+                                onPressed: model.isSubmitting
+                                    ? null
+                                    : () {
+                                        if (_formKey.currentState?.validate() !=
+                                            true) {
+                                          return;
+                                        }
+                                        presenter.submit(
+                                          identifier: _identifierController.text
+                                              .trim(),
+                                          password: _passwordController.text,
+                                        );
+                                      },
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight - 60,
+                          ),
+                          child: isWide
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 5, child: hero),
+                                    const SizedBox(width: 30),
+                                    Expanded(flex: 4, child: card),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    hero,
+                                    const SizedBox(height: 22),
+                                    card,
+                                  ],
+                                ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -200,9 +295,9 @@ class _AuthBackdrop extends StatelessWidget {
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Color(0xFFEFF6FF),
-            Color(0xFFECFEFF),
-            AppColors.paper,
+            Color(0xFF070B14),
+            Color(0xFF0B1324),
+            Color(0xFF101C2E),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -210,28 +305,29 @@ class _AuthBackdrop extends StatelessWidget {
       ),
       child: Stack(
         children: const [
+          Positioned.fill(child: CustomPaint(painter: _GameGridPainter())),
           Positioned(
-            top: -70,
-            right: -40,
-            child: _GlowCircle(
+            top: -120,
+            right: -60,
+            child: _GlowSpot(
+              size: 260,
+              color: Color(0x3322D3EE),
+            ),
+          ),
+          Positioned(
+            bottom: -90,
+            left: -40,
+            child: _GlowSpot(
               size: 220,
-              color: Color(0x336366F1),
+              color: Color(0x334F46E5),
             ),
           ),
           Positioned(
-            bottom: -60,
-            left: -30,
-            child: _GlowCircle(
-              size: 200,
-              color: Color(0x3314B8A6),
-            ),
-          ),
-          Positioned(
-            top: 160,
-            left: 30,
-            child: _GlowCircle(
-              size: 120,
-              color: Color(0x220F172A),
+            top: 140,
+            left: 40,
+            child: _GlowSpot(
+              size: 160,
+              color: Color(0x332DD4BF),
             ),
           ),
         ],
@@ -240,14 +336,11 @@ class _AuthBackdrop extends StatelessWidget {
   }
 }
 
-class _GlowCircle extends StatelessWidget {
+class _GlowSpot extends StatelessWidget {
   final double size;
   final Color color;
 
-  const _GlowCircle({
-    required this.size,
-    required this.color,
-  });
+  const _GlowSpot({required this.size, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -260,8 +353,8 @@ class _GlowCircle extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: color,
-            blurRadius: 60,
-            spreadRadius: 10,
+            blurRadius: 70,
+            spreadRadius: 14,
           ),
         ],
       ),
@@ -270,47 +363,66 @@ class _GlowCircle extends StatelessWidget {
 }
 
 class _AuthHero extends StatelessWidget {
-  final bool isLogin;
-  final VoidCallback onToggle;
-
-  const _AuthHero({
-    required this.isLogin,
-    required this.onToggle,
-  });
+  const _AuthHero();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Student Survivor',
-          style: theme.textTheme.headlineLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 16),
+            child: child,
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Study smarter, survive exams, and level up with AI.',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.mutedInk,
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B1220),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const _GradientTitle(text: 'StudentSurge'),
+            ],
           ),
-        ),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: const [
-            _FeatureTag(icon: Icons.auto_awesome, label: 'AI Notes'),
-            _FeatureTag(icon: Icons.bolt, label: 'Quick Quizzes'),
-            _FeatureTag(icon: Icons.gamepad, label: 'Game Loop'),
-          ],
-        ),
-        const SizedBox(height: 18),
-        _ModeToggle(isLogin: isLogin, onToggle: onToggle),
-      ],
+          const SizedBox(height: 10),
+          Text(
+            'Enter the arena. Learn fast. Level up.',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _FeatureTag(icon: Icons.shield, label: 'Survivor Mode'),
+              _FeatureTag(icon: Icons.psychology, label: 'AI Coach'),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -330,19 +442,26 @@ class _FeatureTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.7),
+        color: const Color(0xFF0B1220),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: AppColors.secondary),
+          Icon(icon, size: 16, color: const Color(0xFF38BDF8)),
           const SizedBox(width: 6),
           Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
-              color: AppColors.ink,
+              color: Colors.white,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -366,9 +485,9 @@ class _ModeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
+        color: const Color(0xFF0B1220),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: const Color(0xFF1E2A44)),
       ),
       child: Row(
         children: [
@@ -414,17 +533,24 @@ class _ModeChip extends StatelessWidget {
       child: InkWell(
         onTap: selected ? null : onTap,
         borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+        child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [
+                      Color(0xFF38BDF8),
+                      Color(0xFF6366F1),
+                    ],
+                  )
+                : null,
+            color: selected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 14,
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                      blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
                   ]
@@ -435,7 +561,8 @@ class _ModeChip extends StatelessWidget {
               label,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: selected ? AppColors.ink : AppColors.mutedInk,
+                color:
+                    selected ? Colors.white : Colors.white.withValues(alpha: 0.7),
               ),
             ),
           ),
@@ -453,20 +580,54 @@ class _AuthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(1.5),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.outline),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 34,
+            offset: const Offset(0, 20),
           ),
         ],
       ),
-      child: child,
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(21),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -60,
+              right: -50,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0x3322D3EE),
+                      Color(0x00000000),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            child,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -479,21 +640,21 @@ class _InfoCallout extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.accentSoft.withValues(alpha: 0.35),
+        color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.accent.withValues(alpha: 0.25),
+          color: const Color(0xFF1E2A44),
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, size: 22, color: AppColors.secondary),
+          const Icon(Icons.auto_awesome, size: 22, color: Color(0xFF38BDF8)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Complete your semester + subjects in Profile after login.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.ink,
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
             ),
           ),
@@ -532,18 +693,18 @@ class _AuthMethodSelector extends StatelessWidget {
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.secondary.withValues(alpha: 0.12);
+            return const Color(0xFF1E293B);
           }
-          return AppColors.surface;
+          return const Color(0xFF0B1220);
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.secondary;
+            return const Color(0xFF38BDF8);
           }
-          return AppColors.mutedInk;
+          return Colors.white.withValues(alpha: 0.7);
         }),
         side: WidgetStateProperty.resolveWith(
-          (_) => const BorderSide(color: AppColors.outline),
+          (_) => const BorderSide(color: Color(0xFF1E2A44)),
         ),
         textStyle: WidgetStateProperty.all(
           theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
@@ -554,5 +715,228 @@ class _AuthMethodSelector extends StatelessWidget {
       ),
       onSelectionChanged: (values) => onChanged(values.first),
     );
+  }
+}
+
+class _AuthPrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _AuthPrimaryButton({
+    required this.label,
+    required this.onPressed,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    return Opacity(
+      opacity: disabled ? 0.6 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF007AFF),
+              Color(0xFF4F46E5),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color glow;
+
+  const _StatusChip({
+    required this.label,
+    required this.glow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+        boxShadow: [
+          BoxShadow(
+            color: glow.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: glow,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+            ),
+      ),
+    );
+  }
+}
+
+class _GradientTitle extends StatelessWidget {
+  final String text;
+
+  const _GradientTitle({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          color: Colors.white,
+        );
+    return ShaderMask(
+      shaderCallback: (rect) => const LinearGradient(
+        colors: [
+          Color(0xFF38BDF8),
+          Color(0xFF22D3EE),
+          Color(0xFFA78BFA),
+        ],
+      ).createShader(rect),
+      child: Text(text, style: style),
+    );
+  }
+}
+
+class _GameGridPainter extends CustomPainter {
+  const _GameGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    const gap = 44.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    final glowPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rect = Rect.fromLTWH(
+      size.width * 0.1,
+      size.height * 0.12,
+      size.width * 0.8,
+      size.height * 0.7,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(24)),
+      glowPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GameGridPainter oldDelegate) => false;
+}
+
+class _ScanlineOverlay extends StatelessWidget {
+  final Animation<double> animation;
+
+  const _ScanlineOverlay({required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _ScanlinePainter(progress: animation.value),
+        );
+      },
+    );
+  }
+}
+
+class _ScanlinePainter extends CustomPainter {
+  final double progress;
+
+  const _ScanlinePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scanPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.04)
+      ..strokeWidth = 1;
+    const gap = 14.0;
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), scanPaint);
+    }
+
+    final bandY = (size.height + 120) * progress - 60;
+    final bandPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.transparent,
+          const Color(0xFF38BDF8).withValues(alpha: 0.18),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromLTWH(0, bandY, size.width, 120));
+    canvas.drawRect(Rect.fromLTWH(0, bandY, size.width, 120), bandPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanlinePainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
