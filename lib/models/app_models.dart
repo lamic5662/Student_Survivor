@@ -13,6 +13,7 @@ enum RevisionPriority { high, medium, low }
 class UserProfile {
   final String name;
   final String email;
+  final String? _collegeName;
   final Semester semester;
   final List<Subject> subjects;
   final bool? _isAdmin;
@@ -20,12 +21,15 @@ class UserProfile {
   const UserProfile({
     required this.name,
     required this.email,
+    String? collegeName,
     required this.semester,
     required this.subjects,
     bool? isAdmin,
-  }) : _isAdmin = isAdmin;
+  })  : _collegeName = collegeName,
+        _isAdmin = isAdmin;
 
   bool get isAdmin => _isAdmin ?? false;
+  String get collegeName => _collegeName ?? '';
 }
 
 class Semester {
@@ -37,6 +41,18 @@ class Semester {
     required this.id,
     required this.name,
     required this.subjects,
+  });
+}
+
+class College {
+  final String id;
+  final String name;
+  final bool isActive;
+
+  const College({
+    required this.id,
+    required this.name,
+    required this.isActive,
   });
 }
 
@@ -120,6 +136,8 @@ class NoteSubmission {
   final String status;
   final String? fileUrl;
   final String? adminFeedback;
+  final String? userName;
+  final String? collegeName;
   final DateTime? createdAt;
 
   const NoteSubmission({
@@ -132,6 +150,8 @@ class NoteSubmission {
     required this.status,
     this.fileUrl,
     this.adminFeedback,
+    this.userName,
+    this.collegeName,
     this.createdAt,
   });
 }
@@ -337,6 +357,8 @@ class CommunityQuestion {
   final String id;
   final String subjectId;
   final String userId;
+  final String? userName;
+  final String? collegeName;
   final String question;
   final String status;
   final bool aiValid;
@@ -347,6 +369,8 @@ class CommunityQuestion {
     required this.id,
     required this.subjectId,
     required this.userId,
+    this.userName,
+    this.collegeName,
     required this.question,
     required this.status,
     required this.aiValid,
@@ -359,6 +383,8 @@ class CommunityAnswer {
   final String id;
   final String questionId;
   final String userId;
+  final String? userName;
+  final String? collegeName;
   final String answer;
   final DateTime? createdAt;
 
@@ -366,6 +392,8 @@ class CommunityAnswer {
     required this.id,
     required this.questionId,
     required this.userId,
+    this.userName,
+    this.collegeName,
     required this.answer,
     this.createdAt,
   });

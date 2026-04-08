@@ -14,6 +14,7 @@ class AppState {
     UserProfile(
       name: 'Student',
       email: '',
+      collegeName: '',
       semester: _emptySemester,
       subjects: [],
       isAdmin: false,
@@ -35,9 +36,12 @@ class AppState {
       return;
     }
     final displayName = user.userMetadata?['full_name']?.toString();
+    final college =
+        user.userMetadata?['college_name']?.toString() ?? '';
     profile.value = UserProfile(
       name: displayName ?? (user.email ?? 'Student'),
       email: user.email ?? '',
+      collegeName: college,
       semester: _emptySemester,
       subjects: const [],
       isAdmin: false,
@@ -48,6 +52,7 @@ class AppState {
     profile.value = UserProfile(
       name: 'Student',
       email: '',
+      collegeName: '',
       semester: _emptySemester,
       subjects: const [],
       isAdmin: false,

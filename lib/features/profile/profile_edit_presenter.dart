@@ -18,6 +18,7 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
     state = ValueNotifier(
       ProfileEditViewModel.initial(
         fullName: profile.name,
+        collegeName: profile.collegeName,
         email: profile.email,
       ),
     );
@@ -67,6 +68,10 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
     state.value = state.value.copyWith(fullName: value);
   }
 
+  void updateCollege(String value) {
+    state.value = state.value.copyWith(collegeName: value);
+  }
+
   void selectSemester(Semester semester) {
     state.value = state.value.copyWith(selectedSemester: semester);
   }
@@ -85,6 +90,7 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
 
     try {
       await _profileService.updateName(state.value.fullName.trim());
+      await _profileService.updateCollege(state.value.collegeName.trim());
       await _profileService.updateSemester(semester.id);
       final fullSubjects = await _subjectService.fetchSubjectsForSemester(
         semester.id,
@@ -94,6 +100,7 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
       final updatedProfile = UserProfile(
         name: state.value.fullName.trim(),
         email: state.value.email,
+        collegeName: state.value.collegeName.trim(),
         semester: semester,
         subjects: fullSubjects,
         isAdmin: AppState.profile.value.isAdmin,

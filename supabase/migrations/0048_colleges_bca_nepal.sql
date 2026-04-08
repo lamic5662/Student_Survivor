@@ -1,0 +1,77 @@
+alter table public.colleges
+  add column if not exists program text,
+  add column if not exists university text,
+  add column if not exists country text,
+  add column if not exists district text,
+  add column if not exists city text,
+  add column if not exists province text,
+  add column if not exists affiliation_type text;
+
+update public.colleges
+set program = coalesce(program, 'BCA'),
+    university = coalesce(university, 'Tribhuvan University'),
+    country = coalesce(country, 'Nepal')
+where program is null or university is null or country is null;
+
+insert into public.colleges (
+  name,
+  district,
+  city,
+  province,
+  affiliation_type,
+  program,
+  university,
+  country,
+  is_active
+)
+values
+  ('Morgan International College','Kathmandu','Basundhara','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Thames International College','Kathmandu','Old Baneshwor','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Kathmandu Model College','Kathmandu','Bagbazar','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Padmashree International College','Kathmandu','Tinkune','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Divya Gyan College','Kathmandu','Putalisadak','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Orchid International College','Kathmandu','Gaushala','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Kathford International College','Kathmandu','Balkhu','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Nepal Mega College','Kathmandu','Babarmahal','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Nepalaya College','Kathmandu','Kalanki','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('New Summit College','Kathmandu','Baneshwor','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Pashupati Multiple Campus','Kathmandu','Chabahil','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Saraswati Multiple Campus','Kathmandu','Kathmandu','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Padmakanya Multiple Campus','Kathmandu','Dillibazar','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Patan Multiple Campus','Lalitpur','Patan','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Nesfield International College','Lalitpur','Lagankhel','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('NIMS College','Lalitpur','Kupondole','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Pascal National College','Lalitpur','Satdobato','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Ojashwi College','Lalitpur','Gwarko','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Caribbean College','Lalitpur','Mahalaxmisthan','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Araniko College of Business and Technology','Lalitpur','Jawalakhel','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Nagarjuna College of Information Technology','Lalitpur','Shankhamul','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Bhaktapur Multiple Campus','Bhaktapur','Bhaktapur','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('NIST College','Kavrepalanchok','Banepa','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Birendra Multiple Campus','Chitwan','Bharatpur','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Prithvi Narayan Campus','Kaski','Pokhara','Gandaki','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Janapriya Multiple Campus','Kaski','Pokhara','Gandaki','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Butwal Multiple Campus','Rupandehi','Butwal','Lumbini','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Siddhartha Gautam Buddha Campus','Rupandehi','Bhairahawa','Lumbini','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Mahendra Multiple Campus Nepalgunj','Banke','Nepalgunj','Lumbini','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Mechi Multiple Campus','Jhapa','Bhadrapur','Koshi','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Damak Multiple Campus','Jhapa','Damak','Koshi','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Mahendra Morang Adarsha Multiple Campus','Morang','Biratnagar','Koshi','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Birat Multiple College','Morang','Biratnagar','Koshi','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Dhankuta Multiple Campus','Dhankuta','Dhankuta','Koshi','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Hetauda School of Management','Makwanpur','Hetauda','Bagmati','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Makwanpur Multiple Campus','Makwanpur','Hetauda','Bagmati','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Tikapur Multiple Campus','Kailali','Tikapur','Sudurpashchim','Affiliated','BCA','Tribhuvan University','Nepal',true),
+  ('Dhangadhi Multiple Campus','Kailali','Dhangadhi','Sudurpashchim','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Dadeldhura Multiple Campus','Dadeldhura','Dadeldhura','Sudurpashchim','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Surkhet Multiple Campus','Surkhet','Birendranagar','Karnali','Constituent','BCA','Tribhuvan University','Nepal',true),
+  ('Kanchanpur Multiple Campus','Kanchanpur','Mahendranagar','Sudurpashchim','Constituent','BCA','Tribhuvan University','Nepal',true)
+on conflict (name) do update set
+  district = excluded.district,
+  city = excluded.city,
+  province = excluded.province,
+  affiliation_type = excluded.affiliation_type,
+  program = excluded.program,
+  university = excluded.university,
+  country = excluded.country,
+  is_active = excluded.is_active;

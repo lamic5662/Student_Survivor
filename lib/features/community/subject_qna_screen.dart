@@ -352,6 +352,21 @@ class _SubjectQnaScreenState extends State<SubjectQnaScreen> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 6),
+                            Text(
+                              [
+                                question.userName ??
+                                    (isMine
+                                        ? context.tr('You', 'तपाईं')
+                                        : context.tr('Student', 'विद्यार्थी')),
+                                if ((question.collegeName ?? '').isNotEmpty)
+                                  question.collegeName!,
+                              ].join(' • '),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.white70),
+                            ),
                             if (isMine) ...[
                               const SizedBox(height: 6),
                               Text(
@@ -522,7 +537,25 @@ class _AnswerSheetState extends State<_AnswerSheet> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: AppCard(
                   padding: const EdgeInsets.all(12),
-                  child: MathText(text: answer.answer),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        [
+                          answer.userName ??
+                              context.tr('Student', 'विद्यार्थी'),
+                          if ((answer.collegeName ?? '').isNotEmpty)
+                            answer.collegeName!,
+                        ].join(' • '),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.mutedInk),
+                      ),
+                      const SizedBox(height: 6),
+                      MathText(text: answer.answer),
+                    ],
+                  ),
                 ),
               ),
             ),

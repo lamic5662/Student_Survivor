@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/features/admin/admin_screen.dart';
 import 'package:student_survivor/features/auth/auth_screen.dart';
 import 'package:student_survivor/features/community/subject_qna_screen.dart';
+import 'package:student_survivor/features/chat/chat_hub_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/profile/profile_presenter.dart';
@@ -275,6 +276,8 @@ class _ProfileScreenState
                                 runSpacing: 6,
                                 children: [
                                   _ProfileChip(label: profile.semester.name),
+                                  if (profile.collegeName.isNotEmpty)
+                                    _ProfileChip(label: profile.collegeName),
                                   _ProfileChip(
                                     label: profile.isAdmin
                                         ? l10n.adminRole
@@ -318,6 +321,19 @@ class _ProfileScreenState
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const SearchScreen()),
+                      );
+                    },
+                  ),
+                  _ProfileItem(
+                    icon: Icons.chat_bubble_outline,
+                    label: context.tr('Semester Chat', 'सेमेस्टर च्याट'),
+                    subtitle: context.tr(
+                      'Public semester chat + private groups.',
+                      'सार्वजनिक सेमेस्टर च्याट र निजी समूहहरू।',
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ChatHubScreen()),
                       );
                     },
                   ),

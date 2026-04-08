@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
+import 'package:student_survivor/data/college_service.dart';
+import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/profile/profile_edit_presenter.dart';
 import 'package:student_survivor/features/profile/profile_edit_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -17,6 +19,10 @@ class _ProfileEditScreenState
         ProfileEditPresenter>
     implements ProfileEditView {
   late final TextEditingController _nameController;
+  late final CollegeService _collegeService;
+  List<College> _colleges = const [];
+  College? _selectedCollege;
+  bool _isCollegeLoading = false;
 
   @override
   ProfileEditPresenter createPresenter() => ProfileEditPresenter();
@@ -30,6 +36,8 @@ class _ProfileEditScreenState
     _nameController.addListener(() {
       presenter.updateName(_nameController.text);
     });
+    _collegeService = CollegeService(SupabaseConfig.client);
+    _loadColleges();
   }
 
   @override
@@ -61,6 +69,155 @@ class _ProfileEditScreenState
   @override
   void close() {
     Navigator.of(context).pop();
+  }
+
+  Future<void> _openCollegePicker() async {
+    if (_colleges.isEmpty) return;
+    final selected = await showModalBottomSheet<College>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final controller = TextEditingController();
+        var filtered = List<College>.from(_colleges);
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            void applyFilter(String value) {
+              final query = value.trim().toLowerCase();
+              setModalState(() {
+                if (query.isEmpty) {
+                  filtered = List<College>.from(_colleges);
+                } else {
+                  filtered = _colleges
+                      .where(
+                        (college) =>
+                            college.name.toLowerCase().contains(query),
+                      )
+                      .toList();
+                }
+              });
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: _GameCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.tr('Select College', 'कलेज छान्नुहोस्'),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      style: const TextStyle(color: Colors.white),
+                      cursorColor: const Color(0xFF38BDF8),
+                      decoration: _darkInputDecoration(
+                        context.tr('Search college', 'कलेज खोज्नुहोस्'),
+                      ),
+                      onChanged: applyFilter,
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 360),
+                      child: filtered.isEmpty
+                          ? Text(
+                              context.tr(
+                                'No colleges found.',
+                                'कलेज भेटिएन।',
+                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.white70),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(color: Color(0xFF1E2A44)),
+                              itemBuilder: (context, index) {
+                                final college = filtered[index];
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    college.name,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  onTap: () =>
+                                      Navigator.of(context).pop(college),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (selected != null) {
+      setState(() {
+        _selectedCollege = selected;
+      });
+      presenter.updateCollege(selected.name);
+    }
+  }
+
+  Future<void> _loadColleges() async {
+    setState(() {
+      _isCollegeLoading = true;
+    });
+    try {
+      final colleges = await _collegeService.fetchColleges();
+      if (!mounted) return;
+      final current = presenter.state.value.collegeName.trim();
+      final hasCurrent = colleges.any(
+        (college) => college.name.toLowerCase() == current.toLowerCase(),
+      );
+      final enriched = !hasCurrent && current.isNotEmpty
+          ? [
+              College(id: 'current', name: current, isActive: true),
+              ...colleges,
+            ]
+          : colleges;
+      final selected = current.isEmpty
+          ? null
+          : enriched.firstWhere(
+              (college) =>
+                  college.name.toLowerCase() == current.toLowerCase(),
+              orElse: () => enriched.first,
+            );
+      setState(() {
+        _colleges = enriched;
+        _selectedCollege = selected;
+        _isCollegeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isCollegeLoading = false;
+      });
+    }
   }
 
   @override
@@ -145,6 +302,44 @@ class _ProfileEditScreenState
                             context.tr('Full name', 'पुरा नाम'),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        if (_isCollegeLoading)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: LinearProgressIndicator(minHeight: 2),
+                          )
+                        else
+                          InkWell(
+                            onTap: _openCollegePicker,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InputDecorator(
+                              decoration: _darkInputDecoration(
+                                context.tr('College name', 'कलेजको नाम'),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _selectedCollege?.name ??
+                                          context.tr(
+                                            'Select college',
+                                            'कलेज छान्नुहोस्',
+                                          ),
+                                      style: TextStyle(
+                                        color: _selectedCollege == null
+                                            ? Colors.white54
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.search,
+                                    color: Colors.white70,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         TextField(
                           readOnly: true,

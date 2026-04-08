@@ -249,16 +249,20 @@ class _NotesTabState extends State<_NotesTab> {
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(16),
     Color? color,
+    Color? backgroundColor,
+    Color? borderColor,
   }) {
     if (_useGameTheme) {
       return _GameCard(
         padding: padding,
+        backgroundColor: backgroundColor,
+        borderColor: borderColor,
         child: child,
       );
     }
     return AppCard(
       padding: padding,
-      color: color,
+      color: color ?? backgroundColor,
       child: child,
     );
   }
@@ -352,12 +356,13 @@ class _NotesTabState extends State<_NotesTab> {
     final submitted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _useGameTheme ? AppColors.paper : null,
+      backgroundColor: _useGameTheme ? Colors.transparent : null,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return _NoteSubmissionSheet(
+          useGameTheme: _useGameTheme,
           onUploadAttachment: (file) =>
               _noteSubmissionService.uploadSubmissionAttachment(
                 chapterId: widget.chapter.id,
@@ -2033,59 +2038,93 @@ class _NotesTabState extends State<_NotesTab> {
             )
           else
             ..._submissions.map(
-              (submission) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              submission.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: _useGameTheme ? Colors.white : null,
-                                  ),
-                            ),
-                          ),
-                          if (submission.status == 'pending')
-                            IconButton(
-                              tooltip: 'Delete',
-                              onPressed: () => _deleteSubmission(submission),
-                              icon: Icon(
-                                Icons.delete_outline,
-                                color: _useGameTheme ? Colors.white70 : null,
+              (submission) {
+                final accent = _submissionStatusColor(submission.status);
+                final submissionBg = Color.lerp(
+                  const Color(0xFF0B1220),
+                  accent,
+                  0.12,
+                );
+                final submissionBorder = Color.lerp(
+                  const Color(0xFF1E2A44),
+                  accent,
+                  0.4,
+                );
+                final appBg = accent.withValues(alpha: 0.06);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildCard(
+                    color: _useGameTheme ? null : appBg,
+                    backgroundColor: _useGameTheme ? submissionBg : null,
+                    borderColor: _useGameTheme ? submissionBorder : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                submission.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          _useGameTheme ? Colors.white : null,
+                                    ),
                               ),
                             ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
+                            if (submission.status == 'pending')
+                              IconButton(
+                                tooltip: 'Delete',
+                                onPressed: () => _deleteSubmission(submission),
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color:
+                                      _useGameTheme ? Colors.white70 : null,
+                                ),
+                              ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                submission.status.toUpperCase(),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: accent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: _submissionStatusColor(submission.status)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              submission.status.toUpperCase(),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    color:
-                                        _submissionStatusColor(submission.status),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      if ((submission.userName ?? '').isNotEmpty ||
+                          (submission.collegeName ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          [
+                            if ((submission.userName ?? '').isNotEmpty)
+                              submission.userName!,
+                            if ((submission.collegeName ?? '').isNotEmpty)
+                              submission.collegeName!,
+                          ].join(' • '),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: _useGameTheme ? Colors.white70 : null,
+                              ),
+                        ),
+                      ],
                       if (submission.shortAnswer.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(
@@ -2154,10 +2193,11 @@ class _NotesTabState extends State<_NotesTab> {
                               ),
                         ),
                       ],
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           const SizedBox(height: 24),
           _buildSectionHeader(title: 'Official Notes'),
@@ -2242,10 +2282,12 @@ class _NoteSubmissionSheet extends StatefulWidget {
     String? fileUrl,
   ) onSubmit;
   final Future<String> Function(PlatformFile file)? onUploadAttachment;
+  final bool useGameTheme;
 
   const _NoteSubmissionSheet({
     required this.onSubmit,
     this.onUploadAttachment,
+    this.useGameTheme = false,
   });
 
   @override
@@ -2363,6 +2405,83 @@ class _NoteSubmissionSheetState extends State<_NoteSubmissionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Submit Note for Approval',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: widget.useGameTheme ? Colors.white : null,
+              ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _titleController,
+          decoration: const InputDecoration(labelText: 'Title'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _contentController,
+          maxLines: 6,
+          decoration: const InputDecoration(labelText: 'Note content'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _tagsController,
+          decoration: const InputDecoration(
+            labelText: 'Tags (comma separated)',
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _attachment?.name ?? 'No attachment selected',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: widget.useGameTheme ? Colors.white70 : null,
+                    ),
+              ),
+            ),
+            if (_attachment != null)
+              IconButton(
+                tooltip: 'Remove',
+                onPressed: _isSubmitting ? null : _clearAttachment,
+                icon: const Icon(Icons.close),
+              ),
+            TextButton(
+              onPressed: _isSubmitting ? null : _pickAttachment,
+              child: Text(_attachment == null ? 'Attach file' : 'Change'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _submit,
+            child: _isSubmitting
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Submit for Review'),
+          ),
+        ),
+      ],
+    );
+
+    final body = widget.useGameTheme
+        ? _GameCard(
+            padding: const EdgeInsets.all(18),
+            child: content,
+          )
+        : content;
+
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -2370,70 +2489,7 @@ class _NoteSubmissionSheetState extends State<_NoteSubmissionSheet> {
         top: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Submit Note for Approval',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contentController,
-              maxLines: 6,
-              decoration: const InputDecoration(labelText: 'Note content'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: 'Tags (comma separated)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _attachment?.name ?? 'No attachment selected',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                if (_attachment != null)
-                  IconButton(
-                    tooltip: 'Remove',
-                    onPressed: _isSubmitting ? null : _clearAttachment,
-                    icon: const Icon(Icons.close),
-                  ),
-                TextButton(
-                  onPressed: _isSubmitting ? null : _pickAttachment,
-                  child: Text(_attachment == null ? 'Attach file' : 'Change'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Submit for Review'),
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: SingleChildScrollView(child: body),
     );
   }
 }
@@ -3220,10 +3276,14 @@ class _GameSectionHeader extends StatelessWidget {
 class _GameCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final Color? backgroundColor;
+  final Color? borderColor;
 
   const _GameCard({
     required this.child,
     this.padding = const EdgeInsets.all(16),
+    this.backgroundColor,
+    this.borderColor,
   });
 
   @override
@@ -3250,9 +3310,9 @@ class _GameCard extends StatelessWidget {
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: const Color(0xFF0B1220),
+          color: backgroundColor ?? const Color(0xFF0B1220),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFF1E2A44)),
+          border: Border.all(color: borderColor ?? const Color(0xFF1E2A44)),
         ),
         child: child,
       ),

@@ -60,6 +60,9 @@ class _AdminScreenState extends State<AdminScreen> {
   List<Chapter> _qaChapters = const [];
   List<Quiz> _qaQuizzes = const [];
   Quiz? _qaSelectedQuiz;
+  List<College> _colleges = const [];
+  College? _editingCollege;
+  bool _isCollegeLoading = false;
   bool _noteChapterWise = true;
   bool _showNotePublisher = false;
   bool _isUploadingSyllabus = false;
@@ -91,6 +94,7 @@ class _AdminScreenState extends State<AdminScreen> {
   final _semesterName = TextEditingController();
   final _semesterCode = TextEditingController();
   final _semesterSort = TextEditingController(text: '1');
+  final _collegeName = TextEditingController();
 
   final _subjectName = TextEditingController();
   final _subjectCode = TextEditingController();
@@ -135,6 +139,7 @@ class _AdminScreenState extends State<AdminScreen> {
     _semesterName.dispose();
     _semesterCode.dispose();
     _semesterSort.dispose();
+    _collegeName.dispose();
     _subjectName.dispose();
     _subjectCode.dispose();
     _subjectDesc.dispose();
@@ -193,11 +198,107 @@ class _AdminScreenState extends State<AdminScreen> {
       await _loadNoteChapters();
       await _loadQaChapters();
       await _loadPendingCommunityQuestions();
+      await _loadColleges();
     } catch (error) {
       setState(() {
         _errorMessage = 'Failed to load data: $error';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadColleges() async {
+    setState(() {
+      _isCollegeLoading = true;
+    });
+    try {
+      final colleges = await _adminService.fetchColleges();
+      if (!mounted) return;
+      setState(() {
+        _colleges = colleges;
+        _isCollegeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isCollegeLoading = false;
+      });
+    }
+  }
+
+  void _editCollege(College college) {
+    setState(() {
+      _editingCollege = college;
+      _collegeName.text = college.name;
+    });
+  }
+
+  void _clearCollegeForm() {
+    setState(() {
+      _editingCollege = null;
+      _collegeName.clear();
+    });
+  }
+
+  Future<void> _saveCollege() async {
+    final name = _collegeName.text.trim();
+    if (name.isEmpty) {
+      _show('College name required.');
+      return;
+    }
+    try {
+      final editing = _editingCollege;
+      if (editing == null) {
+        await _adminService.addCollege(name: name);
+        _show('College added.');
+      } else {
+        await _adminService.updateCollege(collegeId: editing.id, name: name);
+        _show('College updated.');
+      }
+      _clearCollegeForm();
+      await _loadColleges();
+    } catch (error) {
+      _show('Failed to save college: $error');
+    }
+  }
+
+  Future<void> _toggleCollege(College college) async {
+    try {
+      await _adminService.setCollegeActive(
+        collegeId: college.id,
+        isActive: !college.isActive,
+      );
+      await _loadColleges();
+    } catch (error) {
+      _show('Failed to update college: $error');
+    }
+  }
+
+  Future<void> _deleteCollege(College college) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete college?'),
+        content: Text('Remove ${college.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _adminService.deleteCollege(college.id);
+      await _loadColleges();
+      _show('College deleted.');
+    } catch (error) {
+      _show('Failed to delete college: $error');
     }
   }
 
@@ -2020,6 +2121,91 @@ class _AdminScreenState extends State<AdminScreen> {
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
+              'Manage Colleges',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
+            children: [
+              TextField(
+                controller: _collegeName,
+                decoration: const InputDecoration(labelText: 'College name'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveCollege,
+                      child: Text(
+                        _editingCollege == null
+                            ? 'Add College'
+                            : 'Update College',
+                      ),
+                    ),
+                  ),
+                  if (_editingCollege != null) ...[
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _clearCollegeForm,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_isCollegeLoading)
+                const LinearProgressIndicator(minHeight: 2),
+              if (!_isCollegeLoading && _colleges.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('No colleges added yet.'),
+                ),
+              if (_colleges.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ..._colleges.map(
+                  (college) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(college.name),
+                    subtitle: Text(
+                      college.isActive ? 'Active' : 'Hidden',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          tooltip:
+                              college.isActive ? 'Hide' : 'Activate',
+                          onPressed: () => _toggleCollege(college),
+                          icon: Icon(
+                            college.isActive
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => _editCollege(college),
+                          icon: const Icon(Icons.edit),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () => _deleteCollege(college),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _AdminCard(
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
               'Add Subject',
               style: Theme.of(context).textTheme.titleMedium,
             ),
@@ -2651,6 +2837,22 @@ class _AdminScreenState extends State<AdminScreen> {
                           .bodySmall
                           ?.copyWith(color: Colors.white70),
                     ),
+                    if ((submission.userName ?? '').isNotEmpty ||
+                        (submission.collegeName ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if ((submission.userName ?? '').isNotEmpty)
+                            submission.userName!,
+                          if ((submission.collegeName ?? '').isNotEmpty)
+                            submission.collegeName!,
+                        ].join(' • '),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white60),
+                      ),
+                    ],
                     if (submission.shortAnswer.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       MathText(

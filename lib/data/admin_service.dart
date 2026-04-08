@@ -55,6 +55,52 @@ class AdminService {
     });
   }
 
+  Future<List<College>> fetchColleges({bool includeInactive = true}) async {
+    final baseQuery =
+        _client.from('colleges').select('id,name,is_active');
+    final data = includeInactive
+        ? await baseQuery.order('name')
+        : await baseQuery.eq('is_active', true).order('name');
+    return (data as List<dynamic>)
+        .map(
+          (row) => College(
+            id: row['id']?.toString() ?? '',
+            name: row['name']?.toString() ?? '',
+            isActive: row['is_active'] as bool? ?? true,
+          ),
+        )
+        .where((college) => college.id.isNotEmpty && college.name.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> addCollege({required String name}) async {
+    await _client.from('colleges').insert({'name': name});
+  }
+
+  Future<void> updateCollege({
+    required String collegeId,
+    required String name,
+  }) async {
+    await _client
+        .from('colleges')
+        .update({'name': name})
+        .eq('id', collegeId);
+  }
+
+  Future<void> setCollegeActive({
+    required String collegeId,
+    required bool isActive,
+  }) async {
+    await _client
+        .from('colleges')
+        .update({'is_active': isActive})
+        .eq('id', collegeId);
+  }
+
+  Future<void> deleteCollege(String collegeId) async {
+    await _client.from('colleges').delete().eq('id', collegeId);
+  }
+
   Future<void> addSubject({
     required String semesterId,
     required String name,
@@ -235,7 +281,8 @@ class AdminService {
         .from('note_submissions')
         .select(
           'id,user_id,chapter_id,title,short_answer,detailed_answer,file_url,tags,status,created_at,'
-          'chapter:chapters(id,title,subject:subjects(id,name))',
+          'chapter:chapters(id,title,subject:subjects(id,name)),'
+          'user:profiles(full_name,college_name)',
         )
         .eq('status', 'pending');
 
@@ -1155,6 +1202,8 @@ class AdminNoteSubmission {
   final String status;
   final String? fileUrl;
   final String userId;
+  final String? userName;
+  final String? collegeName;
   final String chapterTitle;
   final String? subjectName;
   final DateTime? createdAt;
@@ -1169,6 +1218,8 @@ class AdminNoteSubmission {
     required this.status,
     this.fileUrl,
     required this.userId,
+    this.userName,
+    this.collegeName,
     required this.chapterTitle,
     this.subjectName,
     this.createdAt,
@@ -1220,6 +1271,7 @@ AdminNoteSubmission _adminSubmissionFromMap(Map<String, dynamic> map) {
       .toList();
   final chapterMap = map['chapter'] as Map<String, dynamic>?;
   final subjectMap = chapterMap?['subject'] as Map<String, dynamic>?;
+  final userMap = map['user'];
   final createdAtRaw = map['created_at']?.toString();
   return AdminNoteSubmission(
     id: map['id']?.toString() ?? '',
@@ -1231,6 +1283,12 @@ AdminNoteSubmission _adminSubmissionFromMap(Map<String, dynamic> map) {
     status: map['status']?.toString() ?? 'pending',
     fileUrl: map['file_url']?.toString(),
     userId: map['user_id']?.toString() ?? '',
+    userName: userMap is Map<String, dynamic>
+        ? userMap['full_name']?.toString()
+        : null,
+    collegeName: userMap is Map<String, dynamic>
+        ? userMap['college_name']?.toString()
+        : null,
     chapterTitle: chapterMap?['title']?.toString() ?? 'Chapter',
     subjectName: subjectMap?['name']?.toString(),
     createdAt:

@@ -2,6 +2,7 @@ import 'package:student_survivor/models/app_models.dart';
 
 class ProfileEditViewModel {
   final String fullName;
+  final String collegeName;
   final String email;
   final List<Semester> semesters;
   final Semester? selectedSemester;
@@ -10,6 +11,7 @@ class ProfileEditViewModel {
 
   const ProfileEditViewModel({
     required this.fullName,
+    required this.collegeName,
     required this.email,
     required this.semesters,
     required this.selectedSemester,
@@ -21,6 +23,7 @@ class ProfileEditViewModel {
 
   ProfileEditViewModel copyWith({
     String? fullName,
+    String? collegeName,
     String? email,
     List<Semester>? semesters,
     Semester? selectedSemester,
@@ -29,6 +32,7 @@ class ProfileEditViewModel {
   }) {
     return ProfileEditViewModel(
       fullName: fullName ?? this.fullName,
+      collegeName: collegeName ?? this.collegeName,
       email: email ?? this.email,
       semesters: semesters ?? this.semesters,
       selectedSemester: selectedSemester ?? this.selectedSemester,
@@ -39,10 +43,12 @@ class ProfileEditViewModel {
 
   factory ProfileEditViewModel.initial({
     required String fullName,
+    required String collegeName,
     required String email,
   }) {
     return ProfileEditViewModel(
       fullName: fullName,
+      collegeName: collegeName,
       email: email,
       semesters: const [],
       selectedSemester: null,

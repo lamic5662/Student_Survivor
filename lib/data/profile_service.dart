@@ -28,6 +28,17 @@ class ProfileService {
         .eq('id', user.id);
   }
 
+  Future<void> updateCollege(String collegeName) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    await _client
+        .from('profiles')
+        .update({'college_name': collegeName})
+        .eq('id', user.id);
+  }
+
   Future<UserProfile?> fetchProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -36,7 +47,9 @@ class ProfileService {
 
     final data = await _client
         .from('profiles')
-        .select('id, full_name, email, is_admin, semester:semesters(id,name,code)')
+        .select(
+          'id, full_name, email, college_name, is_admin, semester:semesters(id,name,code)',
+        )
         .eq('id', user.id)
         .maybeSingle();
 
@@ -54,6 +67,7 @@ class ProfileService {
     return UserProfile(
       name: data['full_name']?.toString() ?? (user.email ?? 'Student'),
       email: data['email']?.toString() ?? (user.email ?? ''),
+      collegeName: data['college_name']?.toString() ?? '',
       semester: semesterModel,
       subjects: const [],
       isAdmin: data['is_admin'] as bool? ?? false,

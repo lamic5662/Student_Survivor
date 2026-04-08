@@ -42,7 +42,8 @@ class NoteSubmissionService {
     final data = await _client
         .from('note_submissions')
         .select(
-          'id,chapter_id,title,short_answer,detailed_answer,file_url,tags,status,admin_feedback,created_at',
+          'id,chapter_id,title,short_answer,detailed_answer,file_url,tags,status,admin_feedback,created_at,'
+          'user:profiles(full_name,college_name)',
         )
         .eq('user_id', user.id)
         .eq('chapter_id', chapterId)
@@ -59,6 +60,7 @@ class NoteSubmissionService {
         .where((tag) => tag.isNotEmpty)
         .toList();
     final createdAt = map['created_at']?.toString();
+    final user = map['user'];
     return NoteSubmission(
       id: map['id']?.toString() ?? '',
       chapterId: map['chapter_id']?.toString() ?? '',
@@ -69,6 +71,12 @@ class NoteSubmissionService {
       status: map['status']?.toString() ?? 'pending',
       fileUrl: map['file_url']?.toString(),
       adminFeedback: map['admin_feedback']?.toString(),
+      userName: user is Map<String, dynamic>
+          ? user['full_name']?.toString()
+          : null,
+      collegeName: user is Map<String, dynamic>
+          ? user['college_name']?.toString()
+          : null,
       createdAt: createdAt == null ? null : DateTime.tryParse(createdAt),
     );
   }

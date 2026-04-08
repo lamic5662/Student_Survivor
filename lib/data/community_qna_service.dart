@@ -17,7 +17,8 @@ class CommunityQnaService {
     final data = await _client
         .from('community_questions')
         .select(
-          'id,subject_id,user_id,question,status,ai_valid,ai_reason,created_at',
+          'id,subject_id,user_id,question,status,ai_valid,ai_reason,created_at,'
+          'user:profiles(full_name,college_name)',
         )
         .eq('subject_id', subjectId)
         .order('created_at', ascending: false);
@@ -31,7 +32,10 @@ class CommunityQnaService {
     if (questionId.isEmpty) return [];
     final data = await _client
         .from('community_answers')
-        .select('id,question_id,user_id,answer,created_at')
+        .select(
+          'id,question_id,user_id,answer,created_at,'
+          'user:profiles(full_name,college_name)',
+        )
         .eq('question_id', questionId)
         .order('created_at', ascending: true);
 
@@ -63,7 +67,8 @@ class CommunityQnaService {
       'ai_valid': verification.isValid,
       'ai_reason': verification.reason,
     }).select(
-      'id,subject_id,user_id,question,status,ai_valid,ai_reason,created_at',
+      'id,subject_id,user_id,question,status,ai_valid,ai_reason,created_at,'
+      'user:profiles(full_name,college_name)',
     ).single();
 
     return _questionFromMap(inserted);
@@ -265,10 +270,17 @@ class CommunityQnaService {
 
   CommunityQuestion _questionFromMap(Map<String, dynamic> map) {
     final createdAtRaw = map['created_at']?.toString();
+    final user = map['user'];
     return CommunityQuestion(
       id: map['id']?.toString() ?? '',
       subjectId: map['subject_id']?.toString() ?? '',
       userId: map['user_id']?.toString() ?? '',
+      userName: user is Map<String, dynamic>
+          ? user['full_name']?.toString()
+          : null,
+      collegeName: user is Map<String, dynamic>
+          ? user['college_name']?.toString()
+          : null,
       question: map['question']?.toString() ?? '',
       status: map['status']?.toString() ?? 'pending',
       aiValid: map['ai_valid'] == true,
@@ -280,10 +292,17 @@ class CommunityQnaService {
 
   CommunityAnswer _answerFromMap(Map<String, dynamic> map) {
     final createdAtRaw = map['created_at']?.toString();
+    final user = map['user'];
     return CommunityAnswer(
       id: map['id']?.toString() ?? '',
       questionId: map['question_id']?.toString() ?? '',
       userId: map['user_id']?.toString() ?? '',
+      userName: user is Map<String, dynamic>
+          ? user['full_name']?.toString()
+          : null,
+      collegeName: user is Map<String, dynamic>
+          ? user['college_name']?.toString()
+          : null,
       answer: map['answer']?.toString() ?? '',
       createdAt:
           createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),

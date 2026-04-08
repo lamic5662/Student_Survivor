@@ -60,6 +60,7 @@ class _AdminGateState extends State<AdminGate> {
         UserProfile(
           name: profile.name,
           email: profile.email,
+          collegeName: profile.collegeName,
           semester: profile.semester,
           subjects: subjects,
           isAdmin: profile.isAdmin,
