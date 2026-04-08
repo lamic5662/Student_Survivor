@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/data/app_state.dart';
+import 'package:student_survivor/data/dashboard_service.dart';
 import 'package:student_survivor/data/planner_service.dart';
 import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -30,6 +31,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
   static const _prefsBreakMinutes = 'planner_break_minutes';
   static const List<int> _estimateOptions = [30, 45, 60, 90, 120];
   static const List<String> _priorityOptions = ['Low', 'Medium', 'High'];
+  static const int _maxPlanDays = 120;
 
   late final PlannerService _plannerService;
   late final SubjectService _subjectService;
@@ -45,6 +47,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
   String _subjectFilter = 'All';
   String _rangeFilter = 'This Week';
   DateTime? _selectedDate;
+  DateTime? _examDate;
+  Set<String> _selectedSubjectIds = {};
+  final Map<String, DateTime> _subjectExamDates = {};
 
   bool _reminderEnabled = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 20, minute: 0);
@@ -71,6 +76,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _load();
     _loadNoteSuggestions();
     _scrollController.addListener(_handleScroll);
+    AppState.focusLock.addListener(_handleFocusLockChange);
   }
 
   @override
@@ -86,6 +92,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _focusTimer?.cancel();
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
+    AppState.focusLock.removeListener(_handleFocusLockChange);
     super.dispose();
   }
 
@@ -93,6 +100,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final shouldShow = _scrollController.offset < 24;
     if (shouldShow != _showTitle) {
       setState(() => _showTitle = shouldShow);
+    }
+  }
+
+  void _handleFocusLockChange() {
+    if (!mounted) return;
+    if (AppState.focusLock.value == null &&
+        (_focusRunning || _inBreak)) {
+      _endFocusSessionLocal();
     }
   }
 
@@ -208,18 +223,260 @@ class _PlannerScreenState extends State<PlannerScreen> {
     prefs.setInt(_prefsBreakMinutes, _breakMinutes);
   }
 
-  Future<void> _generatePlan() async {
+  Future<void> _pickExamDate() async {
+    final now = DateTime.now();
+    final initial = _examDate ?? now.add(const Duration(days: 20));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked == null) return;
+    setState(() {
+      _examDate = picked;
+    });
+  }
+
+  Future<void> _pickSubjectExamDate(Subject subject) async {
+    final now = DateTime.now();
+    final initial = _subjectExamDates[subject.id] ??
+        _examDate ??
+        now.add(const Duration(days: 20));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked == null) return;
+    setState(() {
+      _subjectExamDates[subject.id] = picked;
+    });
+  }
+
+  Future<void> _openSubjectPicker() async {
+    final subjects = AppState.profile.value.subjects;
+    if (subjects.isEmpty) {
+      _showSnack(context.tr(
+        'Add subjects to generate a plan.',
+        'योजना बनाउन विषय थप्नुहोस्।',
+      ));
+      return;
+    }
+    final selection = Set<String>.from(_selectedSubjectIds);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('Select Subjects', 'विषय छान्नुहोस्'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          setSheetState(() {
+                            selection
+                              ..clear()
+                              ..addAll(subjects.map((s) => s.id));
+                          });
+                        },
+                        child: Text(
+                          context.tr('Select all', 'सबै छान्नुहोस्'),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setSheetState(() {
+                            selection.clear();
+                          });
+                        },
+                        child: Text(context.tr('Clear', 'हटाउनुहोस्')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 360),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: subjects.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(color: Color(0xFF1E2A44)),
+                      itemBuilder: (context, index) {
+                        final subject = subjects[index];
+                        final selected = selection.contains(subject.id);
+                        final date = _subjectExamDates[subject.id];
+                        return Row(
+                          children: [
+                            Checkbox(
+                              value: selected,
+                              onChanged: (value) {
+                                setSheetState(() {
+                                  if (value == true) {
+                                    selection.add(subject.id);
+                                  } else {
+                                    selection.remove(subject.id);
+                                  }
+                                });
+                              },
+                              activeColor: const Color(0xFF38BDF8),
+                              checkColor: Colors.black,
+                            ),
+                            Expanded(
+                              child: Text(
+                                subject.name,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: selected
+                                  ? () => _pickSubjectExamDate(subject)
+                                  : null,
+                              child: Text(
+                                date == null
+                                    ? context.tr('Set date', 'मिति सेट')
+                                    : _formatDate(date),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(context.tr('Done', 'समाप्त')),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _selectedSubjectIds = selection;
+    });
+  }
+
+  Future<void> _generateSmartPlan() async {
     if (_isGenerating) return;
+    final subjects = AppState.profile.value.subjects;
+    if (subjects.isEmpty) {
+      _showSnack(context.tr(
+        'Add subjects to generate a plan.',
+        'योजना बनाउन विषय थप्नुहोस्।',
+      ));
+      return;
+    }
+    final selectedSubjects = _selectedSubjectIds.isEmpty
+        ? subjects
+        : subjects
+            .where((s) => _selectedSubjectIds.contains(s.id))
+            .toList();
+    if (selectedSubjects.isEmpty) {
+      _showSnack(context.tr(
+        'Select at least one subject.',
+        'कम्तीमा एउटा विषय छान्नुहोस्।',
+      ));
+      return;
+    }
+
+    final defaultExam = _examDate;
+    if (defaultExam == null &&
+        selectedSubjects.any((s) => !_subjectExamDates.containsKey(s.id))) {
+      _showSnack(context.tr(
+        'Set an exam date for each subject.',
+        'प्रत्येक विषयका लागि परीक्षा मिति सेट गर्नुहोस्।',
+      ));
+      return;
+    }
+
+    final subjectDates = <String, DateTime>{};
+    for (final subject in selectedSubjects) {
+      final date = _subjectExamDates[subject.id] ?? defaultExam;
+      if (date == null) continue;
+      subjectDates[subject.id] = date;
+    }
+    if (subjectDates.isEmpty) {
+      _showSnack(context.tr(
+        'Select an exam date.',
+        'परीक्षा मिति छान्नुहोस्।',
+      ));
+      return;
+    }
+
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final maxDate = subjectDates.values.reduce(
+      (a, b) => a.isAfter(b) ? a : b,
+    );
+    final end = DateTime(maxDate.year, maxDate.month, maxDate.day);
+    final diffDays = end.difference(start).inDays + 1;
+    if (diffDays <= 0) {
+      _showSnack(context.tr(
+        'Exam date must be in the future.',
+        'परीक्षा मिति भविष्यमा हुनुपर्छ।',
+      ));
+      return;
+    }
+    if (diffDays > _maxPlanDays) {
+      _showSnack(context.tr(
+        'Plan limited to $_maxPlanDays days.',
+        'योजना अधिकतम $_maxPlanDays दिनसम्म सीमित छ।',
+      ));
+    }
+
     setState(() {
       _isGenerating = true;
       _errorMessage = null;
     });
     try {
-      final subjects = AppState.profile.value.subjects;
+      DashboardData? dashboard;
+      try {
+        dashboard = await DashboardService(SupabaseConfig.client)
+            .fetchDashboard(subjects: subjects);
+      } catch (_) {
+        dashboard = null;
+      }
+      final weakTopics = dashboard?.weakTopics ?? const <WeakTopic>[];
       final plan = await _plannerService.generatePlan(
-        subjects: subjects,
-        days: 7,
+        subjects: selectedSubjects,
+        days: diffDays > _maxPlanDays ? _maxPlanDays : diffDays,
         replaceExisting: true,
+        startDate: start,
+        endDate: end,
+        weakTopics: weakTopics,
+        subjectExamDates: subjectDates,
       );
       if (!mounted) return;
       setState(() {
@@ -242,6 +499,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
         });
       }
     }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   static const int _notesSuggestionLimit = 5;
@@ -734,6 +1001,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
     setState(() {
       _focusRunning = true;
     });
+    AppState.startFocusLock(
+      endsAt: DateTime.now().add(_focusRemaining),
+      allowedIndices: const [1, 3],
+    );
+    AppState.updateFocusState(
+      remaining: _focusRemaining,
+      running: true,
+      inBreak: _inBreak,
+    );
     _focusTimer?.cancel();
     _focusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
@@ -742,23 +1018,21 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _focusRunning = false;
         if (!_inBreak) {
           _completeFocusSession();
-          if (_breakMinutes > 0) {
-            setState(() {
-              _inBreak = true;
-              _focusRemaining = Duration(minutes: _breakMinutes);
-            });
-            _startFocus();
-          } else {
-            _resetFocus();
-          }
+          _promptExtendFocus();
         } else {
-          _resetFocus();
+          _endFocusSession();
         }
       } else {
         setState(() {
           _focusRemaining -= const Duration(seconds: 1);
         });
+        AppState.updateFocusState(remaining: _focusRemaining);
       }
+      AppState.updateFocusState(
+        remaining: _focusRemaining,
+        running: _focusRunning,
+        inBreak: _inBreak,
+      );
     });
   }
 
@@ -767,15 +1041,72 @@ class _PlannerScreenState extends State<PlannerScreen> {
     setState(() {
       _focusRunning = false;
     });
+    AppState.updateFocusState(
+      remaining: _focusRemaining,
+      running: false,
+      inBreak: _inBreak,
+    );
   }
 
-  void _resetFocus() {
+  void _endFocusSessionLocal() {
     _focusTimer?.cancel();
     setState(() {
       _focusRunning = false;
       _inBreak = false;
       _focusRemaining = Duration(minutes: _focusMinutes);
     });
+    AppState.updateFocusState(
+      remaining: _focusRemaining,
+      running: false,
+      inBreak: false,
+    );
+  }
+
+  void _endFocusSession() {
+    _endFocusSessionLocal();
+    AppState.endFocusLock();
+  }
+
+  Future<void> _promptExtendFocus() async {
+    if (!mounted) return;
+    final addMore = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr(
+          'Focus complete',
+          'फोकस पूरा भयो',
+        )),
+        content: Text(context.tr(
+          'Do you want to add more time?',
+          'थप समय थप्न चाहनुहुन्छ?',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.tr('End', 'समाप्त')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.tr('Add time', 'थप समय')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (addMore == true) {
+      setState(() {
+        _focusRemaining = Duration(minutes: _focusMinutes);
+        _inBreak = false;
+      });
+      AppState.updateFocusState(
+        remaining: _focusRemaining,
+        running: true,
+        inBreak: false,
+      );
+      _startFocus();
+    } else {
+      _endFocusSession();
+    }
   }
 
   void _completeFocusSession() {
@@ -870,6 +1201,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
   Widget build(BuildContext context) {
     final subjects = AppState.profile.value.subjects;
     final subjectNames = ['All', ...subjects.map((s) => s.name)];
+    final isAllSelected = subjects.isNotEmpty &&
+        (_selectedSubjectIds.isEmpty ||
+            _selectedSubjectIds.length == subjects.length);
+    final allTasks = _days.expand((day) => day.tasks).toList();
+    final totalAllTasks = allTasks.length;
+    final doneAllTasks = allTasks.where((task) => task.isDone).length;
+    final completion =
+        totalAllTasks == 0 ? 0.0 : doneAllTasks / totalAllTasks;
     final filteredDays = _days
         .map((day) {
           final tasks = day.tasks.where((task) {
@@ -1017,7 +1356,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 inBreak: _inBreak,
                 onStart: _startFocus,
                 onPause: _pauseFocus,
-                onReset: _resetFocus,
+                onEnd: _endFocusSession,
                 onChangeFocus: (value) {
                   setState(() {
                     _focusMinutes = value;
@@ -1092,7 +1431,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      context.tr('AI Study Plan', 'AI अध्ययन योजना'),
+                      context.tr('Smart Study Planner', 'स्मार्ट अध्ययन योजना'),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -1104,8 +1443,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     const SizedBox(height: 8),
                     Text(
                       context.tr(
-                        'Generate a 7-day plan from your subjects.',
-                        'आफ्ना विषयबाट ७-दिनको योजना बनाउनुहोस्।',
+                        'Set your exam date and subjects to generate a daily plan.',
+                        'परीक्षा मिति र विषय सेट गरेर दैनिक योजना बनाउनुहोस्।',
                       ),
                       style: Theme.of(context)
                           .textTheme
@@ -1113,17 +1452,100 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           ?.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DarkOptionButton(
+                            icon: Icons.event,
+                            label: _examDate == null
+                                ? context.tr(
+                                    'Pick exam date',
+                                    'परीक्षा मिति छान्नुहोस्',
+                                  )
+                                : _formatDate(_examDate!),
+                            onTap: _pickExamDate,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _DarkOptionButton(
+                            icon: Icons.book_outlined,
+                            label: subjects.isEmpty
+                                ? context.tr('No subjects', 'विषय छैन')
+                                : isAllSelected
+                                ? context.tr(
+                                    'All subjects',
+                                    'सबै विषय',
+                                  )
+                                : context.tr(
+                                    '${_selectedSubjectIds.length} selected',
+                                    '${_selectedSubjectIds.length} चयन',
+                                  ),
+                            onTap: _openSubjectPicker,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (totalAllTasks > 0) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: completion.clamp(0, 1),
+                              minHeight: 6,
+                              backgroundColor:
+                                  const Color(0xFF1E2A44),
+                              valueColor: const AlwaysStoppedAnimation(
+                                Color(0xFF38BDF8),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            context.tr(
+                              'Plan ${ (completion * 100).round() }%',
+                              'योजना ${ (completion * 100).round() }%',
+                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: _PrimaryActionButton(
                         label:
                             _isGenerating
                                 ? context.tr('Generating...', 'बनाइँदैछ...')
-                                : context.tr('Generate Plan', 'योजना बनाउनुहोस्'),
+                                : context.tr(
+                                    'Generate Smart Plan',
+                                    'स्मार्ट योजना बनाउनुहोस्',
+                                  ),
                         enabled: !_isGenerating,
-                        onPressed: _isGenerating ? null : _generatePlan,
+                        onPressed: _isGenerating ? null : _generateSmartPlan,
                       ),
                     ),
+                    if (_days.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed:
+                              _isGenerating ? null : _generateSmartPlan,
+                          child: Text(
+                            context.tr('Regenerate', 'पुनः बनाउनुहोस्'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1728,7 +2150,7 @@ class _FocusSessionCard extends StatelessWidget {
   final bool inBreak;
   final VoidCallback onStart;
   final VoidCallback onPause;
-  final VoidCallback onReset;
+  final VoidCallback onEnd;
   final ValueChanged<int> onChangeFocus;
   final ValueChanged<int> onChangeBreak;
   final String Function(Duration) formatDuration;
@@ -1741,7 +2163,7 @@ class _FocusSessionCard extends StatelessWidget {
     required this.inBreak,
     required this.onStart,
     required this.onPause,
-    required this.onReset,
+    required this.onEnd,
     required this.onChangeFocus,
     required this.onChangeBreak,
     required this.formatDuration,
@@ -1838,9 +2260,9 @@ class _FocusSessionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               TextButton.icon(
-                onPressed: onReset,
-                icon: const Icon(Icons.restart_alt),
-                label: Text(context.tr('Reset', 'रिसेट')),
+                onPressed: onEnd,
+                icon: const Icon(Icons.stop_circle_outlined),
+                label: Text(context.tr('End', 'समाप्त')),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white70,
                 ),
@@ -2525,6 +2947,50 @@ class _GameCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFF1E2A44)),
         ),
         child: child,
+      ),
+    );
+  }
+}
+
+class _DarkOptionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _DarkOptionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111B2E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white70, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
@@ -99,6 +100,21 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
+  }
+
+  bool _isMeaningfulAnswer(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    final words =
+        trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.length < 2) return false;
+    final letters =
+        RegExp(r'[\p{L}]', unicode: true).allMatches(trimmed).length;
+    if (letters < 6) return false;
+    final normalized =
+        trimmed.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    if (RegExp(r'^(.)\1+$').hasMatch(normalized)) return false;
+    return true;
   }
 
   Future<void> _startExam() async {
@@ -675,6 +691,8 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                       fontWeight: FontWeight.w700,
                     ),
               ),
+              const SizedBox(height: 8),
+              const AiStatusChip(compact: true),
               const SizedBox(height: 16),
               _ConfigDropdown<Subject>(
                 label: context.tr('Subject', 'विषय'),
@@ -878,6 +896,8 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
           timeRemaining: _timeRemaining,
           timeRatio: ratio.clamp(0, 1),
         ),
+        const SizedBox(height: 12),
+        const AiStatusChip(compact: true),
         const SizedBox(height: 16),
         _QuestionCard(
           prompt: question.prompt,
@@ -963,6 +983,18 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
     final ratio = _writtenDuration.inSeconds == 0
         ? 0.0
         : _timeRemaining.inSeconds / _writtenDuration.inSeconds;
+    final writtenErrors = List<String?>.generate(
+      _writtenQuestions.length,
+      (index) {
+        final answerText = _writtenControllers[index].text;
+        if (answerText.trim().isEmpty) return null;
+        if (_isMeaningfulAnswer(answerText)) return null;
+        return context.tr(
+          'Write a meaningful answer (min 2 words).',
+          'अर्थपूर्ण उत्तर लेख्नुहोस् (कम्तिमा २ शब्द)।',
+        );
+      },
+    );
     return ListView(
       controller: _scrollController,
       padding: EdgeInsets.fromLTRB(
@@ -976,6 +1008,8 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
           timeRemaining: _timeRemaining,
           timeRatio: ratio.clamp(0, 1),
         ),
+        const SizedBox(height: 12),
+        const AiStatusChip(compact: true),
         const SizedBox(height: 16),
         _ConfigCard(
           child: Column(
@@ -1019,7 +1053,12 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
             question: _writtenQuestions[i],
             controller: _writtenControllers[i],
             grade: i < _writtenGrades.length ? _writtenGrades[i] : null,
-            onChanged: (value) => _writtenAnswers[i] = value,
+            errorText: writtenErrors[i],
+            onChanged: (value) {
+              setState(() {
+                _writtenAnswers[i] = value;
+              });
+            },
           ),
           const SizedBox(height: 16),
         ],
@@ -1107,6 +1146,32 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
   Future<void> _submitWrittenAnswers({bool auto = false}) async {
     if (_gradingWritten) return;
     final answers = _writtenControllers.map((c) => c.text.trim()).toList();
+    final invalid = <int>[];
+    for (var i = 0; i < answers.length; i += 1) {
+      final value = answers[i];
+      if (value.isNotEmpty && !_isMeaningfulAnswer(value)) {
+        invalid.add(i);
+      }
+    }
+    if (invalid.isNotEmpty) {
+      if (auto) {
+        setState(() {
+          for (final index in invalid) {
+            _writtenControllers[index].text = '';
+            _writtenAnswers[index] = '';
+            answers[index] = '';
+          }
+        });
+      } else {
+        setState(() {
+          _writtenError = context.tr(
+            'Please write meaningful answers (min 2 words).',
+            'कृपया अर्थपूर्ण उत्तर लेख्नुहोस् (कम्तिमा २ शब्द)।',
+          );
+        });
+        return;
+      }
+    }
     if (answers.every((value) => value.isEmpty)) {
       if (auto) {
         await _skipWrittenSection();
@@ -1601,6 +1666,7 @@ class _WrittenQuestionCard extends StatelessWidget {
   final TextEditingController controller;
   final WrittenGrade? grade;
   final ValueChanged<String> onChanged;
+  final String? errorText;
 
   const _WrittenQuestionCard({
     required this.index,
@@ -1608,6 +1674,7 @@ class _WrittenQuestionCard extends StatelessWidget {
     required this.controller,
     required this.grade,
     required this.onChanged,
+    required this.errorText,
   });
 
   @override
@@ -1689,6 +1756,11 @@ class _WrittenQuestionCard extends StatelessWidget {
                   ?.copyWith(color: Colors.white38),
               filled: true,
               fillColor: const Color(0xFF0F172A),
+              errorText: errorText,
+              errorMaxLines: 2,
+              errorStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.danger,
+                  ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Color(0xFF1E2A44)),

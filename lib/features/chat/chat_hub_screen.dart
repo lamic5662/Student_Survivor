@@ -112,17 +112,15 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
     final users = <String, ChatUserSummary>{};
     for (final entry in state) {
       for (final presence in entry.presences) {
-        final payload = presence.payload;
-        if (payload is Map) {
-          final id = payload['user_id']?.toString() ?? entry.key;
-          if (id.isEmpty) continue;
-          users[id] = ChatUserSummary(
-            id: id,
-            name: payload['name']?.toString() ?? 'Student',
-            email: payload['email']?.toString() ?? '',
-            collegeName: payload['college_name']?.toString(),
-          );
-        }
+        final payload = presence.payload as Map;
+        final id = payload['user_id']?.toString() ?? entry.key;
+        if (id.isEmpty) continue;
+        users[id] = ChatUserSummary(
+          id: id,
+          name: payload['name']?.toString() ?? 'Student',
+          email: payload['email']?.toString() ?? '',
+          collegeName: payload['college_name']?.toString(),
+        );
       }
     }
     if (!mounted) return;
@@ -275,7 +273,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                       height: 240,
                       child: ListView.separated(
                         itemCount: selectable.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (context, index) =>
                             const Divider(color: Color(0xFF1E2A44)),
                         itemBuilder: (context, index) {
                           final user = selectable[index];

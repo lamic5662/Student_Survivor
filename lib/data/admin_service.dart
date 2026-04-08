@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:xml/xml.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -40,8 +41,9 @@ class BulkUploadResult {
 
 class AdminService {
   final SupabaseClient _client;
+  final AiRouterService _aiRouter;
 
-  AdminService(this._client);
+  AdminService(this._client) : _aiRouter = AiRouterService(_client);
 
   Future<void> addSemester({
     required String name,
@@ -1042,7 +1044,12 @@ class AdminService {
         normalized == 'lmstudio' ||
         normalized == 'lm-studio' ||
         normalized == 'lm_studio' ||
-        normalized == 'backend';
+        normalized == 'backend' ||
+        normalized == 'openrouter' ||
+        normalized == 'groq' ||
+        normalized == 'gemini' ||
+        normalized == 'cloud' ||
+        normalized == 'auto';
   }
 
   Future<String> _sendChat({
@@ -1050,74 +1057,15 @@ class AdminService {
     required String systemPrompt,
     required String userPrompt,
   }) async {
-    if (mode == 'ollama') {
-      final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.notes),
-          'stream': false,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Ollama error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return (data['message']?['content'] as String?)?.trim() ?? '';
-    }
-
-    if (mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio') {
-      final uri =
-          Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      final apiKey = SupabaseConfig.lmStudioApiKey;
-      if (apiKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $apiKey';
-      }
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'model': SupabaseConfig.lmStudioModel,
-          'temperature': 0.3,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('LM Studio error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final choices = data['choices'] as List<dynamic>? ?? [];
-      if (choices.isEmpty) return '';
-      final message = choices.first as Map<String, dynamic>;
-      return (message['message']?['content'] as String?)?.trim() ?? '';
-    }
-
-    if (mode == 'backend') {
-      final response = await _client.functions.invoke(
-        'ai-generate',
-        body: {
-          'system_prompt': systemPrompt,
-          'user_prompt': userPrompt,
-        },
-      );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      final reply = data['reply']?.toString().trim() ?? '';
-      if (reply.isEmpty) {
-        throw Exception('AI backend returned empty response.');
-      }
-      return reply;
-    }
-
-    throw Exception('AI mode not supported.');
+    return _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.notes,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.3,
+        expectsJson: true,
+      ),
+    );
   }
 
   String _extractJson(String text) {

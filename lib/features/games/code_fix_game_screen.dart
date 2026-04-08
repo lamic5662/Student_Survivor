@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 
 enum CodeDifficulty { easy, medium, hard }
@@ -71,11 +73,13 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
   int _lastPoints = 0;
   String? _statusMessage;
   late final ActivityLogService _activityLogService;
+  late final AiRouterService _aiRouter;
 
   @override
   void initState() {
     super.initState();
     _activityLogService = ActivityLogService(SupabaseConfig.client);
+    _aiRouter = AiRouterService(SupabaseConfig.client);
     _scrollController.addListener(_handleScroll);
     _rebuildDeck();
   }
@@ -632,7 +636,14 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
   }
 
   bool _isSupportedAi(String mode) =>
-      mode == 'ollama' || _isLmStudio(mode) || mode == 'backend';
+      mode == 'ollama' ||
+      _isLmStudio(mode) ||
+      mode == 'backend' ||
+      mode == 'openrouter' ||
+      mode == 'groq' ||
+      mode == 'gemini' ||
+      mode == 'cloud' ||
+      mode == 'auto';
 
   bool _isLmStudio(String mode) =>
       mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio';
@@ -642,80 +653,20 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
     required String systemPrompt,
     required String userPrompt,
   }) async {
-    if (mode == 'ollama') {
-      final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.game),
-          'stream': false,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Ollama error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return (data['message']?['content'] as String?)?.trim() ?? '';
-    }
-
-    if (_isLmStudio(mode)) {
-      final uri =
-          Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-      };
-      final apiKey = SupabaseConfig.lmStudioApiKey;
-      if (apiKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $apiKey';
-      }
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'model': SupabaseConfig.lmStudioModel,
-          'temperature': 0.3,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('LM Studio error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final choices = data['choices'] as List<dynamic>? ?? [];
-      if (choices.isEmpty) {
-        return '';
-      }
-      final message = choices.first as Map<String, dynamic>;
-      final content =
-          (message['message']?['content'] as String?)?.trim() ?? '';
-      return content;
-    }
-
-    if (mode == 'backend') {
-      final response = await SupabaseConfig.client.functions.invoke(
-        'ai-generate',
-        body: {
-          'system_prompt': systemPrompt,
-          'user_prompt': userPrompt,
+    return _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.game,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.3,
+        fastModel: true,
+        expectsJson: true,
+        metadata: {
+          'language': _selectedLanguage,
+          'difficulty': _selectedDifficulty.name,
         },
-      );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      final reply = data['reply']?.toString().trim() ?? '';
-      if (reply.isEmpty) {
-        throw Exception('AI backend returned empty response.');
-      }
-      return reply;
-    }
-
-    throw Exception('AI mode not supported.');
+      ),
+    );
   }
 
   void _showMessage(String message) {
@@ -911,6 +862,8 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
             remainingSeconds: _remainingSeconds,
             totalSeconds: _totalSeconds,
           ),
+          const SizedBox(height: 12),
+          const AiStatusChip(compact: true),
           const SizedBox(height: 16),
           _FilterBar(
             language: _selectedLanguage,

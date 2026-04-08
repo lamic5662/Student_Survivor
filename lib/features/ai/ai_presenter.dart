@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/mvp/base_view.dart';
 import 'package:student_survivor/core/mvp/presenter.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/ai_service.dart';
 import 'package:student_survivor/data/free_ai_service.dart';
-import 'package:student_survivor/data/lmstudio_ai_service.dart';
-import 'package:student_survivor/data/ollama_ai_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/features/ai/ai_view_model.dart';
 
@@ -15,16 +15,14 @@ class AiPresenter extends Presenter<AiView> {
     state = ValueNotifier(AiViewModel.initial());
     _aiService = AiService(SupabaseConfig.client);
     _freeAiService = FreeAiService(SupabaseConfig.client);
-    _ollamaService = OllamaAiService();
-    _lmStudioService = LmStudioAiService();
+    _aiRouter = AiRouterService(SupabaseConfig.client);
     _loadConversations();
   }
 
   late final ValueNotifier<AiViewModel> state;
   late final AiService _aiService;
   late final FreeAiService _freeAiService;
-  late final OllamaAiService _ollamaService;
-  late final LmStudioAiService _lmStudioService;
+  late final AiRouterService _aiRouter;
   String? _conversationId;
   bool _loadingConversations = false;
 
@@ -205,73 +203,92 @@ class AiPresenter extends Presenter<AiView> {
       }
       return reply;
     }
-    if (modeKey == 'ollama') {
-      try {
-        final conversationId = await _aiService.ensureConversationId(
-          _conversationId,
-        );
-        if (conversationId != null) {
-          _conversationId = conversationId;
-          await _aiService.logMessage(
-            conversationId: conversationId,
-            role: 'user',
-            content: message,
-          );
-        }
-        final reply = await _ollamaService.answer(message, mode: mode);
-        if (conversationId != null && reply.isNotEmpty) {
-          await _aiService.logMessage(
-            conversationId: conversationId,
-            role: 'assistant',
-            content: reply,
-          );
-        }
-        return reply;
-      } catch (_) {
-        final fallback = await _freeAiService.answer(message, mode: mode);
-        return 'Ollama not reachable, using local AI.\n\n$fallback';
-      }
-    }
-    if (modeKey == 'lmstudio' ||
-        modeKey == 'lm-studio' ||
-        modeKey == 'lm_studio') {
-      try {
-        final conversationId = await _aiService.ensureConversationId(
-          _conversationId,
-        );
-        if (conversationId != null) {
-          _conversationId = conversationId;
-          await _aiService.logMessage(
-            conversationId: conversationId,
-            role: 'user',
-            content: message,
-          );
-        }
-        final reply = await _lmStudioService.answer(message, mode: mode);
-        if (conversationId != null && reply.isNotEmpty) {
-          await _aiService.logMessage(
-            conversationId: conversationId,
-            role: 'assistant',
-            content: reply,
-          );
-        }
-        return reply;
-      } catch (_) {
-        final fallback = await _freeAiService.answer(message, mode: mode);
-        return 'LM Studio not reachable, using local AI.\n\n$fallback';
-      }
-    }
-
     _conversationId ??= await _aiService.ensureConversationId(_conversationId);
     final conversationId = _conversationId;
     if (conversationId == null || conversationId.isEmpty) {
       throw Exception('Please sign in to use AI chat.');
     }
-    return _aiService.sendMessage(
+    await _aiService.logMessage(
       conversationId: conversationId,
-      message: message,
-      mode: mode,
+      role: 'user',
+      content: message,
     );
+    try {
+      final timeout = _isProgrammingQuery(message)
+          ? const Duration(milliseconds: 20000)
+          : const Duration(milliseconds: 12000);
+      final reply = await _aiRouter.send(
+        AiRequest(
+          feature: AiFeature.tutor,
+          systemPrompt: _buildSystemPrompt(mode),
+          userPrompt: message,
+          temperature: 0.3,
+          timeout: timeout,
+          metadata: {
+            'mode': mode,
+          },
+        ),
+      );
+      if (reply.isNotEmpty) {
+        await _aiService.logMessage(
+          conversationId: conversationId,
+          role: 'assistant',
+          content: reply,
+        );
+      }
+      return reply;
+    } catch (_) {
+      final fallback = await _freeAiService.answer(message, mode: mode);
+      if (fallback.isNotEmpty) {
+        await _aiService.logMessage(
+          conversationId: conversationId,
+          role: 'assistant',
+          content: fallback,
+        );
+      }
+      return 'Cloud AI unavailable, using offline AI.\n\n$fallback';
+    }
+  }
+
+  String _buildSystemPrompt(String? mode) {
+    const base =
+        'You are a concise study assistant for BCA TU students. Answer clearly, '
+        'using headings or bullet points when helpful.';
+    if (mode == null) {
+      return base;
+    }
+    final normalized = mode.toLowerCase();
+    if (normalized.contains('short')) {
+      return '$base Provide a short 5-mark style answer.';
+    }
+    if (normalized.contains('long')) {
+      return '$base Provide a detailed 10-mark style answer.';
+    }
+    if (normalized.contains('simple')) {
+      return '$base Explain in very simple language.';
+    }
+    if (normalized.contains('exam')) {
+      return '$base Suggest important exam questions related to the topic.';
+    }
+    return base;
+  }
+
+  bool _isProgrammingQuery(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('code') ||
+        lower.contains('program') ||
+        lower.contains('compile') ||
+        lower.contains('debug') ||
+        lower.contains('error') ||
+        lower.contains('stack trace') ||
+        lower.contains('algorithm') ||
+        lower.contains('syntax')) {
+      return true;
+    }
+    if (message.contains('```')) return true;
+    if (message.contains('{') && message.contains('}')) return true;
+    if (message.contains(';') && message.contains('(')) return true;
+    return false;
   }
 
   _ModeExtraction _extractMode(String message) {

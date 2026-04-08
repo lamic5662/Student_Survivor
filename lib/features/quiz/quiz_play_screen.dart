@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
@@ -445,6 +446,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
   Widget _buildListMode(BuildContext context) {
     return ListView(
       children: [
+        if (_isAiMode) ...[
+          const AiStatusChip(compact: true),
+          const SizedBox(height: 12),
+        ],
         _buildHeader(context),
         const SizedBox(height: 20),
         ..._questions.asMap().entries.map(
@@ -489,6 +494,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_isAiMode) ...[
+          const AiStatusChip(compact: true),
+          const SizedBox(height: 12),
+        ],
         _buildHeader(context),
         const SizedBox(height: 20),
         Text(

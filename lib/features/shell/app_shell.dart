@@ -7,6 +7,7 @@ import 'package:student_survivor/features/profile/profile_screen.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_screen.dart';
 import 'package:student_survivor/features/subjects/subjects_screen.dart';
+import 'package:student_survivor/core/widgets/focus_overlay_bar.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -18,6 +19,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
   bool _profilePrompted = false;
+  OverlayEntry? _focusOverlayEntry;
 
   final List<Widget> _screens = const [
     DashboardScreen(),
@@ -27,9 +29,47 @@ class _AppShellState extends State<AppShell> {
     ProfileScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    AppState.focusLock.addListener(_syncFocusOverlay);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncFocusOverlay());
+  }
+
+  @override
+  void dispose() {
+    AppState.focusLock.removeListener(_syncFocusOverlay);
+    _removeFocusOverlay();
+    super.dispose();
+  }
+
+  void _syncFocusOverlay() {
+    final focus = AppState.focusLock.value;
+    if (focus == null) {
+      _removeFocusOverlay();
+      return;
+    }
+    if (_focusOverlayEntry != null) return;
+    final overlay = Overlay.of(context);
+    _focusOverlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 8,
+        right: 12,
+        child: const FocusOverlayBar(),
+      ),
+    );
+    overlay.insert(_focusOverlayEntry!);
+  }
+
+  void _removeFocusOverlay() {
+    _focusOverlayEntry?.remove();
+    _focusOverlayEntry = null;
+  }
+
   Widget _buildNavBar(BuildContext context) {
     const accent = Color(0xFF38BDF8);
     final l10n = context.l10n;
+    final focus = AppState.focusLock.value;
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0B1220),
@@ -87,6 +127,17 @@ class _AppShellState extends State<AppShell> {
             child: NavigationBar(
               selectedIndex: _currentIndex,
               onDestinationSelected: (value) {
+                if (focus != null &&
+                    !focus.allowedIndices.contains(value)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Focus mode active. Subjects and AI only.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
                 if (value == 2) {
                   AppState.notifyGameHub();
                 }
@@ -137,12 +188,24 @@ class _AppShellState extends State<AppShell> {
       });
     }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: _buildNavBar(context),
+    return ValueListenableBuilder<FocusLock?>(
+      valueListenable: AppState.focusLock,
+      builder: (context, focus, child) {
+        if (focus != null &&
+            !focus.allowedIndices.contains(_currentIndex)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() => _currentIndex = focus.allowedIndices.first);
+          });
+        }
+        return Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          bottomNavigationBar: _buildNavBar(context),
+        );
+      },
     );
   }
 }

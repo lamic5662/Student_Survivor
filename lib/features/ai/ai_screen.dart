@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/features/ai/ai_presenter.dart';
 import 'package:student_survivor/features/ai/ai_view_model.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -37,6 +38,12 @@ class _AiAssistantScreenState
   bool _autoSpeak = true;
   String? _lastAutoSpoken;
   String? _ttsInfo;
+  int? _speakingMessageIndex;
+  int _speakingStart = -1;
+  int _speakingEnd = -1;
+  String? _speakingText;
+  int _speakingCursor = 0;
+  String? _speakingCursorText;
 
   @override
   AiPresenter createPresenter() => AiPresenter();
@@ -145,20 +152,55 @@ class _AiAssistantScreenState
         await _tts.setLanguage(language);
       }
       await _tts.setVolume(1.0);
-      await _tts.setSpeechRate(0.48);
+      await _tts.setSpeechRate(0.35);
       await _tts.setPitch(1.0);
       await _tts.awaitSpeakCompletion(true);
       _tts.setCompletionHandler(() {
         if (!mounted) return;
-        setState(() => _isSpeaking = false);
+        setState(() {
+          _isSpeaking = false;
+          _speakingMessageIndex = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+        });
       });
       _tts.setCancelHandler(() {
         if (!mounted) return;
-        setState(() => _isSpeaking = false);
+        setState(() {
+          _isSpeaking = false;
+          _speakingMessageIndex = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+        });
       });
       _tts.setErrorHandler((_) {
         if (!mounted) return;
-        setState(() => _isSpeaking = false);
+        setState(() {
+          _isSpeaking = false;
+          _speakingMessageIndex = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+        });
+      });
+      _tts.setProgressHandler((text, start, end, word) {
+        if (!mounted || !_isSpeaking) return;
+        final baseText = _speakingCursorText ?? text;
+        final range = _resolveSpeechRange(baseText, text, start, end, word);
+        if (range == null) return;
+        setState(() {
+          _speakingText = baseText;
+          _speakingStart = range.start;
+          _speakingEnd = range.end;
+        });
       });
       if (mounted) {
         setState(() => _ttsReady = true);
@@ -284,7 +326,7 @@ class _AiAssistantScreenState
     }
   }
 
-  Future<void> _speak(String text) async {
+  Future<void> _speak(String text, {int? messageIndex}) async {
     if (text.trim().isEmpty) return;
     if (!_isScreenActive()) return;
     if (!_ttsReady) {
@@ -299,7 +341,15 @@ class _AiAssistantScreenState
     if (_isSpeaking) {
       await _tts.stop();
     }
-    setState(() => _isSpeaking = true);
+    setState(() {
+      _isSpeaking = true;
+      _speakingMessageIndex = messageIndex;
+      _speakingText = text;
+      _speakingStart = -1;
+      _speakingEnd = -1;
+      _speakingCursor = 0;
+      _speakingCursorText = text;
+    });
     final result = await _tts.speak(text);
     if (result != null && result is int && result == 0) {
       setState(() => _isSpeaking = false);
@@ -352,8 +402,45 @@ class _AiAssistantScreenState
     if (!_isSpeaking) return;
     await _tts.stop();
     if (mounted) {
-      setState(() => _isSpeaking = false);
+      setState(() {
+        _isSpeaking = false;
+        _speakingMessageIndex = null;
+        _speakingStart = -1;
+        _speakingEnd = -1;
+        _speakingText = null;
+        _speakingCursor = 0;
+        _speakingCursorText = null;
+      });
     }
+  }
+
+  _HighlightRange? _resolveSpeechRange(
+    String baseText,
+    String rawText,
+    int start,
+    int end,
+    String? word,
+  ) {
+    final token = (word ?? '').trim();
+    if (token.isNotEmpty) {
+      final lowerBase = baseText.toLowerCase();
+      final lowerWord = token.toLowerCase();
+      var index = lowerBase.indexOf(lowerWord, _speakingCursor);
+      if (index < 0) {
+        index = lowerBase.indexOf(lowerWord);
+      }
+      if (index >= 0) {
+        _speakingCursor = index + lowerWord.length;
+        return _HighlightRange(index, index + lowerWord.length);
+      }
+    }
+    if (rawText == baseText &&
+        start >= 0 &&
+        end > start &&
+        end <= baseText.length) {
+      return _HighlightRange(start, end);
+    }
+    return null;
   }
 
   void _showAllChats(List<AiConversation> chats, String? activeId) {
@@ -452,7 +539,8 @@ class _AiAssistantScreenState
                 if (!_isScreenActive()) return;
                 if (last.text == _lastAutoSpoken) return;
                 _lastAutoSpoken = last.text;
-                _speak(last.text);
+                _speak(last.text,
+                    messageIndex: model.messages.length - 1);
               });
             }
           } else if (!screenActive && model.messages.isNotEmpty) {
@@ -476,6 +564,8 @@ class _AiAssistantScreenState
                       ),
                       children: [
                         _AiHeroCard(hasMessages: hasMessages),
+                        const SizedBox(height: 12),
+                        const AiStatusChip(),
                         const SizedBox(height: 20),
                         _AiSidebarCard(
                           onNewChat: _startNewChat,
@@ -506,13 +596,25 @@ class _AiAssistantScreenState
                         ),
                         const SizedBox(height: 16),
                         if (hasMessages) ...[
-                          ...model.messages.map(
-                            (message) => _ChatBubble(
-                              message: message,
+                          ...model.messages.asMap().entries.map(
+                            (entry) => _ChatBubble(
+                              message: entry.value,
+                              highlightStart: _speakingMessageIndex == entry.key
+                                  ? _speakingStart
+                                  : null,
+                              highlightEnd: _speakingMessageIndex == entry.key
+                                  ? _speakingEnd
+                                  : null,
+                              highlightText: _speakingMessageIndex == entry.key
+                                  ? _speakingText
+                                  : null,
                               maxWidth: maxBubbleWidth,
-                              onSpeak: message.isUser
+                              onSpeak: entry.value.isUser
                                   ? null
-                                  : () => _speak(message.text),
+                                  : () => _speak(
+                                        entry.value.text,
+                                        messageIndex: entry.key,
+                                      ),
                             ),
                           ),
                         ] else ...[
@@ -742,6 +844,7 @@ class _AiAssistantScreenState
     }
     return prev[t.length];
   }
+
 }
 
 class _AiHeroCard extends StatelessWidget {
@@ -1212,16 +1315,23 @@ class _ChatBubble extends StatelessWidget {
   final AiMessage message;
   final double maxWidth;
   final VoidCallback? onSpeak;
+  final int? highlightStart;
+  final int? highlightEnd;
+  final String? highlightText;
 
   const _ChatBubble({
     required this.message,
     required this.maxWidth,
     this.onSpeak,
+    this.highlightStart,
+    this.highlightEnd,
+    this.highlightText,
   });
 
   @override
   Widget build(BuildContext context) {
     final isUser = message.isUser;
+    final highlight = _resolveHighlight();
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1276,17 +1386,70 @@ class _ChatBubble extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              message.text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white,
+            highlight == null
+                ? Text(
+                    message.text,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white,
+                        ),
+                  )
+                : RichText(
+                    text: TextSpan(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                          ),
+                      children: [
+                        if (highlight.start > 0)
+                          TextSpan(
+                            text: message.text.substring(0, highlight.start),
+                          ),
+                        TextSpan(
+                          text: message.text.substring(
+                            highlight.start,
+                            highlight.end,
+                          ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.black,
+                              backgroundColor:
+                                  const Color(0xFFFFD54F).withValues(alpha: 0.65),
+                              fontWeight: FontWeight.w600,
+                            ),
+                        ),
+                        if (highlight.end < message.text.length)
+                          TextSpan(
+                            text: message.text.substring(highlight.end),
+                          ),
+                      ],
+                    ),
                   ),
-            ),
           ],
         ),
       ),
     );
   }
+
+  _HighlightRange? _resolveHighlight() {
+    if (highlightStart == null || highlightEnd == null) return null;
+    if (highlightText == null || highlightText!.isEmpty) return null;
+    var start = highlightStart!;
+    var end = highlightEnd!;
+    if (end <= start) return null;
+    if (highlightText != message.text) {
+      final index = highlightText!.indexOf(message.text);
+      if (index < 0) return null;
+      start = start - index;
+      end = end - index;
+    }
+    if (start < 0 || end > message.text.length) return null;
+    return _HighlightRange(start, end);
+  }
+}
+
+class _HighlightRange {
+  final int start;
+  final int end;
+
+  const _HighlightRange(this.start, this.end);
 }
 
 class _AiBackdrop extends StatelessWidget {

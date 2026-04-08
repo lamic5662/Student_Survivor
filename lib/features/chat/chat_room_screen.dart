@@ -183,7 +183,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       height: 220,
                       child: ListView.separated(
                         itemCount: available.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (context, index) =>
                             const Divider(color: Color(0xFF1E2A44)),
                         itemBuilder: (context, index) {
                           final user = available[index];

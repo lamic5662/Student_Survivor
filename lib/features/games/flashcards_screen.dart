@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
@@ -248,7 +249,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                       color: Colors.white,
                     ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              const AiStatusChip(compact: true),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(

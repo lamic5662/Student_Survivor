@@ -1,15 +1,17 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class AiQuizService {
   final SupabaseClient _client;
+  final AiRouterService _aiRouter;
 
-  AiQuizService(this._client);
+  AiQuizService(this._client) : _aiRouter = AiRouterService(_client);
 
   Future<List<WrittenQuestion>> generateWrittenQuestions({
     required Subject subject,
@@ -19,10 +21,6 @@ class AiQuizService {
     List<int>? marksPattern,
     String? nonce,
   }) async {
-    final mode = SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
-    if (mode != 'ollama' && !_isLmStudio(mode) && mode != 'backend') {
-      return [];
-    }
     try {
       final context = await _buildContext('exam', subject, chapter);
       final systemPrompt =
@@ -43,14 +41,20 @@ class AiQuizService {
           'Cover different chapters and subtopics when available. '
           'Use the context below.\n\n$context';
 
-      final raw = mode == 'backend'
-          ? await _requestWithBackend(systemPrompt, userPrompt)
-          : await _requestWithLocalAi(
-              mode,
-              systemPrompt,
-              userPrompt,
-              ollamaModel: SupabaseConfig.ollamaModelExam,
-            );
+      final raw = await _aiRouter.send(
+        AiRequest(
+          feature: AiFeature.exam,
+          systemPrompt: systemPrompt,
+          userPrompt: userPrompt,
+          temperature: 0.3,
+          expectsJson: true,
+          metadata: {
+            'subject': subject.name,
+            'chapter': chapter?.title,
+            'count': count,
+          },
+        ),
+      );
       if (raw.trim().isEmpty) return [];
 
       final jsonText = _extractJson(raw);
@@ -100,10 +104,6 @@ class AiQuizService {
     required List<String> answers,
   }) async {
     if (questions.isEmpty) return [];
-    final mode = SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
-    if (mode != 'ollama' && !_isLmStudio(mode) && mode != 'backend') {
-      return [];
-    }
     try {
       final context = await _buildContext('exam', subject, chapter);
       final payload = [
@@ -124,14 +124,20 @@ class AiQuizService {
           'Context:\\n$context\\n\\n'
           'Questions and answers JSON:\\n${jsonEncode(payload)}';
 
-      final raw = mode == 'backend'
-          ? await _requestWithBackend(systemPrompt, userPrompt)
-          : await _requestWithLocalAi(
-              mode,
-              systemPrompt,
-              userPrompt,
-              ollamaModel: SupabaseConfig.ollamaModelExam,
-            );
+      final raw = await _aiRouter.send(
+        AiRequest(
+          feature: AiFeature.exam,
+          systemPrompt: systemPrompt,
+          userPrompt: userPrompt,
+          temperature: 0.2,
+          expectsJson: true,
+          metadata: {
+            'subject': subject.name,
+            'chapter': chapter?.title,
+            'count': questions.length,
+          },
+        ),
+      );
       if (raw.trim().isEmpty) return [];
 
       final jsonText = _extractJson(raw);
@@ -169,32 +175,20 @@ class AiQuizService {
     required QuizDifficulty baseDifficulty,
     String? nonce,
   }) async {
-    final mode =
-        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
-    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
-      try {
-        final context = await _buildContext(quizId, subject, chapter);
-        final questions = mode == 'backend'
-            ? await _generateWithBackend(
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-              )
-            : await _generateWithLocalAi(
-                mode: mode,
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-                ollamaModel: SupabaseConfig.ollamaModelQuiz,
-              );
-        if (questions.isNotEmpty) {
-          return questions;
-        }
-      } catch (_) {
-        // Fall back to stored quiz questions.
+    try {
+      final context = await _buildContext(quizId, subject, chapter);
+      final questions = await _generateWithAi(
+        context: context,
+        count: count,
+        baseDifficulty: baseDifficulty,
+        nonce: nonce,
+        feature: AiFeature.game,
+      );
+      if (questions.isNotEmpty) {
+        return questions;
       }
+    } catch (_) {
+      // Fall back to stored quiz questions.
     }
     return _fallbackFromDb(quizId, count);
   }
@@ -207,36 +201,24 @@ class AiQuizService {
     required QuizDifficulty baseDifficulty,
     String? nonce,
   }) async {
-    final mode =
-        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
-    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
-      try {
-        final context = await _buildRevisionContext(
-          subject: subject,
-          chapter: chapter,
-          items: items,
-        );
-        final questions = mode == 'backend'
-            ? await _generateWithBackend(
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-              )
-            : await _generateWithLocalAi(
-                mode: mode,
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-                ollamaModel: SupabaseConfig.ollamaModelQuiz,
-              );
-        if (questions.isNotEmpty) {
-          return questions;
-        }
-      } catch (_) {
-        // fall through
+    try {
+      final context = await _buildRevisionContext(
+        subject: subject,
+        chapter: chapter,
+        items: items,
+      );
+      final questions = await _generateWithAi(
+        context: context,
+        count: count,
+        baseDifficulty: baseDifficulty,
+        nonce: nonce,
+        feature: AiFeature.game,
+      );
+      if (questions.isNotEmpty) {
+        return questions;
       }
+    } catch (_) {
+      // fall through
     }
     return _fallbackExamFromDb(
       subject: subject,
@@ -252,32 +234,20 @@ class AiQuizService {
     required QuizDifficulty baseDifficulty,
     String? nonce,
   }) async {
-    final mode =
-        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
-    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
-      try {
-        final context = await _buildContext('exam', subject, chapter);
-        final questions = mode == 'backend'
-            ? await _generateWithBackend(
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-              )
-            : await _generateWithLocalAi(
-                mode: mode,
-                context: context,
-                count: count,
-                baseDifficulty: baseDifficulty,
-                nonce: nonce,
-                ollamaModel: SupabaseConfig.ollamaModelExam,
-              );
-        if (questions.isNotEmpty) {
-          return questions;
-        }
-      } catch (_) {
-        // fall through
+    try {
+      final context = await _buildContext('exam', subject, chapter);
+      final questions = await _generateWithAi(
+        context: context,
+        count: count,
+        baseDifficulty: baseDifficulty,
+        nonce: nonce,
+        feature: AiFeature.exam,
+      );
+      if (questions.isNotEmpty) {
+        return questions;
       }
+    } catch (_) {
+      // fall through
     }
     return _fallbackExamFromDb(subject: subject, chapter: chapter, count: count);
   }
@@ -371,7 +341,9 @@ class AiQuizService {
       }
     }
 
-    if (resolvedChapter != null && resolvedChapter.id.isNotEmpty) {
+    final hasChapterUuid =
+        resolvedChapter != null && _looksLikeUuid(resolvedChapter.id);
+    if (hasChapterUuid) {
       final dbNotes = await _fetchNotesForChapter(resolvedChapter.id);
       for (final note in dbNotes.take(4)) {
         final text = note.shortAnswer.isNotEmpty
@@ -395,13 +367,13 @@ class AiQuizService {
       }
     }
 
-    if (subtopics.isEmpty && subject.id.isNotEmpty) {
+    if (subtopics.isEmpty && _looksLikeUuid(subject.id)) {
       final subjectSubtopics = await _fetchSubtopicsForSubject(subject.id);
       for (final topic in subjectSubtopics) {
         addSubtopic(topic);
       }
     }
-    if (noteSnippets.isEmpty && subject.id.isNotEmpty) {
+    if (noteSnippets.isEmpty && _looksLikeUuid(subject.id)) {
       final subjectNotes = await _fetchNotesForSubject(subject.id);
       for (final note in subjectNotes.take(6)) {
         final text = note.shortAnswer.isNotEmpty
@@ -600,11 +572,11 @@ class AiQuizService {
     }
   }
 
-  Future<List<QuizQuestionItem>> _generateWithOllama({
+  Future<List<QuizQuestionItem>> _generateWithAi({
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
-    required String model,
+    required AiFeature feature,
     String? nonce,
   }) async {
     final base = baseDifficulty.name;
@@ -625,140 +597,20 @@ class AiQuizService {
         'Avoid repeating the same topic.\n'
         'Use the context below.\n\n$context';
 
-    final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-    final response = await http.post(
-      uri,
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'model': model,
-        'stream': false,
-        'messages': [
-          {'role': 'system', 'content': systemPrompt},
-          {'role': 'user', 'content': userPrompt},
-        ],
-      }),
+    final raw = await _aiRouter.send(
+      AiRequest(
+        feature: feature,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.4,
+        expectsJson: true,
+        metadata: {
+          'count': count,
+          'difficulty': baseDifficulty.name,
+        },
+      ),
     );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Ollama error: ${response.body}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final raw = (data['message']?['content'] as String?)?.trim() ?? '';
-    if (raw.isEmpty) {
-      return [];
-    }
-
-    final jsonText = _extractJson(raw);
-    final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
-    final list = decoded['questions'] as List<dynamic>? ?? [];
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    final questions = <QuizQuestionItem>[];
-    for (var i = 0; i < list.length; i += 1) {
-      final item = list[i] as Map<String, dynamic>;
-      var options = _normalizeOptions(item);
-      if (options.length < 2) {
-        continue;
-      }
-      var correctIndex = _normalizeCorrectIndex(item, options);
-      if (options.length > 4) {
-        options = options.take(4).toList();
-        if (correctIndex >= options.length) {
-          correctIndex = 0;
-        }
-      }
-      questions.add(
-        QuizQuestionItem(
-          id: 'ai_${now}_$i',
-          prompt: item['prompt']?.toString() ?? 'Question',
-          options: options,
-          correctIndex: correctIndex,
-          topic: item['topic']?.toString(),
-          difficulty: item['difficulty']?.toString().toLowerCase(),
-          explanation: item['explanation']?.toString(),
-        ),
-      );
-    }
-    return questions;
-  }
-
-  Future<List<QuizQuestionItem>> _generateWithLocalAi({
-    required String mode,
-    required String context,
-    required int count,
-    required QuizDifficulty baseDifficulty,
-    String? ollamaModel,
-    String? nonce,
-  }) async {
-    if (mode == 'ollama') {
-      return _generateWithOllama(
-        context: context,
-        count: count,
-        baseDifficulty: baseDifficulty,
-        model: ollamaModel ?? SupabaseConfig.ollamaModelQuiz,
-        nonce: nonce,
-      );
-    }
-
-    final base = baseDifficulty.name;
-    final mix = _difficultyMix(baseDifficulty);
-    final systemPrompt =
-        'You are an expert quiz generator for BCA students. Return ONLY valid JSON.\n'
-        'Schema: {"questions":[{"prompt":"...","options":["A","B","C","D"],"correct_index":0,"explanation":"...","topic":"...","difficulty":"easy|medium|hard"}]}\n'
-        'Rules: 4 options per question, correct_index is 0-based, no markdown. '
-        'Options must be full answer text, not just labels like A/B/C/D.';
-
-    final nonceLine = nonce == null
-        ? ''
-        : 'Unique seed: $nonce. Do not repeat any previously asked questions.\n';
-    final userPrompt =
-        'Generate $count unique MCQ questions. Base difficulty: $base. '
-        'Use this mix: $mix. $nonceLine'
-        'Cover different chapters and subtopics when available. '
-        'Avoid repeating the same topic.\n'
-        'Use the context below.\n\n$context';
-
-    final uri =
-        Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
-    final apiKey = SupabaseConfig.lmStudioApiKey;
-    if (apiKey.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $apiKey';
-    }
-
-    final response = await http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode({
-        'model': SupabaseConfig.lmStudioModel,
-        'temperature': 0.4,
-        'messages': [
-          {'role': 'system', 'content': systemPrompt},
-          {'role': 'user', 'content': userPrompt},
-        ],
-      }),
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('LM Studio error: ${response.body}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = data['choices'] as List<dynamic>? ?? [];
-    String raw = '';
-    if (choices.isNotEmpty) {
-      final first = choices.first;
-      if (first is Map<String, dynamic>) {
-        final message = first['message'];
-        if (message is Map<String, dynamic>) {
-          final content = message['content'];
-          raw = content?.toString() ?? '';
-        }
-      }
-    }
     final cleaned = raw.trim();
     if (cleaned.isEmpty) {
       return [];
@@ -798,167 +650,16 @@ class AiQuizService {
     return questions;
   }
 
-  Future<List<QuizQuestionItem>> _generateWithBackend({
-    required String context,
-    required int count,
-    required QuizDifficulty baseDifficulty,
-    String? nonce,
-  }) async {
-    final base = baseDifficulty.name;
-    final mix = _difficultyMix(baseDifficulty);
-    final systemPrompt =
-        'You are an expert quiz generator for BCA students. Return ONLY valid JSON.\n'
-        'Schema: {"questions":[{"prompt":"...","options":["A","B","C","D"],"correct_index":0,"explanation":"...","topic":"...","difficulty":"easy|medium|hard"}]}\n'
-        'Rules: 4 options per question, correct_index is 0-based, no markdown. '
-        'Options must be full answer text, not just labels like A/B/C/D.';
-
-    final nonceLine = nonce == null
-        ? ''
-        : 'Unique seed: $nonce. Do not repeat any previously asked questions.\n';
-    final userPrompt =
-        'Generate $count unique MCQ questions. Base difficulty: $base. '
-        'Use this mix: $mix. $nonceLine'
-        'Cover different chapters and subtopics when available. '
-        'Avoid repeating the same topic.\n'
-        'Use the context below.\n\n$context';
-
-    final response = await _client.functions.invoke(
-      'ai-generate',
-      body: {
-        'system_prompt': systemPrompt,
-        'user_prompt': userPrompt,
-      },
-    );
-    final data = response.data as Map<String, dynamic>? ?? {};
-    final raw = data['reply']?.toString().trim() ?? '';
-    if (raw.isEmpty) {
-      return [];
-    }
-
-    final jsonText = _extractJson(raw);
-    final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
-    final list = decoded['questions'] as List<dynamic>? ?? [];
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    final questions = <QuizQuestionItem>[];
-    for (var i = 0; i < list.length; i += 1) {
-      final item = list[i] as Map<String, dynamic>;
-      var options = _normalizeOptions(item);
-      if (options.length < 2) {
-        continue;
-      }
-      var correctIndex = _normalizeCorrectIndex(item, options);
-      if (options.length > 4) {
-        options = options.take(4).toList();
-        if (correctIndex >= options.length) {
-          correctIndex = 0;
-        }
-      }
-      questions.add(
-        QuizQuestionItem(
-          id: 'ai_${now}_$i',
-          prompt: item['prompt']?.toString() ?? 'Question',
-          options: options,
-          correctIndex: correctIndex,
-          topic: item['topic']?.toString(),
-          difficulty: item['difficulty']?.toString().toLowerCase(),
-          explanation: item['explanation']?.toString(),
-        ),
-      );
-    }
-    return questions;
-  }
-
-  bool _isLmStudio(String mode) =>
-      mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio';
-
   bool _looksLikeUuid(String value) =>
       RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(value);
-
-  Future<String> _requestWithBackend(
-    String systemPrompt,
-    String userPrompt,
-  ) async {
-    final response = await _client.functions.invoke(
-      'ai-generate',
-      body: {
-        'system_prompt': systemPrompt,
-        'user_prompt': userPrompt,
-      },
-    );
-    final data = response.data as Map<String, dynamic>? ?? {};
-    return data['reply']?.toString() ?? '';
-  }
-
-  Future<String> _requestWithLocalAi(
-    String mode,
-    String systemPrompt,
-    String userPrompt,
-    {String? ollamaModel}
-  ) async {
-    if (mode == 'ollama') {
-      final uri =
-          Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': ollamaModel ?? SupabaseConfig.ollamaModelQuiz,
-          'stream': false,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Ollama error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return (data['message']?['content'] as String?)?.trim() ?? '';
-    }
-
-    final uri =
-        Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
-    final apiKey = SupabaseConfig.lmStudioApiKey;
-    if (apiKey.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $apiKey';
-    }
-    final response = await http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode({
-        'model': SupabaseConfig.lmStudioModel,
-        'temperature': 0.4,
-        'messages': [
-          {'role': 'system', 'content': systemPrompt},
-          {'role': 'user', 'content': userPrompt},
-        ],
-      }),
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('LM Studio error: ${response.body}');
-    }
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = data['choices'] as List<dynamic>? ?? [];
-    if (choices.isEmpty) return '';
-    final first = choices.first;
-    if (first is Map<String, dynamic>) {
-      final message = first['message'];
-      if (message is Map<String, dynamic>) {
-        return message['content']?.toString().trim() ?? '';
-      }
-    }
-    return '';
-  }
 
   Future<List<QuizQuestionItem>> _fallbackFromDb(
     String quizId,
     int count,
   ) async {
+    if (!_looksLikeUuid(quizId)) {
+      return [];
+    }
     final data = await _client
         .from('quiz_questions')
         .select('id,prompt,options,correct_index,topic,explanation')

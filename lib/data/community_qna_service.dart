@@ -1,14 +1,16 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/models/app_models.dart';
 
 class CommunityQnaService {
   final SupabaseClient _client;
+  final AiRouterService _aiRouter;
 
-  CommunityQnaService(this._client);
+  CommunityQnaService(this._client) : _aiRouter = AiRouterService(_client);
 
   Future<List<CommunityQuestion>> fetchQuestionsForSubject(
     String subjectId,
@@ -138,7 +140,6 @@ class CommunityQnaService {
 
     try {
       final raw = await _requestAi(
-        provider: provider,
         systemPrompt: systemPrompt,
         userPrompt: userPrompt,
       );
@@ -158,89 +159,21 @@ class CommunityQnaService {
   }
 
   Future<String> _requestAi({
-    required String provider,
     required String systemPrompt,
     required String userPrompt,
   }) async {
-    if (provider == 'backend') {
-      final response = await _client.functions.invoke(
-        'ai-generate',
-        body: {
-          'system_prompt': systemPrompt,
-          'user_prompt': userPrompt,
+    return _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.tutor,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.2,
+        expectsJson: true,
+        metadata: {
+          'subject': userPrompt,
         },
-      );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      final reply = data['reply']?.toString().trim() ?? '';
-      if (reply.isEmpty) {
-        throw Exception('AI backend returned empty response.');
-      }
-      return reply;
-    }
-
-    if (provider == 'ollama') {
-      final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.tutor),
-          'stream': false,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Ollama error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final reply = data['message']?['content']?.toString().trim() ?? '';
-      if (reply.isEmpty) {
-        throw Exception('AI returned empty response.');
-      }
-      return reply;
-    }
-
-    if (provider == 'lmstudio') {
-      final uri =
-          Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      final apiKey = SupabaseConfig.lmStudioApiKey;
-      if (apiKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $apiKey';
-      }
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'model': SupabaseConfig.lmStudioModel,
-          'temperature': 0.2,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('LM Studio error: ${response.body}');
-      }
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final choices = data['choices'] as List<dynamic>? ?? [];
-      if (choices.isEmpty) {
-        throw Exception('LM Studio returned empty response.');
-      }
-      final message = choices.first as Map<String, dynamic>;
-      final content =
-          (message['message']?['content'] as String?)?.trim() ?? '';
-      if (content.isEmpty) {
-        throw Exception('LM Studio returned empty response.');
-      }
-      return content;
-    }
-
-    throw Exception('AI unavailable.');
+      ),
+    );
   }
 
   _VerificationResult _quickValidate(String subject, String question) {

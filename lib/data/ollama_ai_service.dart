@@ -18,12 +18,13 @@ class OllamaAiService {
       body: jsonEncode({
         'model': model,
         'stream': false,
+        'keep_alive': SupabaseConfig.ollamaKeepAlive,
         'messages': [
           {'role': 'system', 'content': systemPrompt},
           {'role': 'user', 'content': message},
         ],
       }),
-    );
+    ).timeout(SupabaseConfig.ollamaTimeoutChat);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Ollama error: ${response.body}');

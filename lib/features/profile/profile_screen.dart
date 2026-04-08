@@ -29,6 +29,7 @@ class _ProfileScreenState
     implements ProfileView {
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = true;
+  bool _freeTierOnly = SupabaseConfig.aiFreeTierOnly;
 
   @override
   void initState() {
@@ -90,6 +91,7 @@ class _ProfileScreenState
       (route) => false,
     );
   }
+
 
   void _openCommunityQna(UserProfile profile) {
     final l10n = context.l10n;
@@ -381,6 +383,26 @@ class _ProfileScreenState
                         : l10n.english,
                     onTap: () => _showLanguagePicker(context),
                   ),
+                  _ProfileItem(
+                    icon: Icons.smart_toy_outlined,
+                    label: context.tr('AI Provider', 'AI प्रदायक'),
+                    subtitle: _aiProviderSubtitle(context),
+                    onTap: () => _showAiProviderPicker(context),
+                  ),
+                  _ProfileToggleItem(
+                    icon: Icons.shield_outlined,
+                    label: context.tr('Free-tier only', 'फ्रि टियर मात्र'),
+                    subtitle: context.tr(
+                      'Stop cloud when free credits end. Fallback to local AI.',
+                      'फ्रि क्रेडिट सकिँदा क्लाउड रोक्नुहोस्। लोकल AI प्रयोग हुन्छ।',
+                    ),
+                    value: _freeTierOnly,
+                    onChanged: (value) async {
+                      await SupabaseConfig.setAiFreeTierOnly(value);
+                      if (!mounted) return;
+                      setState(() => _freeTierOnly = value);
+                    },
+                  ),
                   if (profile.isAdmin)
                     _ProfileItem(
                       icon: Icons.admin_panel_settings,
@@ -483,6 +505,150 @@ class _ProfileScreenState
       },
     );
   }
+
+  String _aiProviderSubtitle(BuildContext context) {
+    final mode =
+        (SupabaseConfig.aiProviderOverride ?? SupabaseConfig.aiMode).toLowerCase();
+    switch (mode) {
+      case 'groq':
+        return context.tr('Groq (fast)', 'Groq (छिटो)');
+      case 'openrouter':
+        return context.tr('OpenRouter (free)', 'OpenRouter (फ्री)');
+      case 'gemini':
+        return context.tr('Gemini (backup)', 'Gemini (ब्याकअप)');
+      case 'ollama':
+        return context.tr('Ollama (offline)', 'Ollama (अफलाइन)');
+      default:
+        return context.tr(
+          'Auto: Groq → OpenRouter → Gemini → Ollama',
+          'Auto: Groq → OpenRouter → Gemini → Ollama',
+        );
+    }
+  }
+
+  void _showAiProviderPicker(BuildContext context) {
+    final current =
+        (SupabaseConfig.aiProviderOverride ?? SupabaseConfig.aiMode).toLowerCase();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        Future<void> selectProvider(String? value) async {
+          final navigator = Navigator.of(context);
+          await SupabaseConfig.setAiProviderOverride(value);
+          if (!mounted) return;
+          setState(() {});
+          navigator.pop();
+        }
+
+        Widget option({
+          required String label,
+          required String value,
+          String? subtitle,
+        }) {
+          final selected = current == value;
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            leading: Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? const Color(0xFF38BDF8) : Colors.white54,
+            ),
+            title: Text(
+              label,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(color: Colors.white),
+            ),
+            subtitle: subtitle == null
+                ? null
+                : Text(
+                    subtitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white60),
+                  ),
+            onTap: () => selectProvider(value == 'auto' ? null : value),
+          );
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 48,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.tr('Choose AI Provider', 'AI प्रदायक छान्नुहोस्'),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              option(
+                label: context.tr(
+                  'Auto (Groq → OpenRouter → Gemini → Ollama)',
+                  'Auto (Groq → OpenRouter → Gemini → Ollama)',
+                ),
+                value: 'auto',
+                subtitle: context.tr(
+                  'Use free-tier cloud first, then offline.',
+                  'पहिला क्लाउड, पछि अफलाइन।',
+                ),
+              ),
+              option(
+                label: context.tr('Groq (fast)', 'Groq (छिटो)'),
+                value: 'groq',
+                subtitle: context.tr(
+                  'Primary cloud model.',
+                  'मुख्य क्लाउड मोडेल।',
+                ),
+              ),
+              option(
+                label:
+                    context.tr('OpenRouter (free)', 'OpenRouter (फ्री)'),
+                value: 'openrouter',
+                subtitle: context.tr(
+                  'Free-tier cloud fallback.',
+                  'फ्री क्लाउड ब्याकअप।',
+                ),
+              ),
+              option(
+                label: context.tr('Gemini (backup)', 'Gemini (ब्याकअप)'),
+                value: 'gemini',
+                subtitle: context.tr(
+                  'Fallback cloud model.',
+                  'ब्याकअप क्लाउड मोडेल।',
+                ),
+              ),
+              option(
+                label: context.tr('Ollama (offline)', 'Ollama (अफलाइन)'),
+                value: 'ollama',
+                subtitle: context.tr(
+                  'Use local model only.',
+                  'स्थानीय मोडेल मात्र।',
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ProfileItem extends StatelessWidget {
@@ -549,6 +715,76 @@ class _ProfileItem extends StatelessWidget {
               const Icon(Icons.chevron_right_rounded, color: Colors.white54),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileToggleItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ProfileToggleItem({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _GameCard(
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFF111B2E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF1E2A44)),
+              ),
+              child: Icon(icon, color: const Color(0xFF38BDF8)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: const Color(0xFF38BDF8),
+              activeTrackColor: const Color(0xFF1E2A44),
+            ),
+          ],
         ),
       ),
     );

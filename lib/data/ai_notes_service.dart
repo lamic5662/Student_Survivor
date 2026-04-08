@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:student_survivor/data/ai_request.dart';
+import 'package:student_survivor/data/ai_router_service.dart';
 import 'package:student_survivor/data/notes_cache_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -14,10 +15,12 @@ class AiFlashcard {
 }
 
 class AiNotesService {
-  final SupabaseClient _client;
   final NotesCacheService _cache;
+  final AiRouterService _aiRouter;
 
-  AiNotesService(this._client) : _cache = NotesCacheService();
+  AiNotesService(SupabaseClient client)
+      : _cache = NotesCacheService(),
+        _aiRouter = AiRouterService(client);
 
   Future<NoteDraft?> generateNote({
     required Subject subject,
@@ -48,10 +51,18 @@ class AiNotesService {
         'Create a concise study note for the chapter below. Use the context to be accurate.\n\n$context';
 
     try {
-      final raw = await _sendChat(
-        mode: mode,
-        systemPrompt: systemPrompt,
-        userPrompt: userPrompt,
+      final raw = await _aiRouter.send(
+        AiRequest(
+          feature: AiFeature.notes,
+          systemPrompt: systemPrompt,
+          userPrompt: userPrompt,
+          temperature: 0.3,
+          expectsJson: true,
+          metadata: {
+            'subject': subject.name,
+            'chapter': chapter.title,
+          },
+        ),
       );
       if (raw.isEmpty) {
         return cached;
@@ -94,8 +105,11 @@ class AiNotesService {
         draft: draft,
       );
       return draft;
-    } catch (_) {
-      return cached;
+    } catch (error) {
+      if (cached != null) {
+        return cached;
+      }
+      rethrow;
     }
   }
 
@@ -106,7 +120,7 @@ class AiNotesService {
     final mode =
         SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
     if (!_isSupportedAi(mode)) {
-      throw Exception('AI unavailable. Enable LM Studio or Ollama.');
+      throw Exception('AI unavailable. Check AI settings.');
     }
 
     final systemPrompt =
@@ -116,15 +130,24 @@ class AiNotesService {
         'Rules: meaning is 1-2 sentences. example is 1 simple sentence. '
         'No markdown.';
 
+    final safeContext = _trim(context.replaceAll(RegExp(r'\s+'), ' '), 600);
     final userPrompt =
         'Define the word in simple terms for this context.\n'
         'Word: "$word"\n'
-        'Context:\n$context';
+        'Context:\n$safeContext';
 
-    final raw = await _sendChat(
-      mode: mode,
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
+    final raw = await _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.notes,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.2,
+        fastModel: true,
+        expectsJson: true,
+        metadata: {
+          'word': word,
+        },
+      ),
     );
     if (raw.isEmpty) {
       throw Exception('AI returned empty definition.');
@@ -156,7 +179,7 @@ class AiNotesService {
     final mode =
         SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
     if (!_isSupportedAi(mode)) {
-      throw Exception('AI unavailable. Enable LM Studio or Ollama.');
+      throw Exception('AI unavailable. Check AI settings.');
     }
 
     final context = _buildContext(subject, chapter);
@@ -170,10 +193,18 @@ class AiNotesService {
     final userPrompt =
         'Create $count flashcards for the chapter below. Use the context to be accurate.\n\n$context';
 
-    final raw = await _sendChat(
-      mode: mode,
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
+    final raw = await _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.game,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.3,
+        expectsJson: true,
+        metadata: {
+          'subject': subject.name,
+          'chapter': chapter.title,
+        },
+      ),
     );
     if (raw.isEmpty) {
       throw Exception('AI returned empty flashcards.');
@@ -194,7 +225,7 @@ class AiNotesService {
     final mode =
         SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
     if (!_isSupportedAi(mode)) {
-      throw Exception('AI unavailable. Enable LM Studio or Ollama.');
+      throw Exception('AI unavailable. Check AI settings.');
     }
     final safeQuestion = question.trim();
     final safeContent = _trim(content.replaceAll(RegExp(r'\s+'), ' '), 2000);
@@ -207,10 +238,17 @@ class AiNotesService {
         'Write $points concise points, each ending with "(2 marks)" unless the question '
         'already specifies marks. Keep each point 1-2 sentences.';
 
-    final raw = await _sendChat(
-      mode: mode,
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
+    final raw = await _aiRouter.send(
+      AiRequest(
+        feature: AiFeature.notes,
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        temperature: 0.3,
+        metadata: {
+          'question': safeQuestion,
+          'points': points,
+        },
+      ),
     );
     if (raw.isEmpty) {
       throw Exception('AI returned empty answer.');
@@ -503,97 +541,20 @@ class AiNotesService {
   }
 
   bool _isSupportedAi(String mode) =>
-      mode == 'ollama' || _isLmStudio(mode) || mode == 'backend';
+      mode == 'ollama' ||
+      _isLmStudio(mode) ||
+      mode == 'backend' ||
+      mode == 'openrouter' ||
+      mode == 'groq' ||
+      mode == 'gemini' ||
+      mode == 'cloud' ||
+      mode == 'auto';
 
   bool _isLmStudio(String mode) {
     return mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio';
   }
 
-  Future<String> _sendChat({
-    required String mode,
-    required String systemPrompt,
-    required String userPrompt,
-  }) async {
-    if (mode == 'ollama') {
-      final uri = Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
-      final response = await http.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.notes),
-          'stream': false,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Ollama error: ${response.body}');
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return (data['message']?['content'] as String?)?.trim() ?? '';
-    }
-
-    if (_isLmStudio(mode)) {
-      final uri =
-          Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-      };
-      final apiKey = SupabaseConfig.lmStudioApiKey;
-      if (apiKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $apiKey';
-      }
-
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'model': SupabaseConfig.lmStudioModel,
-          'temperature': 0.3,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-        }),
-      );
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('LM Studio error: ${response.body}');
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final choices = data['choices'] as List<dynamic>? ?? [];
-      if (choices.isEmpty) {
-        return '';
-      }
-      final message = choices.first as Map<String, dynamic>;
-      final content =
-          (message['message']?['content'] as String?)?.trim() ?? '';
-      return content;
-    }
-
-    if (mode == 'backend') {
-      final response = await _client.functions.invoke(
-        'ai-generate',
-        body: {
-          'system_prompt': systemPrompt,
-          'user_prompt': userPrompt,
-        },
-      );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      final reply = data['reply']?.toString().trim() ?? '';
-      if (reply.isEmpty) {
-        throw Exception('AI backend returned empty response.');
-      }
-      return reply;
-    }
-
-    throw Exception('AI mode not supported.');
-  }
+  // AiRequestHelper handles provider routing and fallbacks.
 
   String _trim(String value, int max) {
     if (value.length <= max) {

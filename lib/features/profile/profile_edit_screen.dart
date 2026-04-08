@@ -149,7 +149,7 @@ class _ProfileEditScreenState
                           : ListView.separated(
                               shrinkWrap: true,
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (context, index) =>
                                   const Divider(color: Color(0xFF1E2A44)),
                               itemBuilder: (context, index) {
                                 final college = filtered[index];

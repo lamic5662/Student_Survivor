@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:xml/xml.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
@@ -197,6 +199,13 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
   }
 }
 
+class _TextHighlightRange {
+  final int start;
+  final int end;
+
+  const _TextHighlightRange(this.start, this.end);
+}
+
 class _MathSegment {
   final String text;
   final bool isMath;
@@ -240,6 +249,16 @@ class _NotesTabState extends State<_NotesTab> {
   List<NoteSubmission> _submissions = const [];
   NoteDraft? _draft;
   final Map<String, String> _definitionCache = {};
+  late final FlutterTts _tts;
+  bool _ttsReady = false;
+  bool _isSpeaking = false;
+  String? _speakingKey;
+  int _speakingStart = -1;
+  int _speakingEnd = -1;
+  String? _speakingText;
+  int _speakingCursor = 0;
+  String? _speakingCursorText;
+  String? _speakingWord;
 
   bool get _useGameTheme => widget.useGameTheme;
   Color get _mutedTextColor =>
@@ -275,6 +294,8 @@ class _NotesTabState extends State<_NotesTab> {
     _noteSubmissionService = NoteSubmissionService(SupabaseConfig.client);
     _noteGeneratedQuestionService =
         NoteGeneratedQuestionService(SupabaseConfig.client);
+    _tts = FlutterTts();
+    _initTts();
     _loadUserNotes();
     _loadSubmissions();
     if (widget.openSubmitSheet) {
@@ -283,6 +304,139 @@ class _NotesTabState extends State<_NotesTab> {
         _openSubmissionSheet();
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _initTts() async {
+    try {
+      bool hasEngine = true;
+      try {
+        final engines = await _tts.getEngines;
+        if (engines is List && engines.isEmpty) {
+          hasEngine = false;
+        }
+      } catch (_) {}
+      if (!hasEngine) {
+        if (mounted) {
+          setState(() => _ttsReady = false);
+        }
+        return;
+      }
+      final languages = await _tts.getLanguages;
+      String? language;
+      if (languages is List && languages.isNotEmpty) {
+        if (languages.contains('en-US')) {
+          language = 'en-US';
+        } else if (languages.contains('en')) {
+          language = 'en';
+        } else {
+          language = languages.first.toString();
+        }
+      }
+      if (language != null && language.isNotEmpty) {
+        await _tts.setLanguage(language);
+      }
+      await _tts.setVolume(1.0);
+      await _tts.setSpeechRate(0.35);
+      await _tts.setPitch(1.0);
+      await _tts.awaitSpeakCompletion(true);
+      _tts.setCompletionHandler(() {
+        if (!mounted) return;
+        setState(() {
+          _isSpeaking = false;
+          _speakingKey = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+          _speakingWord = null;
+        });
+      });
+      _tts.setCancelHandler(() {
+        if (!mounted) return;
+        setState(() {
+          _isSpeaking = false;
+          _speakingKey = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+          _speakingWord = null;
+        });
+      });
+      _tts.setErrorHandler((_) {
+        if (!mounted) return;
+        setState(() {
+          _isSpeaking = false;
+          _speakingKey = null;
+          _speakingStart = -1;
+          _speakingEnd = -1;
+          _speakingText = null;
+          _speakingCursor = 0;
+          _speakingCursorText = null;
+          _speakingWord = null;
+        });
+      });
+      _tts.setProgressHandler((text, start, end, word) {
+        if (!mounted || !_isSpeaking) return;
+        final baseText = _speakingCursorText ?? text;
+        final range = _resolveSpeechRange(baseText, text, start, end, word);
+        if (range == null) return;
+        setState(() {
+          _speakingText = baseText;
+          _speakingStart = range.start;
+          _speakingEnd = range.end;
+          _speakingWord = word.toString();
+        });
+      });
+      if (mounted) {
+        setState(() => _ttsReady = true);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _ttsReady = false);
+      }
+    }
+  }
+
+  Future<void> _toggleSpeak(String key, String text) async {
+    if (!_ttsReady) {
+      await _initTts();
+    }
+    if (!_ttsReady) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enable text-to-speech to use voice notes.'),
+        ),
+      );
+      return;
+    }
+    if (_isSpeaking && _speakingKey == key) {
+      await _tts.stop();
+      return;
+    }
+    if (_isSpeaking) {
+      await _tts.stop();
+    }
+    setState(() {
+      _isSpeaking = true;
+      _speakingKey = key;
+      _speakingText = text;
+      _speakingStart = -1;
+      _speakingEnd = -1;
+      _speakingCursor = 0;
+      _speakingCursorText = text;
+      _speakingWord = null;
+    });
+    await _tts.speak(text);
   }
 
   Future<void> _loadUserNotes() async {
@@ -335,7 +489,7 @@ class _NotesTabState extends State<_NotesTab> {
       if (draft == null) {
         setState(() {
           _isGenerating = false;
-          _errorMessage = 'AI notes unavailable. Enable Ollama to generate.';
+          _errorMessage = _aiNotesUnavailableMessage();
         });
         return;
       }
@@ -350,6 +504,39 @@ class _NotesTabState extends State<_NotesTab> {
         _isGenerating = false;
       });
     }
+  }
+
+  String _aiNotesUnavailableMessage() {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.notes).toLowerCase();
+    if (mode == 'ollama') {
+      return context.tr(
+        'AI notes unavailable. Start Ollama to generate.',
+        'AI नोट उपलब्ध छैन। Ollama सुरु गर्नुहोस्।',
+      );
+    }
+    if (mode.contains('lmstudio') || mode.contains('lm-studio')) {
+      return context.tr(
+        'AI notes unavailable. Start LM Studio to generate.',
+        'AI नोट उपलब्ध छैन। LM Studio सुरु गर्नुहोस्।',
+      );
+    }
+    if (mode == 'backend') {
+      return context.tr(
+        'AI notes unavailable. Backend AI not reachable.',
+        'AI नोट उपलब्ध छैन। Backend AI पहुँचमा छैन।',
+      );
+    }
+    if (mode == 'groq' || mode == 'gemini' || mode == 'cloud' || mode == 'auto') {
+      return context.tr(
+        'AI notes unavailable. Check cloud AI keys or switch to Ollama.',
+        'AI नोट उपलब्ध छैन। Cloud key जाँच गर्नुहोस् वा Ollama प्रयोग गर्नुहोस्।',
+      );
+    }
+    return context.tr(
+      'AI notes unavailable right now.',
+      'AI नोट अहिले उपलब्ध छैन।',
+    );
   }
 
   Future<void> _openSubmissionSheet() async {
@@ -781,6 +968,13 @@ class _NotesTabState extends State<_NotesTab> {
                 }
 
                 final safeUrl = fileUrl ?? '';
+                final noteText = detailedAnswer.isNotEmpty
+                    ? detailedAnswer
+                    : shortAnswer;
+                final hasMath = RegExp(r'\$\$|\$[^\s]').hasMatch(noteText);
+                final noteHighlight = noteText.trim().isEmpty
+                    ? (mainWords: <String>{}, difficultWords: <String>{})
+                    : _buildHighlightSets(noteText);
                 return ListView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -939,8 +1133,7 @@ class _NotesTabState extends State<_NotesTab> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (detailedAnswer.isNotEmpty ||
-                        shortAnswer.isNotEmpty) ...[
+                    if (noteText.isNotEmpty) ...[
                       Text(
                         'Notes',
                         style: Theme.of(context)
@@ -952,17 +1145,26 @@ class _NotesTabState extends State<_NotesTab> {
                             ),
                       ),
                       const SizedBox(height: 8),
-                      MathText(
-                        text: detailedAnswer.isNotEmpty
-                            ? detailedAnswer
-                            : shortAnswer,
-                        textStyle: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(
-                              color: _useGameTheme ? Colors.white70 : null,
-                            ),
-                      ),
+                      if (hasMath)
+                        MathText(
+                          text: noteText,
+                          textStyle: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: _useGameTheme ? Colors.white70 : null,
+                              ),
+                        )
+                      else
+                        _buildTappableText(
+                          noteText,
+                          contextText: noteText,
+                          mainWords: noteHighlight.mainWords,
+                          difficultWords: noteHighlight.difficultWords,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: _useGameTheme ? Colors.white70 : null,
+                              ),
+                        ),
                     ] else if ((fileUrl ?? '').isEmpty) ...[
                       Text(
                         'No note content available yet.',
@@ -1046,7 +1248,7 @@ class _NotesTabState extends State<_NotesTab> {
       shortAnswer: note.shortAnswer,
       detailedAnswer: note.detailedAnswer,
       fileUrl: null,
-      noteId: null,
+      noteId: note.id,
       chapterId: note.chapterId,
     );
   }
@@ -1277,6 +1479,7 @@ class _NotesTabState extends State<_NotesTab> {
     final key = word.toLowerCase();
     await showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(word),
@@ -1542,6 +1745,115 @@ class _NotesTabState extends State<_NotesTab> {
     );
   }
 
+  _TextHighlightRange? _resolveHighlightRange(
+    String displayText,
+    bool isSpeaking,
+  ) {
+    if (!isSpeaking) return null;
+    final speakingText = _speakingText;
+    if (speakingText == null || speakingText.isEmpty) return null;
+    var start = _speakingStart;
+    var end = _speakingEnd;
+    if (start < 0 || end <= start) return null;
+    if (speakingText != displayText) {
+      final index = speakingText.indexOf(displayText);
+      if (index < 0) {
+        return _fallbackWordRange(displayText);
+      }
+      start = start - index;
+      end = end - index;
+    }
+    if (start < 0 || end > displayText.length) {
+      return _fallbackWordRange(displayText);
+    }
+    return _TextHighlightRange(start, end);
+  }
+
+  _TextHighlightRange? _fallbackWordRange(String displayText) {
+    final word = _speakingWord?.trim();
+    if (word == null || word.isEmpty) return null;
+    final lowerText = displayText.toLowerCase();
+    final lowerWord = word.toLowerCase();
+    final wordIndex = lowerText.indexOf(lowerWord);
+    if (wordIndex >= 0) {
+      return _TextHighlightRange(wordIndex, wordIndex + lowerWord.length);
+    }
+    return null;
+  }
+
+  _TextHighlightRange? _resolveSpeechRange(
+    String baseText,
+    String rawText,
+    int start,
+    int end,
+    String? word,
+  ) {
+    final token = (word ?? '').trim();
+    if (token.isNotEmpty) {
+      final lowerBase = baseText.toLowerCase();
+      final lowerWord = token.toLowerCase();
+      var index = lowerBase.indexOf(lowerWord, _speakingCursor);
+      if (index < 0) {
+        index = lowerBase.indexOf(lowerWord);
+      }
+      if (index >= 0) {
+        _speakingCursor = index + lowerWord.length;
+        return _TextHighlightRange(index, index + lowerWord.length);
+      }
+    }
+    if (rawText == baseText &&
+        start >= 0 &&
+        end > start &&
+        end <= baseText.length) {
+      return _TextHighlightRange(start, end);
+    }
+    return null;
+  }
+
+  Widget _buildHighlightedText(
+    String text,
+    TextStyle? style, {
+    int? maxLines,
+    TextOverflow overflow = TextOverflow.visible,
+    required bool isSpeaking,
+  }) {
+    final highlight = _resolveHighlightRange(text, isSpeaking);
+    if (highlight == null) {
+      return Text(
+        text,
+        maxLines: maxLines,
+        overflow: overflow,
+        style: style,
+      );
+    }
+    final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium;
+    final highlightStyle = baseStyle?.copyWith(
+      color: Colors.black,
+      backgroundColor: (_useGameTheme
+              ? const Color(0xFFFFD54F)
+              : AppColors.warning)
+          .withValues(alpha: 0.65),
+      fontWeight: FontWeight.w600,
+    );
+    return RichText(
+      maxLines: maxLines,
+      overflow: overflow,
+      text: TextSpan(
+        style: baseStyle,
+        children: [
+          if (highlight.start > 0)
+            TextSpan(text: text.substring(0, highlight.start)),
+          TextSpan(
+            text: text.substring(highlight.start, highlight.end),
+            style: highlightStyle,
+          ),
+          if (highlight.end < text.length)
+            TextSpan(text: text.substring(highlight.end)),
+        ],
+      ),
+    );
+  }
+
   Widget _noteCard({
     required String title,
     required String shortAnswer,
@@ -1554,7 +1866,31 @@ class _NotesTabState extends State<_NotesTab> {
     Color? badgeColor,
     IconData? badgeIcon,
     bool showAttachmentBadge = false,
+    String? voiceKey,
+    String? voiceText,
   }) {
+    final speechText = (voiceText ?? '').trim();
+    final resolvedKey = voiceKey ?? title;
+    final isSpeaking = _isSpeaking && _speakingKey == resolvedKey;
+    final voiceButton = speechText.isEmpty
+        ? null
+        : IconButton(
+            tooltip: isSpeaking ? 'Stop' : 'Listen',
+            onPressed: () => _toggleSpeak(resolvedKey, speechText),
+            icon: Icon(
+              isSpeaking ? Icons.stop_circle : Icons.volume_up_rounded,
+              color: _useGameTheme ? Colors.white70 : null,
+            ),
+          );
+    Widget? mergedTrailing;
+    if (voiceButton != null && trailing != null) {
+      mergedTrailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [voiceButton, trailing],
+      );
+    } else {
+      mergedTrailing = voiceButton ?? trailing;
+    }
     if (collapsible) {
       final summaryText =
           detailedAnswer.trim().isNotEmpty ? detailedAnswer.trim() : shortAnswer.trim();
@@ -1574,16 +1910,17 @@ class _NotesTabState extends State<_NotesTab> {
           ),
           subtitle: summaryText.isEmpty
               ? null
-              : Text(
+              : _buildHighlightedText(
                   summaryText,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
+                  Theme.of(context)
                       .textTheme
                       .bodyMedium
                       ?.copyWith(color: _mutedTextColor),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  isSpeaking: isSpeaking,
                 ),
-          trailing: trailing,
+          trailing: mergedTrailing,
           childrenPadding: const EdgeInsets.only(bottom: 8),
           children: [
             if (badgeLabel != null) ...[
@@ -1607,24 +1944,20 @@ class _NotesTabState extends State<_NotesTab> {
               const SizedBox(height: 10),
             ],
             if (detailText.isNotEmpty && detailText != summaryText) ...[
-              Text(
+              _buildHighlightedText(
                 detailText,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(
+                Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: _useGameTheme ? Colors.white70 : null,
                     ),
+                isSpeaking: isSpeaking,
               ),
             ] else if (summaryText.isNotEmpty) ...[
-              Text(
+              _buildHighlightedText(
                 summaryText,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(
+                Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: _useGameTheme ? Colors.white70 : null,
                     ),
+                isSpeaking: isSpeaking,
               ),
             ],
           ],
@@ -1675,19 +2008,20 @@ class _NotesTabState extends State<_NotesTab> {
                       ),
                 ),
               ),
-              ...?(trailing == null ? null : [trailing]),
+              ...?(mergedTrailing == null ? null : [mergedTrailing]),
             ],
           ),
           const SizedBox(height: 8),
           if (previewText.isNotEmpty)
-            Text(
+            _buildHighlightedText(
               previewText,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
+              Theme.of(context)
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: _mutedTextColor),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              isSpeaking: isSpeaking,
             ),
           if (previewText.isNotEmpty) const SizedBox(height: 12),
           if (showTapHint && onTap != null) ...[
@@ -1859,11 +2193,19 @@ class _NotesTabState extends State<_NotesTab> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'AI Notes',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: _useGameTheme ? Colors.white : null,
-                          ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Notes',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: _useGameTheme ? Colors.white : null,
+                                  ),
+                        ),
+                        const SizedBox(height: 6),
+                        const AiStatusChip(compact: true),
+                      ],
                     ),
                   ),
                   if (_isGenerating)
@@ -1903,6 +2245,12 @@ class _NotesTabState extends State<_NotesTab> {
                     badgeLabel: 'AI Draft',
                     badgeColor: AppColors.secondary,
                     badgeIcon: Icons.auto_awesome_rounded,
+                    voiceKey: 'draft_${widget.chapter.id}',
+                    voiceText: _buildNoteContext(
+                      title: _draft!.title,
+                      shortAnswer: _draft!.shortAnswer,
+                      detailedAnswer: _draft!.detailedAnswer,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Column(
@@ -1988,6 +2336,12 @@ class _NotesTabState extends State<_NotesTab> {
                   badgeLabel: 'My Note',
                   badgeColor: AppColors.accent,
                   badgeIcon: Icons.bookmark_rounded,
+                  voiceKey: note.id,
+                  voiceText: _buildNoteContext(
+                    title: note.title,
+                    shortAnswer: note.shortAnswer,
+                    detailedAnswer: note.detailedAnswer,
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2231,6 +2585,12 @@ class _NotesTabState extends State<_NotesTab> {
                   badgeColor: AppColors.secondary,
                   badgeIcon: Icons.verified_rounded,
                   showAttachmentBadge: (note.fileUrl ?? '').isNotEmpty,
+                  voiceKey: note.id,
+                  voiceText: _buildNoteContext(
+                    title: note.title,
+                    shortAnswer: note.shortAnswer,
+                    detailedAnswer: note.detailedAnswer,
+                  ),
                   trailing: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

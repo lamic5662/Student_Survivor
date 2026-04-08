@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
@@ -763,6 +764,8 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                         isHost: _isHost,
                         isGenerating: _isGenerating,
                       ),
+                      const SizedBox(height: 12),
+                      const AiStatusChip(compact: true),
                       const SizedBox(height: 16),
                       if (_status == 'waiting')
                         _WaitingCard(

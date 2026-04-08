@@ -95,16 +95,34 @@ After that, notes and AI drafts are available offline.
 Configure in `.env`:
 
 ```env
-AI_MODE=backend   # backend | ollama | lmstudio | free
+AI_MODE=cloud   # cloud | hybrid | local
 ```
 
-Recommended architecture:
-- **Production:** Flutter → Supabase Edge Functions → Ollama
-- **Development:** LM Studio (local) for fast testing
+Recommended setup:
+- **Production:** cloud or hybrid (cloud first, local fallback)
+- **Development:** local (LM Studio / Ollama)
+
+In-app controls:
+- **AI Provider** (Profile → AI Provider) lets power users pick a provider.
+- **Free-tier only** (Profile) stops cloud after quota/credits errors and
+  falls back to local AI automatically.
 
 Provider config:
 
 ```env
+GROQ_API_KEY=
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=llama-3.1-8b-instant
+
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_APP_TITLE=StudentSurge
+OPENROUTER_MODEL=openrouter/auto
+
+GEMINI_API_KEY=
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_MODEL=gemini-1.5-flash
+
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3
 OLLAMA_MODEL_CHAT=qwen3:8b
@@ -117,6 +135,9 @@ LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 LMSTUDIO_MODEL=google/gemma-3-4b
 LMSTUDIO_API_KEY=
 ```
+
+Timeouts (cloud + local) are configurable in `.env.example` with
+`CLOUD_TIMEOUT_*` and `OLLAMA_TIMEOUT_*` values.
 
 ## Local Dev (Backend + Ollama)
 

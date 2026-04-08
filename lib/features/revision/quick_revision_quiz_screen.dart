@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/ai_status_chip.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
@@ -553,6 +554,8 @@ class _QuickRevisionQuizScreenState extends State<QuickRevisionQuizScreen> {
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       child: Column(
         children: [
+          const AiStatusChip(compact: true),
+          const SizedBox(height: 12),
           _ProgressHeader(
             current: _currentIndex + 1,
             total: _questions.length,
