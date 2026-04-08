@@ -8,6 +8,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/widgets/ai_status_chip.dart';
+import 'package:student_survivor/core/widgets/local_ai_status_strip.dart';
 import 'package:student_survivor/features/ai/ai_presenter.dart';
 import 'package:student_survivor/features/ai/ai_view_model.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -566,6 +567,8 @@ class _AiAssistantScreenState
                         _AiHeroCard(hasMessages: hasMessages),
                         const SizedBox(height: 12),
                         const AiStatusChip(),
+                        const SizedBox(height: 10),
+                        const LocalAiStatusStrip(compact: true),
                         const SizedBox(height: 20),
                         _AiSidebarCard(
                           onNewChat: _startNewChat,
