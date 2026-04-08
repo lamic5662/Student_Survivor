@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/features/subjects/subject_detail_screen.dart';
@@ -43,17 +44,18 @@ class _SubjectsScreenState
   SubjectsPresenter createPresenter() => SubjectsPresenter();
 
   void _openSyllabus(BuildContext context, Subject subject) {
+    final l10n = context.l10n;
     final url = subject.syllabusUrl?.trim() ?? '';
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No syllabus available yet.')),
+        SnackBar(content: Text(l10n.noSyllabusAvailable)),
       );
       return;
     }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SyllabusWebViewScreen(
-          title: '${subject.name} syllabus',
+          title: l10n.subjectSyllabusTitle(subject.name),
           url: url,
         ),
       ),
@@ -62,6 +64,7 @@ class _SubjectsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return ValueListenableBuilder<SubjectsViewModel>(
       valueListenable: presenter.state,
       builder: (context, model, _) {
@@ -97,7 +100,7 @@ class _SubjectsScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Subjects',
+                    l10n.subjects,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -117,138 +120,153 @@ class _SubjectsScreenState
           body: Stack(
             children: [
               const Positioned.fill(child: _SubjectsBackdrop()),
-              ListView(
+              ListView.builder(
                 controller: _scrollController,
                 padding: EdgeInsets.fromLTRB(
                   20,
-                  kToolbarHeight + 48,
+                  MediaQuery.of(context).padding.top + kToolbarHeight + 12,
                   20,
                   28,
                 ),
-                children: [
-                  _GameCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0B1220),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF1E2A44)),
-                          ),
-                          child: const Icon(Icons.menu_book_rounded,
-                              color: Color(0xFF38BDF8)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your Subjects',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
+                itemCount: subjects.isEmpty ? 3 : subjects.length + 2,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return RepaintBoundary(
+                      child: _GameCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0B1220),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: const Color(0xFF1E2A44)),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Pick a subject to explore notes and quizzes.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: Colors.white70),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
+                              child: const Icon(Icons.menu_book_rounded,
+                                  color: Color(0xFF38BDF8)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _InfoChip(
-                                      label: '${subjects.length} subjects'),
-                                  _InfoChip(
-                                      label: '$totalChapters chapters'),
-                                  _InfoChip(label: '$totalQuizzes quizzes'),
+                                  Text(
+                                    l10n.yourSubjects,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l10n.pickSubject,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: Colors.white70),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _InfoChip(
+                                          label:
+                                              l10n.subjectsCount(subjects.length)),
+                                      _InfoChip(
+                                          label:
+                                              l10n.chaptersCount(totalChapters)),
+                                      _InfoChip(
+                                          label:
+                                              l10n.quizzesCount(totalQuizzes)),
+                                    ],
+                                  ),
+                                  if (syllabusSubject != null) ...[
+                                    const SizedBox(height: 10),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: _ActionButton(
+                                        label: l10n.openSyllabus,
+                                        icon: Icons.description_rounded,
+                                        onPressed: () => _openSyllabus(
+                                          context,
+                                          syllabusSubject!,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
-                              if (syllabusSubject != null) ...[
-                                const SizedBox(height: 10),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: _ActionButton(
-                                    label: 'Open syllabus',
-                                    icon: Icons.description_rounded,
-                                    onPressed: () => _openSyllabus(
-                                      context,
-                                      syllabusSubject!,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (subjects.isEmpty)
-                    _GameCard(
-                      child: Column(
-                        children: [
-                          const Icon(Icons.menu_book_outlined,
-                              size: 48, color: Colors.white70),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No subjects available.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: Colors.white),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Select a semester to load subjects.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.white70),
-                          ),
-                        ],
                       ),
-                    )
-                  else
-                    ...subjects.asMap().entries.map((entry) {
-                      final subject = entry.value;
-                      final quizzes = subject.chapters.fold<int>(
-                        0,
-                        (sum, chapter) => sum + chapter.quizzes.length,
-                      );
-                      final progress =
-                          (0.4 + entry.key * 0.08).clamp(0.1, 1.0);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _SubjectCard(
-                          subject: subject,
-                          quizzes: quizzes,
-                          progress: progress,
-                          onOpen: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    SubjectDetailScreen(subject: subject),
-                              ),
-                            );
-                          },
+                    );
+                  }
+                  if (index == 1) {
+                    return const SizedBox(height: 20);
+                  }
+                  if (subjects.isEmpty) {
+                    return RepaintBoundary(
+                      child: _GameCard(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.menu_book_outlined,
+                                size: 48, color: Colors.white70),
+                            const SizedBox(height: 12),
+                            Text(
+                              l10n.noSubjectsAvailable,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(color: Colors.white),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              l10n.selectSemesterPrompt,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.white70),
+                            ),
+                          ],
                         ),
-                      );
-                    }),
-                ],
+                      ),
+                    );
+                  }
+                  final subjectIndex = index - 2;
+                  final subject = subjects[subjectIndex];
+                  final quizzes = subject.chapters.fold<int>(
+                    0,
+                    (sum, chapter) => sum + chapter.quizzes.length,
+                  );
+                  final progress =
+                      (0.4 + subjectIndex * 0.08).clamp(0.1, 1.0);
+                  return RepaintBoundary(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _SubjectCard(
+                        subject: subject,
+                        quizzes: quizzes,
+                        progress: progress,
+                        onOpen: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  SubjectDetailScreen(subject: subject),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -327,8 +345,10 @@ class _SubjectCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 6,
               children: [
-                _InfoChip(label: '${subject.chapters.length} chapters'),
-                _InfoChip(label: '$quizzes quizzes'),
+                _InfoChip(
+                    label: context.l10n
+                        .chaptersCount(subject.chapters.length)),
+                _InfoChip(label: context.l10n.quizzesCount(quizzes)),
               ],
             ),
             const SizedBox(height: 12),
@@ -343,7 +363,7 @@ class _SubjectCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _ActionButton(
-              label: 'Open Subject',
+              label: context.l10n.openSubject,
               icon: Icons.play_arrow_rounded,
               onPressed: onOpen,
             ),

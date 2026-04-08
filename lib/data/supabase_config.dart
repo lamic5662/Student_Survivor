@@ -102,6 +102,44 @@ class SupabaseConfig {
         : const String.fromEnvironment('OLLAMA_MODEL', defaultValue: 'llama3');
   }
 
+  static String get ollamaModelChat =>
+      _ollamaModelFromEnv('OLLAMA_MODEL_CHAT', fallback: ollamaModel);
+
+  static String get ollamaModelQuiz =>
+      _ollamaModelFromEnv('OLLAMA_MODEL_QUIZ', fallback: ollamaModel);
+
+  static String get ollamaModelExam =>
+      _ollamaModelFromEnv('OLLAMA_MODEL_EXAM', fallback: ollamaModel);
+
+  static String get ollamaModelNotes =>
+      _ollamaModelFromEnv('OLLAMA_MODEL_NOTES', fallback: ollamaModel);
+
+  static String get ollamaModelFast =>
+      _ollamaModelFromEnv('OLLAMA_MODEL_FAST', fallback: ollamaModel);
+
+  static String ollamaModelForFeature(AiFeature feature) {
+    switch (feature) {
+      case AiFeature.tutor:
+        return ollamaModelChat;
+      case AiFeature.game:
+        return ollamaModelQuiz;
+      case AiFeature.notes:
+        return ollamaModelNotes;
+      case AiFeature.studyPlan:
+        return ollamaModelFast;
+      case AiFeature.weaknessAnalysis:
+        return ollamaModelExam;
+      case AiFeature.quizExplanation:
+        return ollamaModelChat;
+      case AiFeature.topicSummary:
+        return ollamaModelNotes;
+      case AiFeature.promptTesting:
+      case AiFeature.modelTesting:
+      case AiFeature.debugging:
+        return ollamaModel;
+    }
+  }
+
   static String get lmStudioBaseUrl {
     final value = _safeDotenv('LMSTUDIO_BASE_URL');
     return value.isNotEmpty
@@ -150,6 +188,14 @@ class SupabaseConfig {
     } catch (_) {
       return '';
     }
+  }
+
+  static String _ollamaModelFromEnv(
+    String key, {
+    required String fallback,
+  }) {
+    final value = _safeDotenv(key);
+    return value.isNotEmpty ? value : fallback;
   }
 
   static bool _isDebugPrompt(String? message, String? mode) {

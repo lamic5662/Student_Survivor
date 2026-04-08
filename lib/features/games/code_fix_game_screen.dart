@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -15,6 +14,10 @@ enum CodeDifficulty { easy, medium, hard }
 enum CodeFixMode { findError, fixCode, mcq }
 
 const _codeFixLanguages = ['C', 'C++', 'Java', 'Python'];
+const _arenaSurface = Color(0xFF0B1220);
+const _arenaBorder = Color(0xFF1E2A44);
+const _arenaMuted = Color(0xFF94A3B8);
+const _arenaAccent = Color(0xFF38BDF8);
 
 class CodeFixQuestion {
   final String id;
@@ -50,6 +53,8 @@ class CodeFixGameScreen extends StatefulWidget {
 }
 
 class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
+  final ScrollController _scrollController = ScrollController();
+  bool _showTitle = true;
   String _selectedLanguage = _codeFixLanguages.first;
   CodeDifficulty _selectedDifficulty = CodeDifficulty.easy;
   List<CodeFixQuestion> _deck = const [];
@@ -71,13 +76,23 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
   void initState() {
     super.initState();
     _activityLogService = ActivityLogService(SupabaseConfig.client);
+    _scrollController.addListener(_handleScroll);
     _rebuildDeck();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow = _scrollController.offset < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
   }
 
   void _rebuildDeck() {
@@ -633,7 +648,7 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
         uri,
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'model': SupabaseConfig.ollamaModel,
+          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.game),
           'stream': false,
           'messages': [
             {'role': 'system', 'content': systemPrompt},
@@ -863,14 +878,32 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
     final isFinished = question == null && _deck.isNotEmpty;
     return GameZoneScaffold(
       appBar: AppBar(
-        title: const Text('Code Fix Arena'),
-        backgroundColor: AppColors.paper,
-        foregroundColor: AppColors.ink,
+        title: AnimatedOpacity(
+          opacity: _showTitle ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            'Code Fix Arena',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
+      extendBodyBehindAppBar: true,
+      useSafeArea: false,
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        controller: _scrollController,
+        padding: EdgeInsets.fromLTRB(
+          20,
+          MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+          20,
+          28,
+        ),
         children: [
           _TopScoreBar(
             score: _score,
@@ -895,7 +928,7 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
           ),
           const SizedBox(height: 16),
           if (_deck.isEmpty)
-            AppCard(
+            _ArenaCard(
               child: Text(
                 _isAiGenerating
                     ? 'Generating your first AI question...'
@@ -903,7 +936,7 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: _arenaMuted),
               ),
             )
           else if (isFinished)
@@ -925,13 +958,17 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
               style: Theme.of(context)
                   .textTheme
                   .labelLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
             ),
             const SizedBox(height: 6),
             Text(
               _formatPrompt(question),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
             ),
             const SizedBox(height: 12),
@@ -940,7 +977,10 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
               style: Theme.of(context)
                   .textTheme
                   .labelLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
             ),
             const SizedBox(height: 8),
             _CodeBlock(code: question.code),
@@ -964,10 +1004,11 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                   style: OutlinedButton.styleFrom(
                     alignment: Alignment.centerLeft,
                     side: BorderSide(
-                      color: borderColor ?? AppColors.outline,
+                      color: borderColor ?? _arenaBorder,
                     ),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    foregroundColor: Colors.white,
                   ),
                   onPressed: _answered ? null : () => _selectAnswer(index),
                   child: Text('$letter. $option'),
@@ -988,7 +1029,7 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                     ),
               ),
               const SizedBox(height: 12),
-              AppCard(
+              _ArenaCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -997,7 +1038,10 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -1005,7 +1049,7 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(color: _arenaMuted),
                     ),
                     if (question.correctedCode != null) ...[
                       const SizedBox(height: 12),
@@ -1014,7 +1058,10 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                         style: Theme.of(context)
                             .textTheme
                             .labelLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                       ),
                       const SizedBox(height: 8),
                       _CodeBlock(code: question.correctedCode!),
@@ -1027,6 +1074,10 @@ class _CodeFixGameScreenState extends State<CodeFixGameScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _nextQuestion,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _arenaAccent,
+                    foregroundColor: const Color(0xFF0B1220),
+                  ),
                   child: const Text('Next Question'),
                 ),
               ),
@@ -1055,7 +1106,7 @@ class _TopScoreBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress =
         totalSeconds == 0 ? 0.0 : remainingSeconds / totalSeconds;
-    return AppCard(
+    return _ArenaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1074,9 +1125,9 @@ class _TopScoreBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress.clamp(0, 1),
               minHeight: 6,
-              backgroundColor: AppColors.outline,
+              backgroundColor: _arenaBorder,
               valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                  const AlwaysStoppedAnimation<Color>(_arenaAccent),
             ),
           ),
         ],
@@ -1096,8 +1147,9 @@ class _StatPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: 0.12),
+        color: const Color(0xFF111B2E),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _arenaBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1107,12 +1159,13 @@ class _StatPill extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .labelSmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: _arenaMuted),
           ),
           Text(
             value,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
           ),
         ],
@@ -1140,7 +1193,7 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _ArenaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1149,7 +1202,10 @@ class _FilterBar extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .labelLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
+                ?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -1161,6 +1217,12 @@ class _FilterBar extends StatelessWidget {
                     label: Text(lang),
                     selected: language == lang,
                     onSelected: (_) => onLanguageChanged(lang),
+                    selectedColor: _arenaAccent.withValues(alpha: 0.2),
+                    backgroundColor: const Color(0xFF0F172A),
+                    labelStyle: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: Colors.white),
                   ),
                 )
                 .toList(),
@@ -1174,6 +1236,12 @@ class _FilterBar extends StatelessWidget {
                     label: Text(_difficultyLabel(level)),
                     selected: difficulty == level,
                     onSelected: (_) => onDifficultyChanged(level),
+                    selectedColor: _arenaAccent.withValues(alpha: 0.2),
+                    backgroundColor: const Color(0xFF0F172A),
+                    labelStyle: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: Colors.white),
                   ),
                 )
                 .toList(),
@@ -1183,6 +1251,10 @@ class _FilterBar extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: isGenerating ? null : onAiGenerate,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: _arenaBorder),
+              ),
               icon: isGenerating
                   ? const SizedBox(
                       width: 16,
@@ -1225,7 +1297,10 @@ class _QuestionHeader extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+              ?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
         ),
         const Spacer(),
         _Pill(text: language),
@@ -1248,15 +1323,19 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.15),
+        color: const Color(0xFF111B2E),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _arenaBorder),
       ),
       child: Text(
         text,
         style: Theme.of(context)
             .textTheme
             .labelSmall
-            ?.copyWith(fontWeight: FontWeight.w700),
+            ?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
       ),
     );
   }
@@ -1297,32 +1376,66 @@ class _FinishCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _ArenaCard(
       child: Column(
         children: [
-          const Icon(Icons.emoji_events, size: 48, color: AppColors.secondary),
+          const Icon(Icons.emoji_events, size: 48, color: _arenaAccent),
           const SizedBox(height: 12),
           Text(
             'Session complete!',
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+                ?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 6),
           Text(
             'Your score: $score',
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: _arenaMuted),
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: onRestart,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _arenaAccent,
+                foregroundColor: const Color(0xFF0B1220),
+              ),
               child: const Text('Play Again'),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ArenaCard extends StatelessWidget {
+  final Widget child;
+
+  const _ArenaCard({
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _arenaSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _arenaBorder),
+      ),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: Colors.white),
+        child: child,
       ),
     );
   }

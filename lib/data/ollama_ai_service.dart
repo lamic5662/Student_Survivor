@@ -6,7 +6,7 @@ import 'package:student_survivor/data/supabase_config.dart';
 class OllamaAiService {
   Future<String> answer(String message, {String? mode}) async {
     final baseUrl = SupabaseConfig.ollamaBaseUrl;
-    final model = SupabaseConfig.ollamaModel;
+    final model = SupabaseConfig.ollamaModelChat;
     final systemPrompt = _buildSystemPrompt(mode);
 
     final uri = Uri.parse('$baseUrl/api/chat');

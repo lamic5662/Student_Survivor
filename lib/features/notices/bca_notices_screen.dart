@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/data/bca_notice_service.dart';
 import 'package:student_survivor/data/notice_cache_service.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
@@ -84,7 +85,10 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load TU notices. Showing cached data if any.';
+        _error = context.tr(
+          'Failed to load TU notices. Showing cached data if any.',
+          'TU सूचना लोड गर्न सकिएन। भएमा क्यास गरिएको डाटा देखाइँदैछ।',
+        );
       });
     } finally {
       if (mounted) {
@@ -150,13 +154,13 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Date not listed';
+  String _formatDate(BuildContext context, DateTime? date) {
+    if (date == null) return context.tr('Date not listed', 'मिति उल्लेख छैन');
     return date.toIso8601String().split('T').first;
   }
 
-  String _formatLastUpdated(DateTime? date) {
-    if (date == null) return 'Not cached yet';
+  String _formatLastUpdated(BuildContext context, DateTime? date) {
+    if (date == null) return context.tr('Not cached yet', 'अहिलेसम्म क्यास छैन');
     final parts = date.toLocal().toIso8601String().split('T');
     final time = parts.length > 1 ? parts[1].substring(0, 5) : '';
     return '${parts.first} $time';
@@ -172,7 +176,7 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'BCA Notices',
+            context.l10n.bcaNotices,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -237,7 +241,10 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Official TU BCA notices (FoHSS)',
+                                context.tr(
+                                  'Official TU BCA notices (FoHSS)',
+                                  'TU BCA आधिकारिक सूचनाहरू (FoHSS)',
+                                ),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleMedium
@@ -248,7 +255,10 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Last updated: ${_formatLastUpdated(_lastUpdated)}',
+                                context.tr(
+                                  'Last updated: ${_formatLastUpdated(context, _lastUpdated)}',
+                                  'अन्तिम अद्यावधिक: ${_formatLastUpdated(context, _lastUpdated)}',
+                                ),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -275,12 +285,18 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                           runSpacing: 8,
                           children: _NoticeFilter.values.map((filter) {
                             final label = switch (filter) {
-                              _NoticeFilter.all => 'All',
-                              _NoticeFilter.exam => 'Exam',
-                              _NoticeFilter.form => 'Form',
-                              _NoticeFilter.result => 'Result',
-                              _NoticeFilter.admission => 'Admission',
-                              _NoticeFilter.general => 'General',
+                              _NoticeFilter.all =>
+                                context.tr('All', 'सबै'),
+                              _NoticeFilter.exam =>
+                                context.tr('Exam', 'परीक्षा'),
+                              _NoticeFilter.form =>
+                                context.tr('Form', 'फर्म'),
+                              _NoticeFilter.result =>
+                                context.tr('Result', 'नतिजा'),
+                              _NoticeFilter.admission =>
+                                context.tr('Admission', 'भर्ना'),
+                              _NoticeFilter.general =>
+                                context.tr('General', 'सामान्य'),
                             };
                             final selected = _filter == filter;
                             return ChoiceChip(
@@ -327,7 +343,9 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            _DateChip(label: _formatDate(notice.publishedAt)),
+                            _DateChip(
+                              label: _formatDate(context, notice.publishedAt),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -348,7 +366,9 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                             ),
                             const Spacer(),
                             if (notice.attachmentUrl != null)
-                              _AttachmentChip(label: 'Attachment'),
+                              _AttachmentChip(
+                                label: context.tr('Attachment', 'संलग्न'),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -358,17 +378,23 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                           children: [
                             FilledButton(
                               onPressed: () =>
-                                  _openUrl('BCA Notice', notice.url),
+                                  _openUrl(context.tr('BCA Notice', 'BCA सूचना'),
+                                      notice.url),
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFF38BDF8),
                                 foregroundColor: Colors.white,
                               ),
-                              child: const Text('Open Notice'),
+                              child: Text(
+                                context.tr('Open Notice', 'सूचना खोल्नुहोस्'),
+                              ),
                             ),
                             if (notice.attachmentUrl != null)
                               OutlinedButton(
                                 onPressed: () => _openUrl(
-                                  'BCA Notice File',
+                                  context.tr(
+                                    'BCA Notice File',
+                                    'BCA सूचना फाइल',
+                                  ),
                                   notice.attachmentUrl!,
                                 ),
                                 style: OutlinedButton.styleFrom(
@@ -377,7 +403,12 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                                     color: Color(0xFF38BDF8),
                                   ),
                                 ),
-                                child: const Text('Open Attachment'),
+                                child: Text(
+                                  context.tr(
+                                    'Open Attachment',
+                                    'संलग्न खोल्नुहोस्',
+                                  ),
+                                ),
                               ),
                           ],
                         ),

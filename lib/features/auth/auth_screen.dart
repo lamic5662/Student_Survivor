@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
@@ -62,6 +63,7 @@ class _AuthScreenState
           valueListenable: presenter.state,
           builder: (context, model, _) {
             final theme = Theme.of(context);
+            final l10n = context.l10n;
             InputDecoration gameInputDecoration({
               required String label,
               required IconData icon,
@@ -116,7 +118,7 @@ class _AuthScreenState
                               Row(
                                 children: [
                                   Text(
-                                    'ACCESS PORTAL',
+                                    l10n.accessPortal.toUpperCase(),
                                     style: theme.textTheme.labelMedium?.copyWith(
                                       color:
                                           Colors.white.withValues(alpha: 0.6),
@@ -126,7 +128,9 @@ class _AuthScreenState
                                   ),
                                   const Spacer(),
                                   _StatusChip(
-                                    label: model.isLogin ? 'LOGIN' : 'SIGN UP',
+                                    label: model.isLogin
+                                        ? l10n.login.toUpperCase()
+                                        : l10n.signup.toUpperCase(),
                                     glow: model.isLogin
                                         ? const Color(0xFF38BDF8)
                                         : const Color(0xFFA78BFA),
@@ -149,8 +153,8 @@ class _AuthScreenState
                               const SizedBox(height: 18),
                               Text(
                                 model.isLogin
-                                    ? 'Welcome back'
-                                    : 'Create your account',
+                                    ? l10n.welcomeBack
+                                    : l10n.createAccount,
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
@@ -159,8 +163,8 @@ class _AuthScreenState
                               const SizedBox(height: 6),
                               Text(
                                 model.isLogin
-                                    ? 'Sign in to continue your study streak.'
-                                    : 'Start in seconds with email or phone.',
+                                    ? l10n.loginSubtitle
+                                    : l10n.signupSubtitle,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: Colors.white.withValues(alpha: 0.7),
                                 ),
@@ -179,8 +183,8 @@ class _AuthScreenState
                                 style: const TextStyle(color: Colors.white),
                                 decoration: gameInputDecoration(
                                   label: model.method == AuthMethod.email
-                                      ? 'Email'
-                                      : 'Phone',
+                                      ? l10n.email
+                                      : l10n.phone,
                                   icon: model.method == AuthMethod.email
                                       ? Icons.alternate_email
                                       : Icons.phone_iphone,
@@ -189,16 +193,16 @@ class _AuthScreenState
                                   final input = value?.trim() ?? '';
                                   if (input.isEmpty) {
                                     return model.method == AuthMethod.email
-                                        ? 'Email is required'
-                                        : 'Phone is required';
+                                        ? l10n.emailRequired
+                                        : l10n.phoneRequired;
                                   }
                                   if (model.method == AuthMethod.email &&
                                       !input.contains('@')) {
-                                    return 'Enter a valid email';
+                                    return l10n.validEmail;
                                   }
                                   if (model.method == AuthMethod.phone &&
                                       input.length < 8) {
-                                    return 'Enter a valid phone number';
+                                    return l10n.validPhone;
                                   }
                                   return null;
                                 },
@@ -209,16 +213,16 @@ class _AuthScreenState
                                 obscureText: true,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: gameInputDecoration(
-                                  label: 'Password',
+                                  label: l10n.password,
                                   icon: Icons.lock_outline,
                                 ),
                                 validator: (value) {
                                   final input = value?.trim() ?? '';
                                   if (input.isEmpty) {
-                                    return 'Password is required';
+                                    return l10n.passwordRequired;
                                   }
                                   if (input.length < 6) {
-                                    return 'Minimum 6 characters';
+                                    return l10n.passwordMin;
                                   }
                                   return null;
                                 },
@@ -229,8 +233,8 @@ class _AuthScreenState
                               _AuthPrimaryButton(
                                 isLoading: model.isSubmitting,
                                 label: model.isLogin
-                                    ? 'Continue'
-                                    : 'Create Account',
+                                    ? l10n.continueAction
+                                    : l10n.createAccountAction,
                                 onPressed: model.isSubmitting
                                     ? null
                                     : () {
@@ -255,23 +259,32 @@ class _AuthScreenState
                           constraints: BoxConstraints(
                             minHeight: constraints.maxHeight - 60,
                           ),
-                          child: isWide
-                              ? Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(flex: 5, child: hero),
-                                    const SizedBox(width: 30),
-                                    Expanded(flex: 4, child: card),
-                                  ],
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    hero,
-                                    const SizedBox(height: 22),
-                                    card,
-                                  ],
-                                ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              isWide
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(flex: 5, child: hero),
+                                        const SizedBox(width: 30),
+                                        Expanded(flex: 4, child: card),
+                                      ],
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        hero,
+                                        const SizedBox(height: 22),
+                                        card,
+                                      ],
+                                    ),
+                              const SizedBox(height: 18),
+                              const _AuthFooterNote(),
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -938,5 +951,19 @@ class _ScanlinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ScanlinePainter oldDelegate) {
     return oldDelegate.progress != progress;
+  }
+}
+
+class _AuthFooterNote extends StatelessWidget {
+  const _AuthFooterNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '© 2026 StudentSurge. All rights reserved.',
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Colors.white.withValues(alpha: 0.65),
+          ),
+    );
   }
 }

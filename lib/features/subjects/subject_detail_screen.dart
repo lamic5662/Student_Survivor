@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 import 'package:student_survivor/data/user_notes_service.dart';
@@ -135,6 +136,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
         ),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
@@ -163,202 +165,64 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
           ),
         ),
         backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
       body: Stack(
         children: [
           const Positioned.fill(child: _SubjectBackdrop()),
-          ListView(
+          ListView.builder(
             controller: _scrollController,
             padding: EdgeInsets.fromLTRB(
               20,
-              kToolbarHeight + 36,
+              MediaQuery.of(context).padding.top + kToolbarHeight + 12,
               20,
               28,
             ),
-            children: [
-              _GameCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0B1220),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF1E2A44)),
-                      ),
-                      child: Icon(Icons.menu_book,
-                          color: widget.subject.accentColor),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.subject.code,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.white70),
-                        ),
-                        Text(
-                          '${widget.subject.chapters.length} chapters',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (widget.subject.pastPapers.isNotEmpty) ...[
-                _GameCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Past Question Papers',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(color: Colors.white),
-                      ),
-                      const SizedBox(height: 12),
-                      ...widget.subject.pastPapers.map(
-                        (paper) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  paper.year == null
-                                      ? paper.title
-                                      : '${paper.title} (${paper.year})',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: Colors.white70),
-                                ),
-                              ),
-                              _inlineButton(
-                                label: 'Open',
-                                onPressed: () => _openSyllabus(
-                                  context,
-                                  paper.title,
-                                  paper.fileUrl,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-              _GameCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Study the Whole Subject',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Generate AI notes, subject-level questions, and flashcards.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 12),
-                    _actionButton(
-                      label: 'Open Subject Study',
-                      icon: Icons.play_arrow_rounded,
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => SubjectStudyScreen(
-                              subject: widget.subject,
-                              useGameZoneTheme: widget.useGameZoneTheme,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              ...widget.subject.chapters.map(
-                (chapter) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _GameCard(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context)
-                            .push(
-                          MaterialPageRoute(
-                            builder: (_) => ChapterDetailScreen(
-                              subject: widget.subject,
-                              chapter: chapter,
-                              useGameZoneTheme: widget.useGameZoneTheme,
-                            ),
-                          ),
-                        )
-                            .then((_) => _loadUserNotes());
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            chapter.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${_totalNotesFor(chapter)} notes, '
-                            '${chapter.importantQuestions.length} important questions, '
-                            '${chapter.quizzes.length} quizzes',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.white70),
-                          ),
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: LinearProgressIndicator(
-                              value: 0.35,
-                              backgroundColor: const Color(0xFF1E2A44),
-                              color: widget.subject.accentColor,
-                              minHeight: 6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            itemCount: _subjectDetailItemCount,
+            itemBuilder: (context, index) {
+              final hasPast = widget.subject.pastPapers.isNotEmpty;
+              final chapterStartIndex = hasPast ? 6 : 4;
+              if (index == 0) {
+                return RepaintBoundary(
+                  child: _buildSubjectHeaderCard(context),
+                );
+              }
+              if (index == 1) {
+                return const SizedBox(height: 20);
+              }
+              if (hasPast) {
+                if (index == 2) {
+                  return RepaintBoundary(
+                    child: _buildPastPapersCard(context),
+                  );
+                }
+                if (index == 3) {
+                  return const SizedBox(height: 24);
+                }
+                if (index == 4) {
+                  return RepaintBoundary(
+                    child: _buildStudyWholeCard(context),
+                  );
+                }
+                if (index == 5) {
+                  return const SizedBox(height: 24);
+                }
+              } else {
+                if (index == 2) {
+                  return RepaintBoundary(
+                    child: _buildStudyWholeCard(context),
+                  );
+                }
+                if (index == 3) {
+                  return const SizedBox(height: 24);
+                }
+              }
+              final chapterIndex = index - chapterStartIndex;
+              final chapter = widget.subject.chapters[chapterIndex];
+              return _buildChapterCard(context, chapter);
+            },
           ),
         ],
       ),
@@ -367,7 +231,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   Widget _buildGameZoneBody(BuildContext context) {
     final subjectChapter = _buildSubjectChapter();
-    return ListView(
+    return ListView.builder(
       controller: _scrollController,
       padding: EdgeInsets.fromLTRB(
         20,
@@ -375,41 +239,401 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
         20,
         28,
       ),
-      children: [
-        _GameCard(
+      itemCount: _gameZoneItemCount,
+      itemBuilder: (context, index) {
+        final hasChapters = widget.subject.chapters.isNotEmpty;
+        final chapterStartIndex = hasChapters ? 6 : 6;
+        if (index == 0) {
+          return RepaintBoundary(child: _buildGameZoneHeaderCard(context));
+        }
+        if (index == 1) {
+          return const SizedBox(height: 16);
+        }
+        if (index == 2) {
+          return RepaintBoundary(
+            child: _buildPlayWholeSubjectCard(context, subjectChapter),
+          );
+        }
+        if (index == 3) {
+          return const SizedBox(height: 16);
+        }
+        if (index == 4) {
+          return Text(
+            context.tr('Choose a chapter to play', 'खेल्न अध्याय छान्नुहोस्'),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white),
+          );
+        }
+        if (index == 5) {
+          return const SizedBox(height: 12);
+        }
+        if (!hasChapters) {
+          return Text(
+            context.tr('No chapters available yet.', 'अहिलेसम्म अध्याय छैन।'),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.white70),
+          );
+        }
+        final chapterIndex = index - chapterStartIndex;
+        final chapter = widget.subject.chapters[chapterIndex];
+        return _buildGameZoneChapterCard(context, chapter);
+      },
+    );
+  }
+
+  int get _subjectDetailItemCount {
+    final hasPast = widget.subject.pastPapers.isNotEmpty;
+    final chapterStartIndex = hasPast ? 6 : 4;
+    return chapterStartIndex + widget.subject.chapters.length;
+  }
+
+  int get _gameZoneItemCount {
+    final hasChapters = widget.subject.chapters.isNotEmpty;
+    if (!hasChapters) {
+      return 7;
+    }
+    return 6 + widget.subject.chapters.length;
+  }
+
+  Widget _buildSubjectHeaderCard(BuildContext context) {
+    return _GameCard(
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B1220),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1E2A44)),
+            ),
+            child:
+                Icon(Icons.menu_book, color: widget.subject.accentColor),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.subject.code,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+              Text(
+                context.l10n.chaptersCount(widget.subject.chapters.length),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(color: Colors.white),
+              ),
+            ],
+          ),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPastPapersCard(BuildContext context) {
+    return _GameCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('Past Question Papers', 'विगत प्रश्नपत्रहरू'),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          ...widget.subject.pastPapers.map(
+            (paper) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      paper.year == null
+                          ? paper.title
+                          : '${paper.title} (${paper.year})',
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ),
+                  _inlineButton(
+                    label: context.tr('Open', 'खोल्नुहोस्'),
+                    onPressed: () => _openSyllabus(
+                      context,
+                      paper.title,
+                      paper.fileUrl,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudyWholeCard(BuildContext context) {
+    return _GameCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('Study the Whole Subject', 'पूरा विषय अध्ययन गर्नुहोस्'),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.tr(
+              'Generate AI notes, subject-level questions, and flashcards.',
+              'AI नोट, विषय-स्तर प्रश्न र फ्ल्यासकार्डहरू बनाउनुहोस्।',
+            ),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 12),
+          _actionButton(
+            label: context.tr('Open Subject Study', 'विषय अध्ययन खोल्नुहोस्'),
+            icon: Icons.play_arrow_rounded,
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SubjectStudyScreen(
+                    subject: widget.subject,
+                    useGameZoneTheme: widget.useGameZoneTheme,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChapterCard(BuildContext context, Chapter chapter) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _GameCard(
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context)
+                .push(
+              MaterialPageRoute(
+                builder: (_) => ChapterDetailScreen(
+                  subject: widget.subject,
+                  chapter: chapter,
+                  useGameZoneTheme: widget.useGameZoneTheme,
+                ),
+              ),
+            )
+                .then((_) => _loadUserNotes());
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                chapter.title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                context.tr(
+                  '${_totalNotesFor(chapter)} notes, '
+                  '${chapter.importantQuestions.length} important questions, '
+                  '${chapter.quizzes.length} quizzes',
+                  '${_totalNotesFor(chapter)} नोट, '
+                  '${chapter.importantQuestions.length} महत्वपूर्ण प्रश्न, '
+                  '${chapter.quizzes.length} क्विज',
+                ),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: 0.35,
+                  backgroundColor: const Color(0xFF1E2A44),
+                  color: widget.subject.accentColor,
+                  minHeight: 6,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameZoneHeaderCard(BuildContext context) {
+    return _GameCard(
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFF111B2E),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF1E2A44)),
+            ),
+            child: Icon(
+              Icons.sports_esports,
+              color: widget.subject.accentColor,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('Game Zone', 'गेम जोन'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.subject.name,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayWholeSubjectCard(
+    BuildContext context,
+    Chapter subjectChapter,
+  ) {
+    return _GameCard(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _showSubjectGamePicker(context, subjectChapter),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF111B2E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF1E2A44)),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                color: Color(0xFF38BDF8),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('Play Whole Subject', 'पूरा विषय खेल्नुहोस्'),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.tr(
+                      'Use all chapters for questions and rewards.',
+                      'सबै अध्यायबाट प्रश्न र पुरस्कार पाउनुहोस्।',
+                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameZoneChapterCard(BuildContext context, Chapter chapter) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _GameCard(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _showGamePicker(context, chapter),
           child: Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: const Color(0xFF111B2E),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Icon(
-                  Icons.sports_esports,
+                  Icons.games,
                   color: widget.subject.accentColor,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Game Zone',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w700,
+                      chapter.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                             color: Colors.white,
                           ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
-                      widget.subject.name,
+                      context.tr(
+                        'Tap to choose a game mode',
+                        'गेम मोड छान्न ट्याप गर्नुहोस्',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -418,134 +642,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                   ],
                 ),
               ),
+              const Icon(Icons.chevron_right, color: Colors.white54),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _GameCard(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () => _showSubjectGamePicker(context, subjectChapter),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111B2E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF1E2A44)),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome,
-                    color: Color(0xFF38BDF8),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Play Whole Subject',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Use all chapters for questions and rewards.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: Colors.white54),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Choose a chapter to play',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: Colors.white),
-        ),
-        const SizedBox(height: 12),
-        if (widget.subject.chapters.isEmpty)
-          Text(
-            'No chapters available yet.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: Colors.white70),
-          )
-        else
-          ...widget.subject.chapters.map(
-            (chapter) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _GameCard(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () => _showGamePicker(context, chapter),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF111B2E),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF1E2A44)),
-                        ),
-                        child: Icon(
-                          Icons.games,
-                          color: widget.subject.accentColor,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              chapter.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap to choose a game mode',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Colors.white54),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
@@ -564,7 +665,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Play ${chapter.title}',
+                context.tr(
+                  'Play ${chapter.title}',
+                  'खेल्नुहोस् ${chapter.title}',
+                ),
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -576,8 +680,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 12),
               _buildGameOption(
                 context,
-                title: 'Study Survivor',
-                subtitle: 'Survive waves and answer questions.',
+                title: context.tr('Study Survivor', 'स्टडी सर्वाइभर'),
+                subtitle: context.tr(
+                  'Survive waves and answer questions.',
+                  'वेभहरू पार गरेर प्रश्नहरूको उत्तर दिनुहोस्।',
+                ),
                 icon: Icons.shield,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -594,8 +701,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 10),
               _buildGameOption(
                 context,
-                title: 'Battle Quiz',
-                subtitle: 'Challenge others in a live quiz battle.',
+                title: context.tr('Battle Quiz', 'ब्याटल क्विज'),
+                subtitle: context.tr(
+                  'Challenge others in a live quiz battle.',
+                  'लाइभ क्विजमा अरूलाई चुनौती दिनुहोस्।',
+                ),
                 icon: Icons.sports_esports,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -612,8 +722,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 10),
               _buildGameOption(
                 context,
-                title: 'Flashcards',
-                subtitle: 'Quick revision with flashcards.',
+                title: context.tr('Flashcards', 'फ्ल्यासकार्ड'),
+                subtitle: context.tr(
+                  'Quick revision with flashcards.',
+                  'फ्ल्यासकार्डबाट छिटो दोहोर्याउनुहोस्।',
+                ),
                 icon: Icons.auto_stories,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -652,7 +765,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Play ${widget.subject.name}',
+                context.tr(
+                  'Play ${widget.subject.name}',
+                  '${widget.subject.name} खेल्नुहोस्',
+                ),
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -664,8 +780,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 12),
               _buildGameOption(
                 context,
-                title: 'Study Survivor',
-                subtitle: 'All chapters, one survival run.',
+                title: context.tr('Study Survivor', 'स्टडी सर्वाइभर'),
+                subtitle: context.tr(
+                  'All chapters, one survival run.',
+                  'सबै अध्याय, एउटै सर्वाइवल रन।',
+                ),
                 icon: Icons.shield,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -682,8 +801,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 10),
               _buildGameOption(
                 context,
-                title: 'Battle Quiz',
-                subtitle: 'Quiz battle using the full subject.',
+                title: context.tr('Battle Quiz', 'ब्याटल क्विज'),
+                subtitle: context.tr(
+                  'Quiz battle using the full subject.',
+                  'पूरा विषयबाट क्विज युद्ध।',
+                ),
                 icon: Icons.sports_esports,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -700,8 +822,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               const SizedBox(height: 10),
               _buildGameOption(
                 context,
-                title: 'Subject Flashcards',
-                subtitle: 'Flashcards from all chapters.',
+                title: context.tr('Subject Flashcards', 'विषय फ्ल्यासकार्ड'),
+                subtitle: context.tr(
+                  'Flashcards from all chapters.',
+                  'सबै अध्यायका फ्ल्यासकार्ड।',
+                ),
                 icon: Icons.auto_stories,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -867,7 +992,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid syllabus link.')),
+        SnackBar(
+          content: Text(
+            context.tr('Invalid syllabus link.', 'अवैध पाठ्यक्रम लिंक।'),
+          ),
+        ),
       );
       return;
     }

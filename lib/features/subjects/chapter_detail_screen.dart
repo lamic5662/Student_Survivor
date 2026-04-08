@@ -4,13 +4,16 @@ import 'dart:math';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:xml/xml.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/note_generated_question_service.dart';
@@ -82,10 +85,10 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
           : widget.useGameZoneTheme
               ? AppColors.secondary
               : null,
-      tabs: const [
-        Tab(text: 'Notes'),
-        Tab(text: 'Important'),
-        Tab(text: 'Past Qs'),
+      tabs: [
+        Tab(text: context.tr('Notes', 'नोट्स')),
+        Tab(text: context.tr('Important', 'महत्वपूर्ण')),
+        Tab(text: context.tr('Past Qs', 'विगत प्रश्न')),
       ],
     );
 
@@ -127,6 +130,11 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
           : widget.useGameZoneTheme
               ? AppColors.ink
               : null,
+      iconTheme: IconThemeData(
+        color: isGamingTheme
+            ? Colors.white
+            : (widget.useGameZoneTheme ? AppColors.secondary : null),
+      ),
       elevation: isGamingTheme ? 0 : (widget.useGameZoneTheme ? 0 : null),
       scrolledUnderElevation:
           isGamingTheme ? 0 : (widget.useGameZoneTheme ? 0 : null),
@@ -146,7 +154,7 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
             onTitleVisibilityChanged: _updateTitleVisibility,
           ),
           _QuestionsTab(
-            title: 'Important Questions',
+            title: context.tr('Important Questions', 'महत्वपूर्ण प्रश्नहरू'),
             subject: widget.subject,
             chapter: widget.chapter,
             questions: widget.chapter.importantQuestions,
@@ -155,7 +163,7 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
             onTitleVisibilityChanged: _updateTitleVisibility,
           ),
           _QuestionsTab(
-            title: 'Past Questions',
+            title: context.tr('Past Questions', 'विगत प्रश्नहरू'),
             subject: widget.subject,
             chapter: widget.chapter,
             questions: widget.chapter.pastQuestions,
@@ -187,6 +195,16 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
             ),
     );
   }
+}
+
+class _MathSegment {
+  final String text;
+  final bool isMath;
+
+  const _MathSegment({
+    required this.text,
+    required this.isMath,
+  });
 }
 
 class _NotesTab extends StatefulWidget {
@@ -757,6 +775,7 @@ class _NotesTabState extends State<_NotesTab> {
                   );
                 }
 
+                final safeUrl = fileUrl ?? '';
                 return ListView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -783,7 +802,53 @@ class _NotesTabState extends State<_NotesTab> {
                           ),
                     ),
                     const SizedBox(height: 16),
-                    if ((fileUrl ?? '').isNotEmpty) ...[
+                    if (safeUrl.isNotEmpty) ...[
+                      if (_isImageUrl(safeUrl)) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            safeUrl,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                height: 180,
+                                alignment: Alignment.center,
+                                color: _useGameTheme
+                                    ? const Color(0xFF0B1220)
+                                    : AppColors.surface,
+                                child: const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              height: 180,
+                              alignment: Alignment.center,
+                              color: _useGameTheme
+                                  ? const Color(0xFF0B1220)
+                                  : AppColors.surface,
+                              child: Text(
+                                'Image unavailable',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: _useGameTheme
+                                          ? Colors.white70
+                                          : null,
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       _buildCard(
                         color: AppColors.secondary.withValues(alpha: 0.06),
                         child: Column(
@@ -821,7 +886,7 @@ class _NotesTabState extends State<_NotesTab> {
                                 TextButton(
                                   onPressed: () => _openAttachment(
                                     title: title,
-                                    url: fileUrl!,
+                                    url: safeUrl,
                                     contextText: _buildNoteContext(
                                       title: title,
                                       shortAnswer: shortAnswer,
@@ -831,7 +896,7 @@ class _NotesTabState extends State<_NotesTab> {
                                   child: const Text('Open'),
                                 ),
                                 TextButton(
-                                  onPressed: () => _copyToClipboard(fileUrl!),
+                                  onPressed: () => _copyToClipboard(safeUrl),
                                   child: const Text('Copy link'),
                                 ),
                                 TextButton(
@@ -882,11 +947,11 @@ class _NotesTabState extends State<_NotesTab> {
                             ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        detailedAnswer.isNotEmpty
+                      MathText(
+                        text: detailedAnswer.isNotEmpty
                             ? detailedAnswer
                             : shortAnswer,
-                        style: Theme.of(context)
+                        textStyle: Theme.of(context)
                             .textTheme
                             .bodySmall
                             ?.copyWith(
@@ -1000,25 +1065,141 @@ class _NotesTabState extends State<_NotesTab> {
     required Set<String> difficultWords,
     TextStyle? style,
   }) {
-    final lines = text.split('\n');
     final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium!;
+    final segments = _splitBlockMath(text);
+    final widgets = <Widget>[];
+    for (final segment in segments) {
+      if (segment.isMath) {
+        widgets.add(_buildMathBlock(segment.text, baseStyle));
+        continue;
+      }
+      final lines = segment.text.split('\n');
+      for (var i = 0; i < lines.length; i += 1) {
+        final lineWidgets = _buildInlineMathWidgets(
+          lines[i],
+          baseStyle,
+          contextText,
+          mainWords,
+          difficultWords,
+        );
+        if (lineWidgets.isNotEmpty) {
+          widgets.add(Wrap(children: lineWidgets));
+        }
+        if (i != lines.length - 1) {
+          widgets.add(const SizedBox(height: 6));
+        }
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < lines.length; i++) ...[
-          Wrap(
-            children: _buildWordWidgets(
-              lines[i],
-              baseStyle,
-              contextText,
-              mainWords,
-              difficultWords,
+      children: widgets,
+    );
+  }
+
+  List<_MathSegment> _splitBlockMath(String text) {
+    final regex = RegExp(r'\$\$(.+?)\$\$', dotAll: true);
+    final segments = <_MathSegment>[];
+    var cursor = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > cursor) {
+        segments.add(_MathSegment(
+          text: text.substring(cursor, match.start),
+          isMath: false,
+        ));
+      }
+      final math = match.group(1) ?? '';
+      segments.add(_MathSegment(text: math, isMath: true));
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      segments.add(_MathSegment(text: text.substring(cursor), isMath: false));
+    }
+    if (segments.isEmpty) {
+      segments.add(_MathSegment(text: text, isMath: false));
+    }
+    return segments;
+  }
+
+  Widget _buildMathBlock(String tex, TextStyle style) {
+    final content = tex.trim();
+    if (content.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Math.tex(
+          content,
+          mathStyle: MathStyle.display,
+          textStyle: style.copyWith(color: style.color),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildInlineMathWidgets(
+    String line,
+    TextStyle style,
+    String contextText,
+    Set<String> mainWords,
+    Set<String> difficultWords,
+  ) {
+    if (line.isEmpty) return const [];
+    final inlineRegex = RegExp(r'\$(.+?)\$');
+    final widgets = <Widget>[];
+    var cursor = 0;
+    for (final match in inlineRegex.allMatches(line)) {
+      if (match.start > cursor) {
+        widgets.addAll(_buildWordWidgets(
+          line.substring(cursor, match.start),
+          style,
+          contextText,
+          mainWords,
+          difficultWords,
+        ));
+      }
+      final tex = match.group(1)?.trim() ?? '';
+      if (tex.isNotEmpty) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Math.tex(
+              tex,
+              mathStyle: MathStyle.text,
+              textStyle: style.copyWith(color: style.color),
             ),
           ),
-          if (i != lines.length - 1) const SizedBox(height: 6),
-        ],
-      ],
-    );
+        );
+      }
+      cursor = match.end;
+    }
+    if (cursor < line.length) {
+      widgets.addAll(_buildWordWidgets(
+        line.substring(cursor),
+        style,
+        contextText,
+        mainWords,
+        difficultWords,
+      ));
+    }
+    return widgets;
+  }
+
+  bool _isImageUrl(String url) {
+    try {
+      final path = Uri.parse(url).path.toLowerCase();
+      return path.endsWith('.png') ||
+          path.endsWith('.jpg') ||
+          path.endsWith('.jpeg') ||
+          path.endsWith('.gif') ||
+          path.endsWith('.webp');
+    } catch (_) {
+      final lower = url.toLowerCase();
+      return lower.contains('.png') ||
+          lower.contains('.jpg') ||
+          lower.contains('.jpeg') ||
+          lower.contains('.gif') ||
+          lower.contains('.webp');
+    }
   }
 
   List<Widget> _buildWordWidgets(
@@ -2956,12 +3137,12 @@ class _QuestionCard extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                question.prompt,
-                style: Theme.of(context)
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              MathText(
+                text: question.prompt,
+                textStyle: Theme.of(context)
                     .textTheme
                     .titleSmall
                     ?.copyWith(

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -24,30 +27,61 @@ class ProgressService {
 
   ProgressService(this._client);
 
+  static const String _snapshotKey = 'progress_snapshot_v1';
+  static const String _subjectProgressKey = 'progress_subject_v1';
+
   Future<ProgressSnapshot> fetchProgressSnapshot(
     List<Subject> subjects,
   ) async {
-    final syllabus = await _fetchSyllabusProgress(subjects);
-    final planner = await _fetchPlannerProgress();
-    final practice = await _fetchPracticeProgress();
-    final community = await _fetchCommunityProgress();
-    final ai = await _fetchAiProgress();
-    final overall = _weightedOverall(
-      syllabus: syllabus,
-      planner: planner,
-      practice: practice,
-      community: community,
-      ai: ai,
-    );
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return const ProgressSnapshot(
+        overall: 0,
+        syllabus: 0,
+        planner: 0,
+        practice: 0,
+        community: 0,
+        ai: 0,
+      );
+    }
+    try {
+      final results = await Future.wait<double>([
+        _fetchSyllabusProgress(subjects),
+        _fetchPlannerProgress(),
+        _fetchPracticeProgress(),
+        _fetchCommunityProgress(),
+        _fetchAiProgress(),
+      ]);
+      final syllabus = results[0];
+      final planner = results[1];
+      final practice = results[2];
+      final community = results[3];
+      final ai = results[4];
+      final overall = _weightedOverall(
+        syllabus: syllabus,
+        planner: planner,
+        practice: practice,
+        community: community,
+        ai: ai,
+      );
 
-    return ProgressSnapshot(
-      overall: overall,
-      syllabus: syllabus,
-      planner: planner,
-      practice: practice,
-      community: community,
-      ai: ai,
-    );
+      final snapshot = ProgressSnapshot(
+        overall: overall,
+        syllabus: syllabus,
+        planner: planner,
+        practice: practice,
+        community: community,
+        ai: ai,
+      );
+      await _cacheSnapshot(user.id, snapshot);
+      return snapshot;
+    } catch (_) {
+      final cached = await _loadSnapshot(user.id);
+      if (cached != null) {
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   Future<double> fetchOverallProgress(List<Subject> subjects) async {
@@ -58,51 +92,132 @@ class ProgressService {
   Future<Map<String, double>> fetchSubjectProgress(
     List<Subject> subjects,
   ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return {};
+    try {
+      final chapterToSubject = <String, String>{};
+      for (final subject in subjects) {
+        for (final chapter in subject.chapters) {
+          chapterToSubject[chapter.id] = subject.id;
+        }
+      }
+      if (chapterToSubject.isEmpty) {
+        return {};
+      }
+
+      final rows = await _client
+          .from('user_chapter_progress')
+          .select('chapter_id, completion_percent')
+          .inFilter('chapter_id', chapterToSubject.keys.toList());
+      final rowList = rows as List<dynamic>;
+      if (rowList.isEmpty) {
+        final fallback =
+            await _fallbackSubjectProgressFromAttempts(subjects);
+        if (fallback.isNotEmpty) {
+          await _cacheSubjectProgress(user.id, fallback);
+          return fallback;
+        }
+      }
+
+      final totalsBySubject = <String, double>{};
+      final countsBySubject = <String, int>{};
+
+      for (final entry in chapterToSubject.entries) {
+        countsBySubject[entry.value] =
+            (countsBySubject[entry.value] ?? 0) + 1;
+      }
+
+      for (final row in rowList) {
+        final chapterId = row['chapter_id']?.toString();
+        final subjectId = chapterToSubject[chapterId];
+        if (subjectId == null) continue;
+        totalsBySubject[subjectId] =
+            (totalsBySubject[subjectId] ?? 0) +
+                ((row['completion_percent'] as num?)?.toDouble() ?? 0);
+      }
+
+      final progressBySubject = <String, double>{};
+      for (final subjectId in countsBySubject.keys) {
+        final totalPercent = totalsBySubject[subjectId] ?? 0;
+        final chapters = countsBySubject[subjectId] ?? 0;
+        if (chapters == 0) {
+          progressBySubject[subjectId] = 0;
+        } else {
+          progressBySubject[subjectId] =
+              (totalPercent / (chapters * 100)).clamp(0, 1);
+        }
+      }
+      await _cacheSubjectProgress(user.id, progressBySubject);
+      return progressBySubject;
+    } catch (_) {
+      final cached = await _loadSubjectProgress(user.id);
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, double>> _fallbackSubjectProgressFromAttempts(
+    List<Subject> subjects,
+  ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return {};
     final chapterToSubject = <String, String>{};
     for (final subject in subjects) {
       for (final chapter in subject.chapters) {
         chapterToSubject[chapter.id] = subject.id;
       }
     }
-    if (chapterToSubject.isEmpty) {
+    if (chapterToSubject.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('quiz_attempts')
+          .select('score,total,quiz:quizzes(chapter_id)')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(200);
+      if ((rows as List<dynamic>).isEmpty) return {};
+
+      final bestByChapter = <String, double>{};
+      for (final row in rows) {
+        final quizMap = row['quiz'] as Map<String, dynamic>?;
+        final chapterId = quizMap?['chapter_id']?.toString();
+        if (chapterId == null || chapterId.isEmpty) continue;
+        final total = (row['total'] as num?)?.toDouble() ?? 0;
+        final score = (row['score'] as num?)?.toDouble() ?? 0;
+        if (total <= 0) continue;
+        final ratio = (score / total).clamp(0, 1).toDouble();
+        final current = bestByChapter[chapterId] ?? 0;
+        if (ratio > current) {
+          bestByChapter[chapterId] = ratio;
+        }
+      }
+      if (bestByChapter.isEmpty) return {};
+
+      final totalsBySubject = <String, double>{};
+      final countsBySubject = <String, int>{};
+      for (final entry in chapterToSubject.entries) {
+        countsBySubject[entry.value] =
+            (countsBySubject[entry.value] ?? 0) + 1;
+      }
+      for (final entry in bestByChapter.entries) {
+        final subjectId = chapterToSubject[entry.key];
+        if (subjectId == null) continue;
+        totalsBySubject[subjectId] =
+            (totalsBySubject[subjectId] ?? 0) + entry.value;
+      }
+      final progressBySubject = <String, double>{};
+      for (final subjectId in countsBySubject.keys) {
+        final total = totalsBySubject[subjectId] ?? 0;
+        final chapters = countsBySubject[subjectId] ?? 0;
+        progressBySubject[subjectId] =
+            chapters == 0 ? 0 : (total / chapters).clamp(0, 1);
+      }
+      return progressBySubject;
+    } catch (_) {
       return {};
     }
-
-    final rows = await _client
-        .from('user_chapter_progress')
-        .select('chapter_id, completion_percent')
-        .inFilter('chapter_id', chapterToSubject.keys.toList());
-
-    final totalsBySubject = <String, double>{};
-    final countsBySubject = <String, int>{};
-
-    for (final entry in chapterToSubject.entries) {
-      countsBySubject[entry.value] =
-          (countsBySubject[entry.value] ?? 0) + 1;
-    }
-
-    for (final row in rows as List<dynamic>) {
-      final chapterId = row['chapter_id']?.toString();
-      final subjectId = chapterToSubject[chapterId];
-      if (subjectId == null) continue;
-      totalsBySubject[subjectId] =
-          (totalsBySubject[subjectId] ?? 0) +
-              ((row['completion_percent'] as num?)?.toDouble() ?? 0);
-    }
-
-    final progressBySubject = <String, double>{};
-    for (final subjectId in countsBySubject.keys) {
-      final totalPercent = totalsBySubject[subjectId] ?? 0;
-      final chapters = countsBySubject[subjectId] ?? 0;
-      if (chapters == 0) {
-        progressBySubject[subjectId] = 0;
-      } else {
-        progressBySubject[subjectId] =
-            (totalPercent / (chapters * 100)).clamp(0, 1);
-      }
-    }
-
-    return progressBySubject;
   }
 
   Future<double> _fetchSyllabusProgress(List<Subject> subjects) async {
@@ -153,41 +268,40 @@ class ProgressService {
     final user = _client.auth.currentUser;
     if (user == null) return 0;
     try {
-      final quizRows = await _client
+      final quizFuture = _client
           .from('quiz_attempts')
           .select('id')
           .eq('user_id', user.id);
-      final quizCount = (quizRows as List<dynamic>).length;
-
-      final battleRows = await _client
+      final battleFuture = _client
           .from('battle_answers')
           .select('id')
           .eq('user_id', user.id)
           .eq('is_correct', true);
-      final battleCorrect = (battleRows as List<dynamic>).length;
-
-      final noteRows = await _client
+      final noteFuture = _client
           .from('note_generated_questions')
           .select('id')
           .eq('user_id', user.id);
-      final noteCount = (noteRows as List<dynamic>).length;
+      final activityFuture = _client
+          .from('user_activity_log')
+          .select('id,activity_type')
+          .eq('user_id', user.id)
+          .inFilter('activity_type', [
+        'survival_quiz_correct',
+        'survival_quiz_wrong',
+        'code_fix_answer',
+        'flashcard_review',
+      ]).catchError((_) => <dynamic>[]);
 
-      var activityCount = 0;
-      try {
-        final activityRows = await _client
-            .from('user_activity_log')
-            .select('id,activity_type')
-            .eq('user_id', user.id)
-            .inFilter('activity_type', [
-          'survival_quiz_correct',
-          'survival_quiz_wrong',
-          'code_fix_answer',
-          'flashcard_review',
-        ]);
-        activityCount = (activityRows as List<dynamic>).length;
-      } catch (_) {
-        activityCount = 0;
-      }
+      final results = await Future.wait<dynamic>([
+        quizFuture,
+        battleFuture,
+        noteFuture,
+        activityFuture,
+      ]);
+      final quizCount = (results[0] as List<dynamic>).length;
+      final battleCorrect = (results[1] as List<dynamic>).length;
+      final noteCount = (results[2] as List<dynamic>).length;
+      final activityCount = (results[3] as List<dynamic>).length;
 
       final quizScore = _normalizeCount(quizCount, 8);
       final battleScore = _normalizeCount(battleCorrect, 20);
@@ -204,17 +318,19 @@ class ProgressService {
     final user = _client.auth.currentUser;
     if (user == null) return 0;
     try {
-      final questionRows = await _client
+      final questionFuture = _client
           .from('community_questions')
           .select('id')
           .eq('user_id', user.id);
-      final answerRows = await _client
+      final answerFuture = _client
           .from('community_answers')
           .select('id')
           .eq('user_id', user.id);
 
-      final count = (questionRows as List<dynamic>).length +
-          (answerRows as List<dynamic>).length;
+      final results =
+          await Future.wait<dynamic>([questionFuture, answerFuture]);
+      final count = (results[0] as List<dynamic>).length +
+          (results[1] as List<dynamic>).length;
       return _normalizeCount(count, 4);
     } catch (_) {
       return 0;
@@ -301,6 +417,75 @@ class ProgressService {
       totalPercent += (row['completion_percent'] as num?)?.toDouble() ?? 0;
     }
     return _ProgressTotals(totalPercent, chapterIds.length);
+  }
+
+  Future<void> _cacheSnapshot(
+    String userId,
+    ProgressSnapshot snapshot,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = {
+        'overall': snapshot.overall,
+        'syllabus': snapshot.syllabus,
+        'planner': snapshot.planner,
+        'practice': snapshot.practice,
+        'community': snapshot.community,
+        'ai': snapshot.ai,
+      };
+      await prefs.setString(
+        '${userId}_$_snapshotKey',
+        jsonEncode(payload),
+      );
+    } catch (_) {}
+  }
+
+  Future<ProgressSnapshot?> _loadSnapshot(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('${userId}_$_snapshotKey');
+      if (raw == null || raw.isEmpty) return null;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return ProgressSnapshot(
+        overall: (map['overall'] as num?)?.toDouble() ?? 0,
+        syllabus: (map['syllabus'] as num?)?.toDouble() ?? 0,
+        planner: (map['planner'] as num?)?.toDouble() ?? 0,
+        practice: (map['practice'] as num?)?.toDouble() ?? 0,
+        community: (map['community'] as num?)?.toDouble() ?? 0,
+        ai: (map['ai'] as num?)?.toDouble() ?? 0,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _cacheSubjectProgress(
+    String userId,
+    Map<String, double> progress,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '${userId}_$_subjectProgressKey',
+        jsonEncode(progress),
+      );
+    } catch (_) {}
+  }
+
+  Future<Map<String, double>> _loadSubjectProgress(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('${userId}_$_subjectProgressKey');
+      if (raw == null || raw.isEmpty) return {};
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      final result = <String, double>{};
+      for (final entry in map.entries) {
+        result[entry.key] = (entry.value as num?)?.toDouble() ?? 0;
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
   }
 }
 

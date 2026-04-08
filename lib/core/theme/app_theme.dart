@@ -13,6 +13,11 @@ class AppColors {
   static const Color success = Color(0xFF22C55E);
   static const Color danger = Color(0xFFEF4444);
   static const Color outline = Color(0xFFE2E8F0);
+  static const Color darkInk = Color(0xFFE2E8F0);
+  static const Color darkMutedInk = Color(0xFF94A3B8);
+  static const Color darkPaper = Color(0xFF0B1220);
+  static const Color darkSurface = Color(0xFF111827);
+  static const Color darkOutline = Color(0xFF1E2A44);
 }
 
 class AppTheme {
@@ -71,6 +76,66 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.secondary, width: 1.5),
         ),
+      ),
+    );
+  }
+
+  static ThemeData dark() {
+    final colorScheme = const ColorScheme.dark(
+      primary: AppColors.secondary,
+      secondary: AppColors.accent,
+      surface: AppColors.darkSurface,
+      onSurface: AppColors.darkInk,
+      error: AppColors.danger,
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+    );
+
+    final baseTextTheme = GoogleFonts.spaceGroteskTextTheme();
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: AppColors.darkPaper,
+      textTheme: baseTextTheme.apply(
+        bodyColor: AppColors.darkInk,
+        displayColor: AppColors.darkInk,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.darkPaper,
+        foregroundColor: AppColors.darkInk,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.darkOutline),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.darkOutline,
+        thickness: 1,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.darkSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.darkOutline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.darkOutline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.secondary, width: 1.5),
+        ),
+        hintStyle: const TextStyle(color: AppColors.darkMutedInk),
       ),
     );
   }

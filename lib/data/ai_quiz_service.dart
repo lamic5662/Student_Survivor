@@ -11,6 +11,156 @@ class AiQuizService {
 
   AiQuizService(this._client);
 
+  Future<List<WrittenQuestion>> generateWrittenQuestions({
+    required Subject subject,
+    Chapter? chapter,
+    required int count,
+    required QuizDifficulty baseDifficulty,
+    List<int>? marksPattern,
+    String? nonce,
+  }) async {
+    final mode = SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (mode != 'ollama' && !_isLmStudio(mode) && mode != 'backend') {
+      return [];
+    }
+    try {
+      final context = await _buildContext('exam', subject, chapter);
+      final systemPrompt =
+          'You are an expert examiner for BCA students. Return ONLY valid JSON.\n'
+          'Schema: {"questions":[{"prompt":"...","marks":5,"topic":"...","difficulty":"easy|medium|hard"}]}\n'
+          'Rules: Provide clear written/subjective questions. Use marks 2,4,6,8,10. '
+          'No markdown, no extra text.';
+      final nonceLine = nonce == null
+          ? ''
+          : 'Unique seed: $nonce. Do not repeat previous questions.\n';
+      final patternLine = marksPattern == null || marksPattern.isEmpty
+          ? ''
+          : 'Marks pattern: ${marksPattern.join(", ")}. ';
+      final userPrompt =
+          'Generate $count written questions. Base difficulty: ${baseDifficulty.name}. '
+          '$nonceLine'
+          '$patternLine'
+          'Cover different chapters and subtopics when available. '
+          'Use the context below.\n\n$context';
+
+      final raw = mode == 'backend'
+          ? await _requestWithBackend(systemPrompt, userPrompt)
+          : await _requestWithLocalAi(
+              mode,
+              systemPrompt,
+              userPrompt,
+              ollamaModel: SupabaseConfig.ollamaModelExam,
+            );
+      if (raw.trim().isEmpty) return [];
+
+      final jsonText = _extractJson(raw);
+      final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+      final list = decoded['questions'] as List<dynamic>? ?? [];
+      final questions = <WrittenQuestion>[];
+      for (final entry in list) {
+        if (entry is! Map<String, dynamic>) continue;
+        final prompt = entry['prompt']?.toString().trim() ?? '';
+        if (prompt.isEmpty) continue;
+        final marks = (entry['marks'] as num?)?.toInt() ?? 5;
+        questions.add(
+          WrittenQuestion(
+            prompt: prompt,
+            marks: marks.clamp(2, 10),
+            topic: entry['topic']?.toString(),
+            difficulty: entry['difficulty']?.toString(),
+          ),
+        );
+      }
+      if (marksPattern != null && marksPattern.isNotEmpty) {
+        final takeCount = marksPattern.length < questions.length
+            ? marksPattern.length
+            : questions.length;
+        for (var i = 0; i < takeCount; i += 1) {
+          questions[i] = WrittenQuestion(
+            prompt: questions[i].prompt,
+            marks: marksPattern[i].clamp(2, 10),
+            topic: questions[i].topic,
+            difficulty: questions[i].difficulty,
+          );
+        }
+        if (questions.length > marksPattern.length) {
+          questions.removeRange(marksPattern.length, questions.length);
+        }
+      }
+      return questions;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<WrittenGrade>> gradeWrittenAnswers({
+    required Subject subject,
+    Chapter? chapter,
+    required List<WrittenQuestion> questions,
+    required List<String> answers,
+  }) async {
+    if (questions.isEmpty) return [];
+    final mode = SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (mode != 'ollama' && !_isLmStudio(mode) && mode != 'backend') {
+      return [];
+    }
+    try {
+      final context = await _buildContext('exam', subject, chapter);
+      final payload = [
+        for (var i = 0; i < questions.length; i += 1)
+          {
+            'prompt': questions[i].prompt,
+            'marks': questions[i].marks,
+            'answer': i < answers.length ? answers[i] : '',
+          },
+      ];
+      final systemPrompt =
+          'You are an expert examiner. Return ONLY valid JSON.\n'
+          'Schema: {"grades":[{"score":4,"max_score":10,"feedback":"...","model_answer":"...","format_tips":"..."}]}\n'
+          'Rules: score must be integer between 0 and max_score. '
+          'Give concise feedback, a model answer, and formatting tips.';
+      final userPrompt =
+          'Evaluate the student answers and grade them. Use the context below.\n'
+          'Context:\\n$context\\n\\n'
+          'Questions and answers JSON:\\n${jsonEncode(payload)}';
+
+      final raw = mode == 'backend'
+          ? await _requestWithBackend(systemPrompt, userPrompt)
+          : await _requestWithLocalAi(
+              mode,
+              systemPrompt,
+              userPrompt,
+              ollamaModel: SupabaseConfig.ollamaModelExam,
+            );
+      if (raw.trim().isEmpty) return [];
+
+      final jsonText = _extractJson(raw);
+      final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+      final list = decoded['grades'] as List<dynamic>? ?? [];
+      final grades = <WrittenGrade>[];
+      for (var i = 0; i < list.length; i += 1) {
+        final entry = list[i];
+        if (entry is! Map<String, dynamic>) continue;
+        final maxScore = (entry['max_score'] as num?)?.toInt() ??
+            (i < questions.length ? questions[i].marks : 10);
+        final score =
+            (entry['score'] as num?)?.toInt().clamp(0, maxScore) ?? 0;
+        grades.add(
+          WrittenGrade(
+            score: score,
+            maxScore: maxScore,
+            feedback: entry['feedback']?.toString() ?? '',
+            modelAnswer: entry['model_answer']?.toString() ?? '',
+            formatTips: entry['format_tips']?.toString() ?? '',
+          ),
+        );
+      }
+      return grades;
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<List<QuizQuestionItem>> generateQuestions({
     required String quizId,
     required Subject subject,
@@ -37,6 +187,7 @@ class AiQuizService {
                 count: count,
                 baseDifficulty: baseDifficulty,
                 nonce: nonce,
+                ollamaModel: SupabaseConfig.ollamaModelQuiz,
               );
         if (questions.isNotEmpty) {
           return questions;
@@ -48,28 +199,115 @@ class AiQuizService {
     return _fallbackFromDb(quizId, count);
   }
 
+  Future<List<QuizQuestionItem>> generateRevisionQuestions({
+    required Subject subject,
+    Chapter? chapter,
+    required List<RevisionItem> items,
+    required int count,
+    required QuizDifficulty baseDifficulty,
+    String? nonce,
+  }) async {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
+      try {
+        final context = await _buildRevisionContext(
+          subject: subject,
+          chapter: chapter,
+          items: items,
+        );
+        final questions = mode == 'backend'
+            ? await _generateWithBackend(
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+                nonce: nonce,
+              )
+            : await _generateWithLocalAi(
+                mode: mode,
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+                nonce: nonce,
+                ollamaModel: SupabaseConfig.ollamaModelQuiz,
+              );
+        if (questions.isNotEmpty) {
+          return questions;
+        }
+      } catch (_) {
+        // fall through
+      }
+    }
+    return _fallbackExamFromDb(
+      subject: subject,
+      chapter: chapter,
+      count: count,
+    );
+  }
+
+  Future<List<QuizQuestionItem>> generateExamQuestions({
+    required Subject subject,
+    Chapter? chapter,
+    required int count,
+    required QuizDifficulty baseDifficulty,
+    String? nonce,
+  }) async {
+    final mode =
+        SupabaseConfig.aiProviderFor(AiFeature.game).toLowerCase();
+    if (mode == 'ollama' || _isLmStudio(mode) || mode == 'backend') {
+      try {
+        final context = await _buildContext('exam', subject, chapter);
+        final questions = mode == 'backend'
+            ? await _generateWithBackend(
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+                nonce: nonce,
+              )
+            : await _generateWithLocalAi(
+                mode: mode,
+                context: context,
+                count: count,
+                baseDifficulty: baseDifficulty,
+                nonce: nonce,
+                ollamaModel: SupabaseConfig.ollamaModelExam,
+              );
+        if (questions.isNotEmpty) {
+          return questions;
+        }
+      } catch (_) {
+        // fall through
+      }
+    }
+    return _fallbackExamFromDb(subject: subject, chapter: chapter, count: count);
+  }
+
   Future<String> _buildContext(
     String quizId,
     Subject subject,
     Chapter? chapter,
   ) async {
     Chapter? resolvedChapter = chapter;
-    if (resolvedChapter == null) {
-      final row = await _client
-          .from('quizzes')
-          .select('chapter:chapters(id,title)')
-          .eq('id', quizId)
-          .maybeSingle();
-      final chapterMap = row?['chapter'] as Map<String, dynamic>?;
-      if (chapterMap != null) {
-        resolvedChapter = Chapter(
-          id: chapterMap['id']?.toString() ?? '',
-          title: chapterMap['title']?.toString() ?? 'Chapter',
-          notes: const [],
-          importantQuestions: const [],
-          pastQuestions: const [],
-          quizzes: const [],
-        );
+    if (resolvedChapter == null && _looksLikeUuid(quizId)) {
+      try {
+        final row = await _client
+            .from('quizzes')
+            .select('chapter:chapters(id,title)')
+            .eq('id', quizId)
+            .maybeSingle();
+        final chapterMap = row?['chapter'] as Map<String, dynamic>?;
+        if (chapterMap != null) {
+          resolvedChapter = Chapter(
+            id: chapterMap['id']?.toString() ?? '',
+            title: chapterMap['title']?.toString() ?? 'Chapter',
+            notes: const [],
+            importantQuestions: const [],
+            pastQuestions: const [],
+            quizzes: const [],
+          );
+        }
+      } catch (_) {
+        // Ignore invalid quiz id lookups for non-UUIDs (e.g. exam).
       }
     }
 
@@ -199,6 +437,22 @@ class AiQuizService {
     }
 
     return _trim(buffer.toString(), 1800);
+  }
+
+  Future<String> _buildRevisionContext({
+    required Subject subject,
+    Chapter? chapter,
+    required List<RevisionItem> items,
+  }) async {
+    final base = await _buildContext('revision', subject, chapter);
+    final focus = StringBuffer();
+    focus.writeln('Revision focus items:');
+    for (final item in items.take(8)) {
+      final label = item.type.name;
+      final detail = item.detail.trim().isEmpty ? item.title : item.detail;
+      focus.writeln('- [$label] ${_trim(item.title, 120)}: ${_trim(detail, 160)}');
+    }
+    return _trim('$base\n${focus.toString()}', 1800);
   }
 
   Future<List<Note>> _fetchNotesForChapter(String chapterId) async {
@@ -350,6 +604,7 @@ class AiQuizService {
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
+    required String model,
     String? nonce,
   }) async {
     final base = baseDifficulty.name;
@@ -375,7 +630,7 @@ class AiQuizService {
       uri,
       headers: const {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'model': SupabaseConfig.ollamaModel,
+        'model': model,
         'stream': false,
         'messages': [
           {'role': 'system', 'content': systemPrompt},
@@ -433,6 +688,7 @@ class AiQuizService {
     required String context,
     required int count,
     required QuizDifficulty baseDifficulty,
+    String? ollamaModel,
     String? nonce,
   }) async {
     if (mode == 'ollama') {
@@ -440,6 +696,7 @@ class AiQuizService {
         context: context,
         count: count,
         baseDifficulty: baseDifficulty,
+        model: ollamaModel ?? SupabaseConfig.ollamaModelQuiz,
         nonce: nonce,
       );
     }
@@ -615,6 +872,89 @@ class AiQuizService {
   bool _isLmStudio(String mode) =>
       mode == 'lmstudio' || mode == 'lm-studio' || mode == 'lm_studio';
 
+  bool _looksLikeUuid(String value) =>
+      RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(value);
+
+  Future<String> _requestWithBackend(
+    String systemPrompt,
+    String userPrompt,
+  ) async {
+    final response = await _client.functions.invoke(
+      'ai-generate',
+      body: {
+        'system_prompt': systemPrompt,
+        'user_prompt': userPrompt,
+      },
+    );
+    final data = response.data as Map<String, dynamic>? ?? {};
+    return data['reply']?.toString() ?? '';
+  }
+
+  Future<String> _requestWithLocalAi(
+    String mode,
+    String systemPrompt,
+    String userPrompt,
+    {String? ollamaModel}
+  ) async {
+    if (mode == 'ollama') {
+      final uri =
+          Uri.parse('${SupabaseConfig.ollamaBaseUrl}/api/chat');
+      final response = await http.post(
+        uri,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'model': ollamaModel ?? SupabaseConfig.ollamaModelQuiz,
+          'stream': false,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userPrompt},
+          ],
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Ollama error: ${response.body}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['message']?['content'] as String?)?.trim() ?? '';
+    }
+
+    final uri =
+        Uri.parse('${SupabaseConfig.lmStudioBaseUrl}/chat/completions');
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    final apiKey = SupabaseConfig.lmStudioApiKey;
+    if (apiKey.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $apiKey';
+    }
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'model': SupabaseConfig.lmStudioModel,
+        'temperature': 0.4,
+        'messages': [
+          {'role': 'system', 'content': systemPrompt},
+          {'role': 'user', 'content': userPrompt},
+        ],
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('LM Studio error: ${response.body}');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final choices = data['choices'] as List<dynamic>? ?? [];
+    if (choices.isEmpty) return '';
+    final first = choices.first;
+    if (first is Map<String, dynamic>) {
+      final message = first['message'];
+      if (message is Map<String, dynamic>) {
+        return message['content']?.toString().trim() ?? '';
+      }
+    }
+    return '';
+  }
+
   Future<List<QuizQuestionItem>> _fallbackFromDb(
     String quizId,
     int count,
@@ -623,6 +963,48 @@ class AiQuizService {
         .from('quiz_questions')
         .select('id,prompt,options,correct_index,topic,explanation')
         .eq('quiz_id', quizId)
+        .limit(count);
+
+    return (data as List<dynamic>).map((row) {
+      final optionsRaw = row['options'] as List<dynamic>? ?? [];
+      return QuizQuestionItem(
+        id: row['id']?.toString() ?? '',
+        prompt: row['prompt']?.toString() ?? '',
+        options: optionsRaw.map((option) => option.toString()).toList(),
+        correctIndex: (row['correct_index'] as num?)?.toInt() ?? -1,
+        topic: row['topic']?.toString(),
+        difficulty: null,
+        explanation: row['explanation']?.toString(),
+      );
+    }).toList();
+  }
+
+  Future<List<QuizQuestionItem>> _fallbackExamFromDb({
+    required Subject subject,
+    Chapter? chapter,
+    required int count,
+  }) async {
+    final chapterIds = chapter != null
+        ? [chapter.id]
+        : await _fetchChapterIdsForSubject(subject.id);
+    if (chapterIds.isEmpty) return [];
+
+    final quizRows = await _client
+        .from('quizzes')
+        .select('id')
+        .inFilter('chapter_id', chapterIds)
+        .limit(40);
+    final quizIds = (quizRows as List<dynamic>)
+        .map((row) => row['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (quizIds.isEmpty) return [];
+
+    final data = await _client
+        .from('quiz_questions')
+        .select('id,prompt,options,correct_index,topic,explanation')
+        .inFilter('quiz_id', quizIds)
+        .order('created_at', ascending: false)
         .limit(count);
 
     return (data as List<dynamic>).map((row) {
@@ -840,4 +1222,34 @@ class AiQuizService {
     }
     return 0;
   }
+}
+
+class WrittenQuestion {
+  final String prompt;
+  final int marks;
+  final String? topic;
+  final String? difficulty;
+
+  const WrittenQuestion({
+    required this.prompt,
+    required this.marks,
+    this.topic,
+    this.difficulty,
+  });
+}
+
+class WrittenGrade {
+  final int score;
+  final int maxScore;
+  final String feedback;
+  final String modelAnswer;
+  final String formatTips;
+
+  const WrittenGrade({
+    required this.score,
+    required this.maxScore,
+    required this.feedback,
+    required this.modelAnswer,
+    required this.formatTips,
+  });
 }

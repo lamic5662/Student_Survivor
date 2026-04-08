@@ -9,11 +9,14 @@ Flutter app for the StudentSurge learning platform. Includes Supabase-backed dat
 - Subjects → chapters → notes/questions/quizzes
 - AI notes (chapter + subject), saved user notes
 - AI study assistant chat + AI personal coach
+- AI exam simulator (MCQ + written, grading + feedback)
 - Games: flashcards, battle quiz, study survivor
+- Revision queue (smart review list)
 - Gaming-themed UI across core screens
 - Programming World (learning tracks + practice links)
 - Free Books hub (OpenStax, Open Textbook Library, LibreTexts)
 - Note attachment reader with word meanings + generated Q/A (owner-only)
+- Math + formula rendering in notes/quizzes
 - BCA notices feed (TU official page parsing)
 - Quiz flow + results with review
 - Study planner (AI + manual tasks)
@@ -49,6 +52,8 @@ Latest additions:
 - `0032_seed_bca_chapters_year1_2.sql` + `0033_seed_bca_subtopics_year1_2.sql`
 - `0034_seed_bca_questions_from_subtopics.sql`
 - `0035_update_syllabus_urls.sql` + `0036_update_syllabus_urls_by_semester.sql`
+- `0037_revision_queue.sql` + `0038_revision_best_scores.sql`
+- `0040_exam_best_scores.sql`
 
 ## Backend Workflow (Supabase)
 
@@ -102,6 +107,11 @@ Provider config:
 ```env
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3
+OLLAMA_MODEL_CHAT=qwen3:8b
+OLLAMA_MODEL_QUIZ=qwen3:8b
+OLLAMA_MODEL_EXAM=qwen3:14b
+OLLAMA_MODEL_NOTES=qwen3:8b
+OLLAMA_MODEL_FAST=qwen3:4b
 
 LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 LMSTUDIO_MODEL=google/gemma-3-4b

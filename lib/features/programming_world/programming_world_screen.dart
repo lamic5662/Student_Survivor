@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/features/games/code_fix_game_screen.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 
@@ -12,6 +13,8 @@ class ProgrammingWorldScreen extends StatefulWidget {
 class _ProgrammingWorldScreenState extends State<ProgrammingWorldScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = true;
+  bool _showAllTracks = false;
+  bool _showAllResources = false;
 
   @override
   void initState() {
@@ -35,6 +38,75 @@ class _ProgrammingWorldScreenState extends State<ProgrammingWorldScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tracks = [
+      const _TrackData(
+        title: 'Flutter & Mobile',
+        subtitle: 'Build real apps, UI, and APIs.',
+        steps: ['Dart basics', 'Widgets & layouts', 'State management'],
+      ),
+      const _TrackData(
+        title: 'Web Development',
+        subtitle: 'Front-end + backend foundations.',
+        steps: ['HTML/CSS/JS', 'REST APIs', 'Deployments'],
+      ),
+      const _TrackData(
+        title: 'DSA & Problem Solving',
+        subtitle: 'Crack logic with daily practice.',
+        steps: ['Arrays & strings', 'Stacks/queues', 'Trees & graphs'],
+      ),
+      const _TrackData(
+        title: 'DBMS & SQL',
+        subtitle: 'Master queries and data modeling.',
+        steps: ['ER modeling', 'SQL joins', 'Normalization'],
+      ),
+    ];
+    final resources = [
+      const _ResourceLink(
+        title: 'freeCodeCamp',
+        subtitle: 'Full free courses + certifications',
+        url: 'https://www.freecodecamp.org',
+      ),
+      const _ResourceLink(
+        title: 'The Odin Project',
+        subtitle: 'Free full‑stack web curriculum',
+        url: 'https://www.theodinproject.com',
+      ),
+      const _ResourceLink(
+        title: 'Khan Academy',
+        subtitle: 'Free CS & programming basics',
+        url: 'https://www.khanacademy.org/computing',
+      ),
+      const _ResourceLink(
+        title: 'MIT OpenCourseWare',
+        subtitle: 'Free university courses',
+        url: 'https://ocw.mit.edu',
+      ),
+      const _ResourceLink(
+        title: 'CS50',
+        subtitle: 'Harvard’s intro to CS (free)',
+        url: 'https://cs50.harvard.edu/x/',
+      ),
+      const _ResourceLink(
+        title: 'Exercism',
+        subtitle: 'Free practice with mentorship',
+        url: 'https://exercism.org',
+      ),
+      const _ResourceLink(
+        title: 'MDN Web Docs',
+        subtitle: 'Free web development reference',
+        url: 'https://developer.mozilla.org',
+      ),
+      const _ResourceLink(
+        title: 'NPTEL',
+        subtitle: 'Free university courses (India)',
+        url: 'https://nptel.ac.in',
+      ),
+    ];
+    final visibleTracks =
+        _showAllTracks ? tracks : tracks.take(1).toList();
+    final visibleResources =
+        _showAllResources ? resources : resources.take(3).toList();
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF070B14),
@@ -43,7 +115,7 @@ class _ProgrammingWorldScreenState extends State<ProgrammingWorldScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Programming World',
+            context.l10n.programmingWorld,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -67,38 +139,36 @@ class _ProgrammingWorldScreenState extends State<ProgrammingWorldScreen> {
             ),
             children: [
               _HeroCard(),
-              const SizedBox(height: 20),
-              const _SectionTitle(title: 'Learning Tracks'),
-              const SizedBox(height: 12),
-              const _TrackCard(
-                title: 'Flutter & Mobile',
-                subtitle: 'Build real apps, UI, and APIs.',
-                steps: ['Dart basics', 'Widgets & layouts', 'State management'],
-              ),
-              const SizedBox(height: 12),
-              const _TrackCard(
-                title: 'Web Development',
-                subtitle: 'Front-end + backend foundations.',
-                steps: ['HTML/CSS/JS', 'REST APIs', 'Deployments'],
-              ),
-              const SizedBox(height: 12),
-              const _TrackCard(
-                title: 'DSA & Problem Solving',
-                subtitle: 'Crack logic with daily practice.',
-                steps: ['Arrays & strings', 'Stacks/queues', 'Trees & graphs'],
-              ),
-              const SizedBox(height: 12),
-              const _TrackCard(
-                title: 'DBMS & SQL',
-                subtitle: 'Master queries and data modeling.',
-                steps: ['ER modeling', 'SQL joins', 'Normalization'],
-              ),
-              const SizedBox(height: 24),
-              const _SectionTitle(title: 'Daily Practice'),
-              const SizedBox(height: 12),
-              const _PracticeCard(),
               const SizedBox(height: 16),
-              _CodeArenaCard(
+              _SectionTitle(
+                title: context.tr('Learning Tracks', 'अध्ययन ट्र्याकहरू'),
+              ),
+              const SizedBox(height: 12),
+              ...visibleTracks
+                  .map(
+                    (track) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _TrackCard(
+                        title: track.title,
+                        subtitle: track.subtitle,
+                        steps: track.steps,
+                      ),
+                    ),
+                  ),
+              _SectionAction(
+                label: _showAllTracks
+                    ? context.tr('Show fewer tracks', 'कम ट्र्याक देखाउनुहोस्')
+                    : context.tr('View all tracks', 'सबै ट्र्याक हेर्नुहोस्'),
+                onTap: () {
+                  setState(() => _showAllTracks = !_showAllTracks);
+                },
+              ),
+              const SizedBox(height: 20),
+              _SectionTitle(
+                title: context.tr('Daily Practice', 'दैनिक अभ्यास'),
+              ),
+              const SizedBox(height: 12),
+              _PracticeArenaCard(
                 onLaunch: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -107,64 +177,39 @@ class _ProgrammingWorldScreenState extends State<ProgrammingWorldScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 24),
-              const _SectionTitle(title: 'Project Ideas'),
-              const SizedBox(height: 12),
-              const _ProjectIdeas(),
-              const SizedBox(height: 24),
-              const _SectionTitle(title: 'Free Resources'),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'freeCodeCamp',
-                subtitle: 'Full free courses + certifications',
-                url: 'https://www.freecodecamp.org',
+              const SizedBox(height: 20),
+              _SectionTitle(
+                title: context.tr('Free Resources', 'निःशुल्क स्रोतहरू'),
               ),
               const SizedBox(height: 12),
-              _LinkCard(
-                title: 'The Odin Project',
-                subtitle: 'Free full‑stack web curriculum',
-                url: 'https://www.theodinproject.com',
+              ...visibleResources
+                  .map(
+                    (resource) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _LinkCard(
+                        title: resource.title,
+                        subtitle: resource.subtitle,
+                        url: resource.url,
+                      ),
+                    ),
+                  ),
+              _SectionAction(
+                label: _showAllResources
+                    ? context.tr(
+                        'Show fewer resources',
+                        'कम स्रोत देखाउनुहोस्',
+                      )
+                    : context.tr('View all resources', 'सबै स्रोत हेर्नुहोस्'),
+                onTap: () {
+                  setState(() => _showAllResources = !_showAllResources);
+                },
+              ),
+              const SizedBox(height: 20),
+              _SectionTitle(
+                title: context.tr('Ideas & Tips', 'आइडिया र सुझाव'),
               ),
               const SizedBox(height: 12),
-              _LinkCard(
-                title: 'Khan Academy',
-                subtitle: 'Free CS & programming basics',
-                url: 'https://www.khanacademy.org/computing',
-              ),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'MIT OpenCourseWare',
-                subtitle: 'Free university courses',
-                url: 'https://ocw.mit.edu',
-              ),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'CS50',
-                subtitle: 'Harvard’s intro to CS (free)',
-                url: 'https://cs50.harvard.edu/x/',
-              ),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'Exercism',
-                subtitle: 'Free practice with mentorship',
-                url: 'https://exercism.org',
-              ),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'MDN Web Docs',
-                subtitle: 'Free web development reference',
-                url: 'https://developer.mozilla.org',
-              ),
-              const SizedBox(height: 12),
-              _LinkCard(
-                title: 'NPTEL',
-                subtitle: 'Free university courses (India)',
-                url: 'https://nptel.ac.in',
-              ),
-              const SizedBox(height: 24),
-              const _SectionTitle(title: 'Pro Tips'),
-              const SizedBox(height: 12),
-              const _TipsCard(),
+              const _CompactIdeasTipsCard(),
             ],
           ),
         ],
@@ -182,7 +227,10 @@ class _HeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Build skills that matter',
+            context.tr(
+              'Build skills that matter',
+              'काम लाग्ने सिप विकास गर्नुहोस्',
+            ),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
@@ -190,7 +238,10 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Your personal programming hub with tracks, practice, and projects.',
+            context.tr(
+              'Your personal programming hub with tracks, practice, and projects.',
+              'ट्र्याक, अभ्यास र प्रोजेक्ट सहित तपाईंको व्यक्तिगत प्रोग्रामिङ हब।',
+            ),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -200,6 +251,30 @@ class _HeroCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TrackData {
+  final String title;
+  final String subtitle;
+  final List<String> steps;
+
+  const _TrackData({
+    required this.title,
+    required this.subtitle,
+    required this.steps,
+  });
+}
+
+class _ResourceLink {
+  final String title;
+  final String subtitle;
+  final String url;
+
+  const _ResourceLink({
+    required this.title,
+    required this.subtitle,
+    required this.url,
+  });
 }
 
 class _TrackCard extends StatelessWidget {
@@ -264,69 +339,39 @@ class _TrackCard extends StatelessWidget {
   }
 }
 
-class _PracticeCard extends StatelessWidget {
-  const _PracticeCard();
+class _SectionAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SectionAction({
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return _GameCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Today’s plan',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-          ),
-          const SizedBox(height: 10),
-          const _Bullet('Solve 2 easy DSA problems'),
-          const _Bullet('Revise DBMS joins + write 3 queries'),
-          const _Bullet('Build 1 small UI screen in Flutter'),
-        ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          foregroundColor: const Color(0xFF38BDF8),
+          textStyle: Theme.of(context)
+              .textTheme
+              .labelLarge
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        onPressed: onTap,
+        child: Text(label),
       ),
     );
   }
 }
 
-class _ProjectIdeas extends StatelessWidget {
-  const _ProjectIdeas();
-
-  @override
-  Widget build(BuildContext context) {
-    return _GameCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Mini projects you can build',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-          ),
-          const SizedBox(height: 10),
-          const _Bullet('Notes organizer with search'),
-          const _Bullet('Quiz app with timer and score'),
-          const _Bullet('Habit tracker with streaks'),
-          const _Bullet('Expense tracker with charts'),
-        ],
-      ),
-    );
-  }
-}
-
-class _CodeArenaCard extends StatelessWidget {
+class _PracticeArenaCard extends StatelessWidget {
   final VoidCallback onLaunch;
 
-  const _CodeArenaCard({required this.onLaunch});
+  const _PracticeArenaCard({required this.onLaunch});
 
   @override
   Widget build(BuildContext context) {
@@ -334,62 +379,100 @@ class _CodeArenaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF111B2E),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF1E2A44)),
+          Text(
+            context.tr('Today’s plan', 'आजको योजना'),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
-                child:
-                    const Icon(Icons.code, color: Color(0xFF38BDF8)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Code Fix Arena',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Find errors, fix code, and earn streak points.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          ),
+          const SizedBox(height: 10),
+          _Bullet(
+            context.tr(
+              'Solve 2 easy DSA problems',
+              '२ सजिला DSA समस्या समाधान गर्नुहोस्',
+            ),
+          ),
+          _Bullet(
+            context.tr(
+              'Revise DBMS joins + write 3 queries',
+              'DBMS joins दोहोर्याउनुहोस् + ३ query लेख्नुहोस्',
+            ),
+          ),
+          _Bullet(
+            context.tr(
+              'Build 1 small UI screen in Flutter',
+              'Flutter मा १ सानो UI स्क्रिन बनाउनुहोस्',
+            ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _TagChip(label: 'Timer'),
+              _TagChip(label: context.tr('Timer', 'टाइमर')),
               const SizedBox(width: 6),
-              _TagChip(label: 'MCQ'),
+              _TagChip(label: context.tr('MCQ', 'MCQ')),
               const SizedBox(width: 6),
-              _TagChip(label: 'Streak Bonus'),
+              _TagChip(label: context.tr('Streak Bonus', 'स्ट्रिक बोनस')),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _PrimaryActionButton(
-            label: 'Enter Arena',
+            label: context.tr('Enter Code Fix Arena', 'कोड फिक्स एरिनामा जानुहोस्'),
             enabled: true,
             onPressed: onLaunch,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactIdeasTipsCard extends StatelessWidget {
+  const _CompactIdeasTipsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _GameCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('Mini projects', 'मिनी प्रोजेक्टहरू'),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+          ),
+          const SizedBox(height: 8),
+          _Bullet(
+            context.tr('Notes organizer with search', 'खोज सहित नोट्स आयोजक'),
+          ),
+          _Bullet(
+            context.tr('Quiz app with timer and score', 'टाइमर र स्कोर सहित क्विज एप'),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            context.tr('Pro tips', 'प्रो सुझावहरू'),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+          ),
+          const SizedBox(height: 8),
+          _Bullet(
+            context.tr(
+              'Practice daily for 30–45 minutes.',
+              'दैनिक ३०–४५ मिनेट अभ्यास गर्नुहोस्।',
+            ),
+          ),
+          _Bullet(
+            context.tr(
+              'Build small projects every week.',
+              'हरेक हप्ता सानो प्रोजेक्ट बनाउनुहोस्।',
+            ),
           ),
         ],
       ),
@@ -501,24 +584,6 @@ class _LinkCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TipsCard extends StatelessWidget {
-  const _TipsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return _GameCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _Bullet('Practice daily for 30–45 minutes.'),
-          _Bullet('Build small projects every week.'),
-          _Bullet('Review weak topics every weekend.'),
-        ],
       ),
     );
   }

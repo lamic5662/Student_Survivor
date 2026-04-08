@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/planner_service.dart';
@@ -111,7 +112,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load plan: $error';
+        _errorMessage = context.tr(
+          'Failed to load plan: $error',
+          'योजना लोड गर्न असफल: $error',
+        );
         _isLoading = false;
       });
     }
@@ -226,7 +230,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to generate plan: $error';
+        _errorMessage = context.tr(
+          'Failed to generate plan: $error',
+          'योजना बनाउन असफल: $error',
+        );
       });
     } finally {
       if (mounted) {
@@ -317,7 +324,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Add Study Task',
+                    context.tr('Add Study Task', 'अध्ययन कार्य थप्नुहोस्'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -327,12 +334,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   TextField(
                     controller: titleController,
                     style: const TextStyle(color: Colors.white),
-                    decoration: _darkInputDecoration('Task title'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Task title', 'कार्य शीर्षक'),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
                     initialValue: selectedSubject,
-                    decoration: _darkInputDecoration('Subject (optional)'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Subject (optional)', 'विषय (वैकल्पिक)'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: subjects
@@ -352,14 +363,17 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     initialValue: estimate,
-                    decoration: _darkInputDecoration('Time estimate'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Time estimate', 'समय अनुमान'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: _estimateOptions
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text('$value min'),
+                            child:
+                                Text(context.tr('$value min', '$value मिनेट')),
                           ),
                         )
                         .toList(),
@@ -372,14 +386,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: priority,
-                    decoration: _darkInputDecoration('Priority'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Priority', 'प्राथमिकता'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: _priorityOptions
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text(value),
+                            child: Text(_priorityLabel(context, value)),
                           ),
                         )
                         .toList(),
@@ -392,13 +408,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Reminder',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      context.tr('Reminder', 'रिमाइन्डर'),
+                      style: const TextStyle(color: Colors.white),
                     ),
-                    subtitle: const Text(
-                      'Get a reminder for this task',
-                      style: TextStyle(color: Colors.white70),
+                    subtitle: Text(
+                      context.tr(
+                        'Get a reminder for this task',
+                        'यस कार्यको लागि रिमाइन्डर पाउनुहोस्',
+                      ),
+                      style: const TextStyle(color: Colors.white70),
                     ),
                     value: remind,
                     onChanged: (value) {
@@ -416,8 +435,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       Expanded(
                         child: Text(
                           dueDate == null
-                              ? 'No due date'
-                              : 'Due: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                              ? context.tr('No due date', 'म्याद छैन')
+                              : context.tr(
+                                  'Due: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                                  'म्याद: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                                ),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -442,13 +464,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white,
                         ),
-                        child: const Text('Pick Date'),
+                        child:
+                            Text(context.tr('Pick Date', 'मिति छान्नुहोस्')),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _PrimaryActionButton(
-                    label: 'Save Task',
+                    label: context.tr('Save Task', 'कार्य सुरक्षित गर्नुहोस्'),
                     enabled: true,
                     onPressed: () async {
                       final title = titleController.text.trim();
@@ -525,7 +548,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Edit Task',
+                    context.tr('Edit Task', 'कार्य सम्पादन'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -535,12 +558,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   TextField(
                     controller: titleController,
                     style: const TextStyle(color: Colors.white),
-                    decoration: _darkInputDecoration('Task title'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Task title', 'कार्य शीर्षक'),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Subject>(
                     initialValue: selectedSubject,
-                    decoration: _darkInputDecoration('Subject (optional)'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Subject (optional)', 'विषय (वैकल्पिक)'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: subjects
@@ -560,14 +587,17 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     initialValue: estimate,
-                    decoration: _darkInputDecoration('Time estimate'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Time estimate', 'समय अनुमान'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: _estimateOptions
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text('$value min'),
+                            child:
+                                Text(context.tr('$value min', '$value मिनेट')),
                           ),
                         )
                         .toList(),
@@ -580,14 +610,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: priority,
-                    decoration: _darkInputDecoration('Priority'),
+                    decoration: _darkInputDecoration(
+                      context.tr('Priority', 'प्राथमिकता'),
+                    ),
                     dropdownColor: const Color(0xFF0B1220),
                     style: const TextStyle(color: Colors.white),
                     items: _priorityOptions
                         .map(
                           (value) => DropdownMenuItem(
                             value: value,
-                            child: Text(value),
+                            child: Text(_priorityLabel(context, value)),
                           ),
                         )
                         .toList(),
@@ -600,13 +632,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Reminder',
-                      style: TextStyle(color: Colors.white),
+                    title: Text(
+                      context.tr('Reminder', 'रिमाइन्डर'),
+                      style: const TextStyle(color: Colors.white),
                     ),
-                    subtitle: const Text(
-                      'Get a reminder for this task',
-                      style: TextStyle(color: Colors.white70),
+                    subtitle: Text(
+                      context.tr(
+                        'Get a reminder for this task',
+                        'यस कार्यको लागि रिमाइन्डर पाउनुहोस्',
+                      ),
+                      style: const TextStyle(color: Colors.white70),
                     ),
                     value: remind,
                     onChanged: (value) {
@@ -624,8 +659,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       Expanded(
                         child: Text(
                           dueDate == null
-                              ? 'No due date'
-                              : 'Due: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                              ? context.tr('No due date', 'म्याद छैन')
+                              : context.tr(
+                                  'Due: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                                  'म्याद: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
+                                ),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -650,13 +688,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white,
                         ),
-                        child: const Text('Pick Date'),
+                        child:
+                            Text(context.tr('Pick Date', 'मिति छान्नुहोस्')),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _PrimaryActionButton(
-                    label: 'Update Task',
+                    label:
+                        context.tr('Update Task', 'कार्य अपडेट गर्नुहोस्'),
                     enabled: true,
                     onPressed: () async {
                       final title = titleController.text.trim();
@@ -763,7 +803,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _persistStats();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Focus session done! +$_focusMinutes min logged.'),
+        content: Text(
+          context.tr(
+            'Focus session done! +$_focusMinutes min logged.',
+            'फोकस सेसन पूरा! +$_focusMinutes मिनेट रेकर्ड भयो।',
+          ),
+        ),
       ),
     );
   }
@@ -869,7 +914,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Study Planner',
+            context.l10n.studyPlanner,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -883,7 +928,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           IconButton(
             onPressed: _openAddTaskSheet,
             icon: const Icon(Icons.add),
-            tooltip: 'Add task',
+            tooltip: context.tr('Add task', 'कार्य थप्नुहोस्'),
           ),
         ],
       ),
@@ -1015,7 +1060,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               ),
               const SizedBox(height: 16),
               if (_isNotesLoading)
-                const _GameCard(
+                _GameCard(
                   child: Row(
                     children: [
                       SizedBox(
@@ -1029,7 +1074,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Loading note suggestions...',
+                          context.tr(
+                            'Loading note suggestions...',
+                            'नोट सुझावहरू लोड हुँदैछन्...',
+                          ),
                           style: TextStyle(color: Colors.white70),
                         ),
                       ),
@@ -1044,7 +1092,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'AI Study Plan',
+                      context.tr('AI Study Plan', 'AI अध्ययन योजना'),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -1055,7 +1103,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Generate a 7-day plan from your subjects.',
+                      context.tr(
+                        'Generate a 7-day plan from your subjects.',
+                        'आफ्ना विषयबाट ७-दिनको योजना बनाउनुहोस्।',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -1066,7 +1117,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       width: double.infinity,
                       child: _PrimaryActionButton(
                         label:
-                            _isGenerating ? 'Generating...' : 'Generate Plan',
+                            _isGenerating
+                                ? context.tr('Generating...', 'बनाइँदैछ...')
+                                : context.tr('Generate Plan', 'योजना बनाउनुहोस्'),
                         enabled: !_isGenerating,
                         onPressed: _isGenerating ? null : _generatePlan,
                       ),
@@ -1098,14 +1151,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                 )
               else if (_days.isEmpty)
-                const Text(
-                  'No study tasks yet. Create a plan to get started.',
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  context.tr(
+                    'No study tasks yet. Create a plan to get started.',
+                    'अहिलेसम्म अध्ययन कार्य छैन। सुरु गर्न योजना बनाउनुहोस्।',
+                  ),
+                  style: const TextStyle(color: Colors.white70),
                 )
               else if (filteredDays.isEmpty)
-                const Text(
-                  'No tasks match your filters.',
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  context.tr(
+                    'No tasks match your filters.',
+                    'तपाईंका फिल्टरसँग मेल खाने कार्य छैनन्।',
+                  ),
+                  style: const TextStyle(color: Colors.white70),
                 )
               else
                 ...filteredDays.map(
@@ -1215,24 +1274,30 @@ class _TaskTile extends StatelessWidget {
                 children: [
                   _MetaChip(
                     icon: Icons.timer,
-                    label: '${meta.estimateMinutes} min',
+                    label: context.tr(
+                      '${meta.estimateMinutes} min',
+                      '${meta.estimateMinutes} मिनेट',
+                    ),
                     color: AppColors.accent,
                   ),
                   _MetaChip(
                     icon: Icons.flag,
-                    label: meta.priority,
+                    label: _priorityLabel(context, meta.priority),
                     color: priorityColor,
                   ),
                   if (dueDate != null)
                     _MetaChip(
                       icon: Icons.event,
-                      label: 'Due ${_shortDate(dueDate)}',
+                      label: context.tr(
+                        'Due ${_shortDate(context, dueDate)}',
+                        'म्याद ${_shortDate(context, dueDate)}',
+                      ),
                       color: AppColors.secondary,
                     ),
                   if (meta.remind)
-                    const _MetaChip(
+                    _MetaChip(
                       icon: Icons.notifications_active,
-                      label: 'Reminder',
+                      label: context.tr('Reminder', 'रिमाइन्डर'),
                       color: AppColors.warning,
                     ),
                 ],
@@ -1302,7 +1367,7 @@ class _PlannerHero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Study Planner',
+                      context.tr('Study Planner', 'स्टडी प्लानर'),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -1313,7 +1378,10 @@ class _PlannerHero extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Semester: $semesterName',
+                      context.tr(
+                        'Semester: $semesterName',
+                        'सेमेस्टर: $semesterName',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -1352,7 +1420,10 @@ class _PlannerHero extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '$doneTasks of $totalTasks tasks completed',
+            context.tr(
+              '$doneTasks of $totalTasks tasks completed',
+              '$doneTasks / $totalTasks कार्य पूरा',
+            ),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -1386,7 +1457,7 @@ class _FilterRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Filters',
+            context.tr('Filters', 'फिल्टरहरू'),
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
@@ -1399,7 +1470,9 @@ class _FilterRow extends StatelessWidget {
           DropdownButtonFormField<String>(
             initialValue: selectedSubject,
             isExpanded: true,
-            decoration: _darkInputDecoration('Subject'),
+            decoration: _darkInputDecoration(
+              context.tr('Subject', 'विषय'),
+            ),
             dropdownColor: const Color(0xFF0B1220),
             style: const TextStyle(color: Colors.white),
             items: subjectNames
@@ -1407,7 +1480,7 @@ class _FilterRow extends StatelessWidget {
                   (value) => DropdownMenuItem(
                     value: value,
                     child: Text(
-                      value,
+                      value == 'All' ? context.tr('All', 'सबै') : value,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -1425,7 +1498,7 @@ class _FilterRow extends StatelessWidget {
             children: ['Today', 'This Week', 'All']
                 .map(
                   (label) => ChoiceChip(
-                    label: Text(label),
+                    label: Text(_rangeLabel(context, label)),
                     selected: rangeFilter == label,
                     onSelected: (_) => onRangeChanged(label),
                     selectedColor: const Color(0xFF38BDF8),
@@ -1466,7 +1539,7 @@ class _WeekStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This Week',
+            context.tr('This Week', 'यस हप्ता'),
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
@@ -1507,7 +1580,7 @@ class _WeekStrip extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _weekdayShort(date),
+                          _weekdayShort(context, date),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -1531,7 +1604,7 @@ class _WeekStrip extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$count tasks',
+                          context.tr('$count tasks', '$count कार्य'),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -1571,7 +1644,7 @@ class _StatsRow extends StatelessWidget {
         Expanded(
           child: _GameCard(
             child: _StatTile(
-              label: 'Study Minutes',
+              label: context.tr('Study Minutes', 'अध्ययन मिनेट'),
               value: '$studiedMinutes',
               icon: Icons.timer,
             ),
@@ -1581,7 +1654,7 @@ class _StatsRow extends StatelessWidget {
         Expanded(
           child: _GameCard(
             child: _StatTile(
-              label: 'Streak Days',
+              label: context.tr('Streak Days', 'स्ट्रिक दिन'),
               value: '$streakDays',
               icon: Icons.local_fire_department,
             ),
@@ -1689,7 +1762,7 @@ class _FocusSessionCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Focus Session',
+                  context.tr('Focus Session', 'फोकस सेसन'),
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
@@ -1710,7 +1783,9 @@ class _FocusSessionCard extends StatelessWidget {
                   border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
                 child: Text(
-                  inBreak ? 'Break' : 'Focus',
+                  inBreak
+                      ? context.tr('Break', 'ब्रेक')
+                      : context.tr('Focus', 'फोकस'),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -1751,7 +1826,11 @@ class _FocusSessionCard extends StatelessWidget {
               FilledButton.icon(
                 onPressed: running ? onPause : onStart,
                 icon: Icon(running ? Icons.pause : Icons.play_arrow),
-                label: Text(running ? 'Pause' : 'Start'),
+                label: Text(
+                  running
+                      ? context.tr('Pause', 'पज')
+                      : context.tr('Start', 'सुरु'),
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF38BDF8),
                   foregroundColor: Colors.white,
@@ -1761,7 +1840,7 @@ class _FocusSessionCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onReset,
                 icon: const Icon(Icons.restart_alt),
-                label: const Text('Reset'),
+                label: Text(context.tr('Reset', 'रिसेट')),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white70,
                 ),
@@ -1774,14 +1853,17 @@ class _FocusSessionCard extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<int>(
                   initialValue: focusMinutes,
-                  decoration: _darkInputDecoration('Focus'),
+                  decoration: _darkInputDecoration(
+                    context.tr('Focus', 'फोकस'),
+                  ),
                   dropdownColor: const Color(0xFF0B1220),
                   style: const TextStyle(color: Colors.white),
                   items: const [15, 20, 25, 30, 45]
                       .map(
                         (value) => DropdownMenuItem(
                           value: value,
-                          child: Text('$value min'),
+                          child:
+                              Text(context.tr('$value min', '$value मिनेट')),
                         ),
                       )
                       .toList(),
@@ -1796,14 +1878,17 @@ class _FocusSessionCard extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<int>(
                   initialValue: breakMinutes,
-                  decoration: _darkInputDecoration('Break'),
+                  decoration: _darkInputDecoration(
+                    context.tr('Break', 'ब्रेक'),
+                  ),
                   dropdownColor: const Color(0xFF0B1220),
                   style: const TextStyle(color: Colors.white),
                   items: const [0, 5, 10, 15]
                       .map(
                         (value) => DropdownMenuItem(
                           value: value,
-                          child: Text('$value min'),
+                          child:
+                              Text(context.tr('$value min', '$value मिनेट')),
                         ),
                       )
                       .toList(),
@@ -1845,7 +1930,7 @@ class _ReminderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Daily Reminder',
+                  context.tr('Daily Reminder', 'दैनिक रिमाइन्डर'),
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
@@ -1867,8 +1952,11 @@ class _ReminderCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             enabled
-                ? 'We will remind you at ${time.format(context)}'
-                : 'Reminders are off',
+                ? context.tr(
+                    'We will remind you at ${time.format(context)}',
+                    '${time.format(context)} मा सम्झाइनेछ',
+                  )
+                : context.tr('Reminders are off', 'रिमाइन्डर बन्द छ'),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -1880,7 +1968,7 @@ class _ReminderCard extends StatelessWidget {
             child: TextButton.icon(
               onPressed: enabled ? onPickTime : null,
               icon: const Icon(Icons.schedule),
-              label: const Text('Pick Time'),
+              label: Text(context.tr('Pick Time', 'समय छान्नुहोस्')),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white,
               ),
@@ -1907,7 +1995,7 @@ class _SubjectNotesCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Notes Suggestions',
+              context.tr('Notes Suggestions', 'नोट सुझावहरू'),
               style: Theme.of(context)
                   .textTheme
                   .titleSmall
@@ -1918,7 +2006,10 @@ class _SubjectNotesCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'No notes available yet. Add notes to see suggestions here.',
+              context.tr(
+                'No notes available yet. Add notes to see suggestions here.',
+                'अहिलेसम्म नोटहरू उपलब्ध छैनन्। सुझाव हेर्न नोट थप्नुहोस्।',
+              ),
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
@@ -1934,7 +2025,7 @@ class _SubjectNotesCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Notes Suggestions',
+            context.tr('Notes Suggestions', 'नोट सुझावहरू'),
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
@@ -2086,7 +2177,7 @@ class _TaskGroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final done = tasks.where((task) => task.isDone).length;
     final progress = tasks.isEmpty ? 0.0 : done / tasks.length;
-    final formattedLabel = _formatDayLabel(label);
+    final formattedLabel = _formatDayLabel(context, label);
     return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2197,13 +2288,15 @@ class _MetaChip extends StatelessWidget {
   }
 }
 
-String _weekdayShort(DateTime date) {
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return labels[date.weekday - 1];
+String _weekdayShort(BuildContext context, DateTime date) {
+  const en = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const ne = ['सोम', 'मंगल', 'बुध', 'बिहि', 'शुक्र', 'शनि', 'आइत'];
+  final isNe = Localizations.localeOf(context).languageCode == 'ne';
+  return (isNe ? ne : en)[date.weekday - 1];
 }
 
-String _shortDate(DateTime date) {
-  const months = [
+String _shortDate(BuildContext context, DateTime date) {
+  const en = [
     'Jan',
     'Feb',
     'Mar',
@@ -2215,20 +2308,63 @@ String _shortDate(DateTime date) {
     'Sep',
     'Oct',
     'Nov',
-    'Dec'
+    'Dec',
   ];
+  const ne = [
+    'जन',
+    'फेब',
+    'मार',
+    'अप्र',
+    'मे',
+    'जुन',
+    'जुल',
+    'अग',
+    'सेप',
+    'अक्ट',
+    'नोभ',
+    'डिस',
+  ];
+  final isNe = Localizations.localeOf(context).languageCode == 'ne';
+  final months = isNe ? ne : en;
   return '${months[date.month - 1]} ${date.day}';
 }
 
-String _formatDayLabel(String label) {
-  if (label == 'Today' || label == 'Tomorrow') {
-    return label;
+String _formatDayLabel(BuildContext context, String label) {
+  if (label == 'Today') {
+    return context.tr('Today', 'आज');
+  }
+  if (label == 'Tomorrow') {
+    return context.tr('Tomorrow', 'भोलि');
   }
   final date = DateTime.tryParse(label);
   if (date == null) {
     return label;
   }
-  return '${_weekdayShort(date)}, ${_shortDate(date)}';
+  return '${_weekdayShort(context, date)}, ${_shortDate(context, date)}';
+}
+
+String _priorityLabel(BuildContext context, String value) {
+  switch (value) {
+    case 'Low':
+      return context.tr('Low', 'कम');
+    case 'High':
+      return context.tr('High', 'उच्च');
+    case 'Medium':
+    default:
+      return context.tr('Medium', 'मध्यम');
+  }
+}
+
+String _rangeLabel(BuildContext context, String value) {
+  switch (value) {
+    case 'Today':
+      return context.tr('Today', 'आज');
+    case 'This Week':
+      return context.tr('This Week', 'यस हप्ता');
+    case 'All':
+    default:
+      return context.tr('All', 'सबै');
+  }
 }
 
 InputDecoration _darkInputDecoration(String label) {

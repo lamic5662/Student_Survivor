@@ -6,6 +6,7 @@ import 'package:student_survivor/models/app_models.dart';
 class NotesCacheService {
   static const String _boxName = 'notes_cache';
   static const String _userSubjectsKey = 'user_subjects_full_v1';
+  static const String _semestersKey = 'semesters_basic_v1';
   static bool _initialized = false;
 
   Future<Box> _openBox() async {
@@ -27,6 +28,26 @@ class NotesCacheService {
       '${_userSubjectsKey}_updated',
       DateTime.now().toIso8601String(),
     );
+  }
+
+  Future<void> cacheSemesters(List<Semester> semesters) async {
+    final box = await _openBox();
+    final payload = semesters.map(_semesterToMap).toList();
+    await box.put(_semestersKey, payload);
+    await box.put(
+      '${_semestersKey}_updated',
+      DateTime.now().toIso8601String(),
+    );
+  }
+
+  Future<List<Semester>> loadSemesters() async {
+    final box = await _openBox();
+    final raw = box.get(_semestersKey);
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map>()
+        .map((map) => _semesterFromMap(Map<String, dynamic>.from(map)))
+        .toList();
   }
 
   Future<List<Subject>> loadUserSubjects() async {
@@ -149,6 +170,26 @@ class NotesCacheService {
 
   String _aiDraftKey(String subjectId, String chapterId) =>
       'ai_draft_${subjectId}_$chapterId';
+
+  Map<String, dynamic> _semesterToMap(Semester semester) {
+    return {
+      'id': semester.id,
+      'name': semester.name,
+      'subjects': semester.subjects.map(_subjectToMap).toList(),
+    };
+  }
+
+  Semester _semesterFromMap(Map<String, dynamic> map) {
+    final subjects = (map['subjects'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((entry) => _subjectFromMap(Map<String, dynamic>.from(entry)))
+        .toList();
+    return Semester(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'Semester',
+      subjects: subjects,
+    );
+  }
 
   Map<String, dynamic> _subjectToMap(Subject subject) {
     return {

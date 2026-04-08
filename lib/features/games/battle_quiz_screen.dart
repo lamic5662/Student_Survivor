@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -720,17 +720,30 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
     final ready = _status == 'active' && question != null;
     final finished = _status == 'finished';
     final appBar = AppBar(
-      title: const Text('Battle Quiz (2P)'),
-      backgroundColor: AppColors.paper,
-      foregroundColor: AppColors.ink,
+      title: Text(
+        'Battle Quiz (2P)',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
       elevation: 0,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
     );
     final body = Padding(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+        20,
+        28,
+      ),
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: _arenaAccent),
+            )
           : _error != null
               ? _BattleError(message: _error!, onRetry: _resetLobby)
               : _roomId == null
@@ -769,15 +782,18 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                           onCancel: () => Navigator.of(context).pop(),
                         ),
                       if (_status == 'active' && question == null)
-                        AppCard(
+                        _ArenaCard(
                           child: Column(
                             children: [
                               const Icon(Icons.hourglass_empty,
-                                  size: 48, color: AppColors.mutedInk),
+                                  size: 48, color: _arenaMuted),
                               const SizedBox(height: 12),
                               Text(
                                 'Preparing questions...',
-                                style: Theme.of(context).textTheme.titleMedium,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(color: Colors.white),
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -785,23 +801,26 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
-                                    ?.copyWith(color: AppColors.mutedInk),
+                                    ?.copyWith(color: _arenaMuted),
                               ),
                             ],
                           ),
                         ),
                       if (ready)
                         Expanded(
-                          child: AppCard(
+                          child: _ArenaCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  question.prompt,
-                                  style: Theme.of(context)
+                                MathText(
+                                  text: question.prompt,
+                                  textStyle: Theme.of(context)
                                       .textTheme
                                       .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
                                 ),
                                 const SizedBox(height: 16),
                                 Expanded(
@@ -829,28 +848,35 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                           alignment: Alignment.centerLeft,
                                           side: BorderSide(
                                             color: borderColor ??
-                                                AppColors.outline,
+                                                _arenaBorder,
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 12,
                                           ),
+                                          foregroundColor: Colors.white,
                                         ),
                                         onPressed: _answered
                                             ? null
                                             : () => _selectAnswer(index),
-                                        child: Text(option),
+                                        child: MathText(
+                                          text: option,
+                                          textStyle: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(color: Colors.white),
+                                        ),
                                       );
                                     },
                                   ),
                                 ),
                                 if (_answered) ...[
                                   const SizedBox(height: 12),
-                                  Text(
-                                    _selectedIndex == question.correctIndex
+                                  MathText(
+                                    text: _selectedIndex == question.correctIndex
                                         ? 'Correct! +$_lastPointsEarned battle points.'
                                         : 'Wrong! 0 points.',
-                                    style: Theme.of(context)
+                                    textStyle: Theme.of(context)
                                         .textTheme
                                         .bodySmall
                                         ?.copyWith(
@@ -863,13 +889,12 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                   if ((question.explanation ?? '').isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        question.explanation!,
-                                        style: Theme.of(context)
+                                      child: MathText(
+                                        text: question.explanation!,
+                                        textStyle: Theme.of(context)
                                             .textTheme
                                             .bodySmall
-                                            ?.copyWith(
-                                                color: AppColors.mutedInk),
+                                            ?.copyWith(color: _arenaMuted),
                                       ),
                                     ),
                                   const SizedBox(height: 8),
@@ -877,6 +902,11 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
                                     width: double.infinity,
                                     child: ElevatedButton(
                                       onPressed: _nextQuestion,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _arenaAccent,
+                                        foregroundColor:
+                                            const Color(0xFF0B1220),
+                                      ),
                                       child: const Text('Next'),
                                     ),
                                   ),
@@ -899,6 +929,7 @@ class _BattleQuizScreenState extends State<BattleQuizScreen> {
       appBar: appBar,
       body: body,
       useSafeArea: false,
+      extendBodyBehindAppBar: true,
     );
   }
 }
@@ -943,7 +974,7 @@ class _BattleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusText = status == 'waiting' ? 'Waiting for opponent' : 'Battle On';
-    return AppCard(
+    return _ArenaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -952,7 +983,10 @@ class _BattleHeader extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -970,7 +1004,7 @@ class _BattleHeader extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: _arenaMuted),
               ),
               if (isHost && isGenerating) ...[
                 const SizedBox(width: 8),
@@ -1000,9 +1034,9 @@ class _ScorePill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: _arenaSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.outline),
+          border: Border.all(color: _arenaBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1012,7 +1046,7 @@ class _ScorePill extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: _arenaMuted),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1020,7 +1054,10 @@ class _ScorePill extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
             ),
           ],
         ),
@@ -1041,15 +1078,18 @@ class _BattleLobby extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: AppCard(
+      child: _ArenaCard(
         child: Column(
           children: [
             const Icon(Icons.videogame_asset,
-                size: 48, color: AppColors.mutedInk),
+                size: 48, color: _arenaMuted),
             const SizedBox(height: 12),
             Text(
               'Battle Quiz (2P)',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: Colors.white),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1058,16 +1098,18 @@ class _BattleLobby extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: _arenaMuted),
             ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: onCreate,
+              style: _arenaPrimaryButtonStyle(),
               child: const Text('Create Room'),
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(
               onPressed: onJoin,
+              style: _arenaTonalButtonStyle(),
               child: const Text('Join with Code'),
             ),
           ],
@@ -1090,14 +1132,17 @@ class _WaitingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _ArenaCard(
       child: Column(
         children: [
-          const Icon(Icons.groups, size: 48, color: AppColors.mutedInk),
+          const Icon(Icons.groups, size: 48, color: _arenaMuted),
           const SizedBox(height: 12),
           Text(
             'Waiting for opponent...',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
@@ -1106,7 +1151,7 @@ class _WaitingCard extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: _arenaMuted),
           ),
           if (roomCode != null) ...[
             const SizedBox(height: 16),
@@ -1115,7 +1160,7 @@ class _WaitingCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: _arenaMuted),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1123,17 +1168,23 @@ class _WaitingCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .titleLarge
-                  ?.copyWith(letterSpacing: 2, fontWeight: FontWeight.w700),
+                  ?.copyWith(
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(
               onPressed: onCopy,
+              style: _arenaTonalButtonStyle(),
               child: const Text('Copy Code'),
             ),
           ],
           const SizedBox(height: 16),
           TextButton(
             onPressed: onCancel,
+            style: TextButton.styleFrom(foregroundColor: _arenaAccent),
             child: const Text('Cancel'),
           ),
         ],
@@ -1160,7 +1211,7 @@ class _BattleFinishedCard extends StatelessWidget {
     final won = myScore >= targetScore && myScore > opponentScore;
     return Padding(
       padding: const EdgeInsets.only(top: 16),
-      child: AppCard(
+      child: _ArenaCard(
         child: Column(
           children: [
             Text(
@@ -1168,7 +1219,10 @@ class _BattleFinishedCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1176,13 +1230,14 @@ class _BattleFinishedCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: _arenaMuted),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton.tonal(
                 onPressed: onExit,
+                style: _arenaTonalButtonStyle(),
                 child: const Text('Exit'),
               ),
             ),
@@ -1208,11 +1263,14 @@ class _BattleError extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.bolt, size: 48, color: AppColors.mutedInk),
+          const Icon(Icons.bolt, size: 48, color: _arenaMuted),
           const SizedBox(height: 12),
           Text(
             'Battle paused',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
@@ -1221,14 +1279,56 @@ class _BattleError extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: _arenaMuted),
           ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onRetry,
+            style: _arenaPrimaryButtonStyle(),
             child: const Text('Retry'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+const _arenaSurface = Color(0xFF0B1220);
+const _arenaBorder = Color(0xFF1E2A44);
+const _arenaMuted = Color(0xFF94A3B8);
+const _arenaAccent = Color(0xFF38BDF8);
+
+ButtonStyle _arenaPrimaryButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: _arenaAccent,
+    foregroundColor: const Color(0xFF0B1220),
+  );
+}
+
+ButtonStyle _arenaTonalButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: const Color(0xFF111B2E),
+    foregroundColor: Colors.white,
+  );
+}
+
+class _ArenaCard extends StatelessWidget {
+  final Widget child;
+
+  const _ArenaCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _arenaSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _arenaBorder),
+      ),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: Colors.white),
+        child: child,
       ),
     );
   }

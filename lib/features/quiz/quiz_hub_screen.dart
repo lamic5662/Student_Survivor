@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/features/profile/profile_edit_screen.dart';
+import 'package:student_survivor/features/quiz/ai_exam_simulator_screen.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_presenter.dart';
 import 'package:student_survivor/features/quiz/quiz_hub_view_model.dart';
 import 'package:student_survivor/features/subjects/subject_detail_screen.dart';
@@ -118,7 +120,10 @@ class _QuizHubScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Select a semester to start playing.',
+                    context.tr(
+                      'Select a semester to start playing.',
+                      'खेल सुरु गर्न सेमेस्टर छान्नुहोस्।',
+                    ),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.white70,
@@ -126,7 +131,8 @@ class _QuizHubScreenState
                   ),
                   const SizedBox(height: 16),
                   _PrimaryActionButton(
-                    label: 'Choose Semester',
+                    label:
+                        context.tr('Choose Semester', 'सेमेस्टर छान्नुहोस्'),
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -140,57 +146,86 @@ class _QuizHubScreenState
             ),
           );
         }
-        return ListView(
+        return ListView.builder(
           controller: _scrollController,
           padding: EdgeInsets.fromLTRB(
             20,
-            MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+            MediaQuery.of(context).padding.top + kToolbarHeight - 44,
             20,
             28,
           ),
-          children: [
-            _GameHubHero(
-              semesterName: model.semesterName,
-              subjects: model.subjects.length,
-              chapters: model.subjects.fold<int>(
-                0,
-                (sum, subject) => sum + subject.chapters.length,
-              ),
-              quizzes: model.subjects.fold<int>(
-                0,
-                (sum, subject) =>
-                    sum +
-                    subject.chapters.fold<int>(
-                      0,
-                      (count, chapter) => count + chapter.quizzes.length,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _GameStatStrip(
-              semesterName: model.semesterName,
-              subjectCount: model.subjects.length,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Select a subject',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+          itemCount: model.subjects.isEmpty
+              ? 9
+              : 8 + model.subjects.length,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return RepaintBoundary(
+                child: _GameHubHero(
+                  semesterName: model.semesterName,
+                  subjects: model.subjects.length,
+                  chapters: model.subjects.fold<int>(
+                    0,
+                    (sum, subject) => sum + subject.chapters.length,
                   ),
-            ),
-            const SizedBox(height: 12),
-            if (model.subjects.isEmpty)
-              Text(
-                'No subjects available for this semester yet.',
+                  quizzes: model.subjects.fold<int>(
+                    0,
+                    (sum, subject) =>
+                        sum +
+                        subject.chapters.fold<int>(
+                          0,
+                          (count, chapter) => count + chapter.quizzes.length,
+                        ),
+                  ),
+                ),
+              );
+            }
+            if (index == 1) return const SizedBox(height: 20);
+            if (index == 2) {
+              return RepaintBoundary(
+                child: _GameStatStrip(
+                  semesterName: model.semesterName,
+                  subjectCount: model.subjects.length,
+                ),
+              );
+            }
+            if (index == 3) return const SizedBox(height: 24);
+            if (index == 4) {
+              return _ExamSimulatorCard(
+                onStart: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AiExamSimulatorScreen(),
+                    ),
+                  );
+                },
+              );
+            }
+            if (index == 5) return const SizedBox(height: 24);
+            if (index == 6) {
+              return Text(
+                context.tr('Select a subject', 'विषय छान्नुहोस्'),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+              );
+            }
+            if (index == 7) return const SizedBox(height: 12);
+            if (model.subjects.isEmpty) {
+              return Text(
+                context.tr(
+                  'No subjects available for this semester yet.',
+                  'यस सेमेस्टरका लागि कुनै विषय उपलब्ध छैन।',
+                ),
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
                     ?.copyWith(color: Colors.white70),
-              )
-            else
-              ...model.subjects.map((subject) => _SubjectCard(subject: subject)),
-          ],
+              );
+            }
+            final subject = model.subjects[index - 8];
+            return RepaintBoundary(child: _SubjectCard(subject: subject));
+          },
         );
       },
     );
@@ -199,7 +234,7 @@ class _QuizHubScreenState
         opacity: _showTitle ? 1 : 0,
         duration: const Duration(milliseconds: 200),
         child: Text(
-          'Game Hub',
+          context.tr('Game Hub', 'गेम हब'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -254,7 +289,10 @@ class _QuizHubScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _StaggeredWords(
-                    text: 'Welcome to the Gaming Zone',
+                    text: context.tr(
+                      'Welcome to the Gaming Zone',
+                      'गेमिङ जोनमा स्वागत छ',
+                    ),
                     controller: _introController,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -265,7 +303,7 @@ class _QuizHubScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Learn with fun',
+                    context.tr('Learn with fun', 'आनन्दसँग सिक्नुहोस्'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: const Color(0xFF38BDF8),
                           fontWeight: FontWeight.w600,
@@ -273,7 +311,7 @@ class _QuizHubScreenState
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Tap to continue',
+                    context.tr('Tap to continue', 'जारी राख्न ट्याप गर्नुहोस्'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.white70,
                         ),
@@ -303,6 +341,7 @@ class _GameHubHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return _GameCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +363,7 @@ class _GameHubHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Game Zone',
+                  context.tr('Game Zone', 'गेम जोन'),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -332,7 +371,10 @@ class _GameHubHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Pick a subject and enter the arena.',
+                  context.tr(
+                    'Pick a subject and enter the arena.',
+                    'विषय छान्नुहोस् र खेलमा प्रवेश गर्नुहोस्।',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -345,11 +387,11 @@ class _GameHubHero extends StatelessWidget {
                   children: [
                     _HeroChip(
                         label: semesterName.isEmpty
-                            ? 'Semester'
+                            ? context.tr('Semester', 'सेमेस्टर')
                             : semesterName),
-                    _HeroChip(label: '$subjects subjects'),
-                    _HeroChip(label: '$chapters chapters'),
-                    _HeroChip(label: '$quizzes quizzes'),
+                    _HeroChip(label: l10n.subjectsCount(subjects)),
+                    _HeroChip(label: l10n.chaptersCount(chapters)),
+                    _HeroChip(label: l10n.quizzesCount(quizzes)),
                   ],
                 ),
               ],
@@ -397,6 +439,7 @@ class _GameStatStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return _GameCard(
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -405,7 +448,9 @@ class _GameStatStrip extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              semesterName.isEmpty ? 'Semester not selected' : semesterName,
+              semesterName.isEmpty
+                  ? context.tr('Semester not selected', 'सेमेस्टर छानिएको छैन')
+                  : semesterName,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -420,7 +465,7 @@ class _GameStatStrip extends StatelessWidget {
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: Text(
-              '$subjectCount subjects',
+              l10n.subjectsCount(subjectCount),
               style: Theme.of(context)
                   .textTheme
                   .labelSmall
@@ -601,6 +646,71 @@ class _SubjectCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ExamSimulatorCard extends StatelessWidget {
+  final VoidCallback onStart;
+
+  const _ExamSimulatorCard({required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GameCard(
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFF111B2E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1E2A44)),
+            ),
+            child: const Icon(Icons.school_rounded, color: Color(0xFF38BDF8)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('AI Exam Simulator', 'एआई परीक्षा सिमुलेटर'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  context.tr(
+                    'Timed exam with AI questions.',
+                    'एआई प्रश्नसहित समयबद्ध परीक्षा।',
+                  ),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: onStart,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF38BDF8),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(context.tr('Start', 'सुरु')),
+          ),
+        ],
       ),
     );
   }

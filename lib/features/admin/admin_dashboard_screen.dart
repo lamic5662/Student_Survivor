@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/admin_service.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/subject_service.dart';
@@ -80,22 +81,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _refreshProfileContent() async {
     final profile = AppState.profile.value;
-    if (profile.semester.id.isEmpty) {
-      return;
+    if (profile.semester.id.isNotEmpty) {
+      final subjects = await _subjectService.fetchSubjectsForSemester(
+        profile.semester.id,
+        includeContent: true,
+      );
+      AppState.updateProfile(
+        UserProfile(
+          name: profile.name,
+          email: profile.email,
+          semester: profile.semester,
+          subjects: subjects,
+          isAdmin: profile.isAdmin,
+        ),
+      );
     }
-    final subjects = await _subjectService.fetchSubjectsForSemester(
-      profile.semester.id,
-      includeContent: true,
-    );
-    AppState.updateProfile(
-      UserProfile(
-        name: profile.name,
-        email: profile.email,
-        semester: profile.semester,
-        subjects: subjects,
-        isAdmin: profile.isAdmin,
-      ),
-    );
     await _loadAdminContent();
   }
 
@@ -251,9 +251,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GameZoneScaffold(
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: Text(
+          'Admin Dashboard',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -680,7 +691,7 @@ class _RecentSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _AdminCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -689,11 +700,17 @@ class _RecentSectionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ),
               TextButton(
                 onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF38BDF8),
+                ),
                 child: Text(actionLabel),
               ),
             ],
@@ -705,83 +722,93 @@ class _RecentSectionCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             )
           else
             ...items.map((item) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: InkWell(
-                  onTap: item.onTap,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.outline),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(item.icon, color: AppColors.secondary),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0B1220),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF1E2A44)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: item.onTap,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                item.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                item.subtitle,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppColors.mutedInk),
-                              ),
-                              if (item.description.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  item.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall,
+                              Icon(item.icon, color: const Color(0xFF38BDF8)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    MathText(
+                                      text: item.title,
+                                      textStyle: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    MathText(
+                                      text: item.subtitle,
+                                      textStyle: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: Colors.white70),
+                                    ),
+                                    if (item.description.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      MathText(
+                                        text: item.description,
+                                        textStyle: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: Colors.white70),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ),
-                        if (item.onDelete != null) ...[
-                          item.isDeleting
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : IconButton(
-                                  tooltip: 'Delete',
-                                  onPressed: item.onDelete,
-                                  icon: const Icon(Icons.delete_outline),
+                      ),
+                      if (item.onDelete != null) ...[
+                        const SizedBox(width: 8),
+                        item.isDeleting
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                        ],
-                        const Icon(
-                          Icons.chevron_right,
-                          color: AppColors.mutedInk,
-                        ),
+                              )
+                            : IconButton(
+                                tooltip: 'Delete',
+                                onPressed: item.onDelete,
+                                icon: const Icon(Icons.delete_outline),
+                                color: Colors.white70,
+                              ),
                       ],
-                    ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white54,
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -851,13 +878,7 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
-      ),
+    return _AdminCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -865,7 +886,7 @@ class _StatTile extends StatelessWidget {
             height: 40,
             width: 40,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
+              color: color.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: color),
@@ -880,6 +901,7 @@ class _StatTile extends StatelessWidget {
                   value.toString(),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: Colors.white,
                       ),
                 ),
                 Text(
@@ -889,7 +911,7 @@ class _StatTile extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -919,7 +941,7 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _AdminCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -940,25 +962,71 @@ class _ActionCard extends StatelessWidget {
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            description,
-            style: Theme.of(context)
+          MathText(
+            text: description,
+            textStyle: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.mutedInk),
+                ?.copyWith(color: Colors.white70),
           ),
           const Spacer(),
           ElevatedButton(
             onPressed: onAction,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF38BDF8),
+              foregroundColor: Colors.black,
+            ),
             child: Text(actionLabel),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminCard extends StatelessWidget {
+  final Widget child;
+
+  const _AdminCard({
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
       ),
     );
   }

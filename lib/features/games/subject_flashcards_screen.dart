@@ -1,9 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -217,21 +216,35 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
     final hasCards = _cards.isNotEmpty;
     final current = hasCards ? _cards[_index] : null;
     final appBar = AppBar(
-      title: const Text('Subject Flashcards'),
-      backgroundColor: AppColors.paper,
-      foregroundColor: AppColors.ink,
+      title: Text(
+        'Subject Flashcards',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
       elevation: 0,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
     );
     final body = Padding(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+        20,
+        28,
+      ),
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: _arenaAccent),
+            )
           : hasCards
               ? Column(
                   children: [
-                    AppCard(
+                    const SizedBox(height: 4),
+                    _ArenaCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -240,7 +253,10 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                           const SizedBox(height: 10),
                           Row(
@@ -248,6 +264,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                               Expanded(
                                 child: FilledButton.tonal(
                                   onPressed: _usingAi ? _useNotesCards : null,
+                                  style: _arenaTonalButtonStyle(),
                                   child: const Text('Notes Cards'),
                                 ),
                               ),
@@ -256,6 +273,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                                 child: FilledButton.tonal(
                                   onPressed:
                                       _isGeneratingAi ? null : _generateAiCards,
+                                  style: _arenaTonalButtonStyle(),
                                   child: Text(
                                     _isGeneratingAi
                                         ? 'Generating...'
@@ -269,7 +287,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    AppCard(
+                    _ArenaCard(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 12,
@@ -290,7 +308,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Expanded(
-                      child: AppCard(
+                      child: _ArenaCard(
                         child: InkWell(
                           onTap: () {
                             setState(() {
@@ -300,16 +318,16 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
-                                _showBack
+                              MathText(
+                                text: _showBack
                                     ? current?.back ?? ''
                                     : current?.front ?? '',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
+                                textStyle: Theme.of(context)
                                     .textTheme
                                     .titleMedium
                                     ?.copyWith(
                                       fontWeight: FontWeight.w600,
+                                      color: Colors.white,
                                     ),
                               ),
                               const SizedBox(height: 16),
@@ -320,7 +338,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
-                                    ?.copyWith(color: AppColors.mutedInk),
+                                    ?.copyWith(color: _arenaMuted),
                               ),
                             ],
                           ),
@@ -333,6 +351,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                         Expanded(
                           child: FilledButton.tonal(
                             onPressed: _prevCard,
+                            style: _arenaTonalButtonStyle(),
                             child: const Text('Prev'),
                           ),
                         ),
@@ -340,6 +359,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                         Expanded(
                           child: FilledButton(
                             onPressed: _nextCard,
+                            style: _arenaPrimaryButtonStyle(),
                             child: const Text('Next'),
                           ),
                         ),
@@ -350,6 +370,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                       width: double.infinity,
                       child: FilledButton.tonal(
                         onPressed: _shuffleCards,
+                        style: _arenaTonalButtonStyle(),
                         child: const Text('Shuffle'),
                       ),
                     ),
@@ -360,24 +381,31 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
+                            ?.copyWith(color: _arenaMuted),
                       ),
                     ],
                   ],
                 )
               : Center(
-                  child: AppCard(
+                  child: _ArenaCard(
                     child: Column(
                       children: [
-                        const Icon(Icons.style, size: 48),
+                        const Icon(Icons.style, size: 48, color: _arenaMuted),
                         const SizedBox(height: 12),
-                        const Text('No flashcards yet.'),
+                        Text(
+                          'No flashcards yet.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(color: Colors.white),
+                        ),
                         const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
                             onPressed:
                                 _isGeneratingAi ? null : _generateAiCards,
+                            style: _arenaPrimaryButtonStyle(),
                             child: const Text('Generate AI Flashcards'),
                           ),
                         ),
@@ -390,6 +418,7 @@ class _SubjectFlashcardsScreenState extends State<SubjectFlashcardsScreen> {
       appBar: appBar,
       body: body,
       useSafeArea: false,
+      extendBodyBehindAppBar: true,
     );
   }
 }
@@ -408,22 +437,68 @@ class _InfoPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: 0.1),
+        color: _arenaSurface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _arenaBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.secondary),
+          Icon(icon, size: 14, color: _arenaAccent),
           const SizedBox(width: 4),
           Text(
             label,
             style: Theme.of(context)
                 .textTheme
                 .labelSmall
-                ?.copyWith(color: AppColors.secondary),
+                ?.copyWith(color: Colors.white),
           ),
         ],
+      ),
+    );
+  }
+}
+
+const _arenaSurface = Color(0xFF0B1220);
+const _arenaBorder = Color(0xFF1E2A44);
+const _arenaMuted = Color(0xFF94A3B8);
+const _arenaAccent = Color(0xFF38BDF8);
+
+ButtonStyle _arenaPrimaryButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: _arenaAccent,
+    foregroundColor: const Color(0xFF0B1220),
+  );
+}
+
+ButtonStyle _arenaTonalButtonStyle() {
+  return FilledButton.styleFrom(
+    backgroundColor: const Color(0xFF111B2E),
+    foregroundColor: Colors.white,
+  );
+}
+
+class _ArenaCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _ArenaCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: _arenaSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _arenaBorder),
+      ),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: Colors.white),
+        child: child,
       ),
     );
   }

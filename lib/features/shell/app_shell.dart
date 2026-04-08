@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/features/ai/ai_screen.dart';
 import 'package:student_survivor/features/dashboard/dashboard_screen.dart';
@@ -28,6 +29,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildNavBar(BuildContext context) {
     const accent = Color(0xFF38BDF8);
+    final l10n = context.l10n;
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0B1220),
@@ -90,16 +92,27 @@ class _AppShellState extends State<AppShell> {
                 }
                 setState(() => _currentIndex = value);
               },
-              destinations: const [
-                NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+              destinations: [
                 NavigationDestination(
-                    icon: Icon(Icons.menu_book), label: 'Subjects'),
+                  icon: const Icon(Icons.home),
+                  label: l10n.home,
+                ),
                 NavigationDestination(
-                    icon: Icon(Icons.sports_esports), label: 'Play'),
+                  icon: const Icon(Icons.menu_book),
+                  label: l10n.subjects,
+                ),
                 NavigationDestination(
-                    icon: Icon(Icons.auto_awesome), label: 'AI'),
+                  icon: const Icon(Icons.sports_esports),
+                  label: l10n.play,
+                ),
                 NavigationDestination(
-                    icon: Icon(Icons.person), label: 'Profile'),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: l10n.ai,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.person),
+                  label: l10n.profile,
+                ),
               ],
             ),
           ),

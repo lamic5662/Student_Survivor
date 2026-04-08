@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
-import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
+import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/admin_service.dart';
@@ -345,7 +346,7 @@ class _AdminScreenState extends State<AdminScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFF0B1220),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -365,37 +366,90 @@ class _AdminScreenState extends State<AdminScreen> {
                   width: 40,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.outline,
+                    color: const Color(0xFF1E2A44),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                Text(
-                  note.title,
-                  style: Theme.of(context)
+                MathText(
+                  text: note.title,
+                  textStyle: Theme.of(context)
                       .textTheme
                       .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                 ),
                 const SizedBox(height: 12),
                 if ((note.fileUrl ?? '').isNotEmpty) ...[
-                  AppCard(
-                    color: AppColors.secondary.withValues(alpha: 0.06),
+                  if (_isImageUrl(note.fileUrl!)) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        note.fileUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            height: 180,
+                            alignment: Alignment.center,
+                            color: const Color(0xFF0B1220),
+                            child: const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 180,
+                          alignment: Alignment.center,
+                          color: const Color(0xFF0B1220),
+                          child: Text(
+                            'Image unavailable',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _AdminCard(
                     child: Row(
                       children: [
-                        const Icon(Icons.attach_file_rounded),
+                        const Icon(Icons.attach_file_rounded,
+                            color: Color(0xFF38BDF8)),
                         const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text('Attachment available'),
+                        Expanded(
+                          child: Text(
+                            'Attachment available',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
                         ),
                         TextButton(
                           onPressed: () => _openNoteAttachment(
                             title: note.title,
                             url: note.fileUrl!,
                           ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF38BDF8),
+                          ),
                           child: const Text('Open'),
                         ),
                         TextButton(
                           onPressed: () => _copyToClipboard(note.fileUrl!),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF38BDF8),
+                          ),
                           child: const Text('Copy link'),
                         ),
                       ],
@@ -410,14 +464,20 @@ class _AdminScreenState extends State<AdminScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    note.detailedAnswer.isNotEmpty
+                  MathText(
+                    text: note.detailedAnswer.isNotEmpty
                         ? note.detailedAnswer
                         : note.shortAnswer,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    textStyle: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white70),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -1682,11 +1742,40 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  bool _isImageUrl(String url) {
+    try {
+      final path = Uri.parse(url).path.toLowerCase();
+      return path.endsWith('.png') ||
+          path.endsWith('.jpg') ||
+          path.endsWith('.jpeg') ||
+          path.endsWith('.gif') ||
+          path.endsWith('.webp');
+    } catch (_) {
+      final lower = url.toLowerCase();
+      return lower.contains('.png') ||
+          lower.contains('.jpg') ||
+          lower.contains('.jpeg') ||
+          lower.contains('.gif') ||
+          lower.contains('.webp');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final resolvedTitle = widget.title ?? 'Admin';
     final appBar = AppBar(
-      title: Text(resolvedTitle),
+      title: Text(
+        resolvedTitle,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
       actions: [
         if (widget.onLogout != null)
           IconButton(
@@ -1697,6 +1786,9 @@ class _AdminScreenState extends State<AdminScreen> {
       ],
       bottom: widget.showTabs
           ? const TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              indicatorColor: Color(0xFF38BDF8),
               tabs: [
                 Tab(text: 'Syllabus'),
                 Tab(text: 'Notes'),
@@ -1731,9 +1823,10 @@ class _AdminScreenState extends State<AdminScreen> {
           )
         : baseBody;
 
-    final scaffold = Scaffold(
+    final scaffold = GameZoneScaffold(
       appBar: appBar,
       body: body,
+      useSafeArea: true,
     );
 
     if (!widget.showTabs) {
@@ -1769,7 +1862,7 @@ class _AdminScreenState extends State<AdminScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        AppCard(
+        _AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1844,7 +1937,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ],
           ),
         ),
-        AppCard(
+        _AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1882,7 +1975,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ],
           ),
         ),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
@@ -1923,7 +2016,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
@@ -1997,7 +2090,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
@@ -2080,7 +2173,7 @@ class _AdminScreenState extends State<AdminScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        AppCard(
+        _AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2127,7 +2220,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: Colors.white70),
               ),
               if (_showNotePublisher) ...[
                 const SizedBox(height: 12),
@@ -2318,7 +2411,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
-                        ?.copyWith(color: AppColors.mutedInk),
+                        ?.copyWith(color: Colors.white70),
                   ),
                 ],
               ],
@@ -2357,19 +2450,22 @@ class _AdminScreenState extends State<AdminScreen> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () => _showAdminNoteDetails(note),
-                    child: AppCard(
+                    child: _AdminCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
                               Expanded(
-                                child: Text(
-                                  note.title,
-                                  style: Theme.of(context)
+                                child: MathText(
+                                  text: note.title,
+                                  textStyle: Theme.of(context)
                                       .textTheme
                                       .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
                                 ),
                               ),
                               Container(
@@ -2431,7 +2527,7 @@ class _AdminScreenState extends State<AdminScreen> {
                                 const Icon(
                                   Icons.attach_file_rounded,
                                   size: 16,
-                                  color: AppColors.mutedInk,
+                                  color: Colors.white70,
                                 ),
                                 const SizedBox(width: 6),
                                 Expanded(
@@ -2440,7 +2536,7 @@ class _AdminScreenState extends State<AdminScreen> {
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
-                                        ?.copyWith(color: AppColors.mutedInk),
+                                        ?.copyWith(color: Colors.white70),
                                   ),
                                 ),
                               ],
@@ -2448,14 +2544,12 @@ class _AdminScreenState extends State<AdminScreen> {
                           ],
                           if (previewText.isNotEmpty) ...[
                             const SizedBox(height: 6),
-                            Text(
-                              previewText,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
+                            MathText(
+                              text: previewText,
+                              textStyle: Theme.of(context)
                                   .textTheme
                                   .bodySmall
-                                  ?.copyWith(color: AppColors.mutedInk),
+                                  ?.copyWith(color: Colors.white70),
                             ),
                           ],
                           if (note.tags.isNotEmpty) ...[
@@ -2506,19 +2600,22 @@ class _AdminScreenState extends State<AdminScreen> {
           ..._pendingSubmissions.map(
             (submission) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
+              child: _AdminCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            submission.title,
-                            style: Theme.of(context)
+                          child: MathText(
+                            text: submission.title,
+                            textStyle: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                         ),
                         if (_reviewingSubmissionId == submission.id)
@@ -2552,13 +2649,16 @@ class _AdminScreenState extends State<AdminScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(color: Colors.white70),
                     ),
                     if (submission.shortAnswer.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        submission.shortAnswer,
-                        style: Theme.of(context).textTheme.bodySmall,
+                      MathText(
+                        text: submission.shortAnswer,
+                        textStyle: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white70),
                       ),
                     ],
                     if (submission.tags.isNotEmpty) ...[
@@ -2577,21 +2677,66 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                     ],
                     if ((submission.fileUrl ?? '').isNotEmpty) ...[
+                      if (_isImageUrl(submission.fileUrl!)) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            submission.fileUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                height: 160,
+                                alignment: Alignment.center,
+                                color: const Color(0xFF0B1220),
+                                child: const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              height: 160,
+                              alignment: Alignment.center,
+                              color: const Color(0xFF0B1220),
+                              child: Text(
+                                'Image unavailable',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           const Icon(
                             Icons.attach_file,
                             size: 16,
-                            color: AppColors.mutedInk,
+                            color: Colors.white70,
                           ),
                           const SizedBox(width: 6),
-                          const Expanded(
-                            child: Text('Attachment submitted'),
+                          Expanded(
+                            child: Text(
+                              'Attachment submitted',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.white70),
+                            ),
                           ),
                           TextButton(
                             onPressed: () =>
                                 _copyToClipboard(submission.fileUrl!),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF38BDF8),
+                            ),
                             child: const Text('Copy link'),
                           ),
                         ],
@@ -2628,19 +2773,22 @@ class _AdminScreenState extends State<AdminScreen> {
           ..._pendingCommunityQuestions.map(
             (question) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
+              child: _AdminCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            question.question,
-                            style: Theme.of(context)
+                          child: MathText(
+                            text: question.question,
+                            textStyle: Theme.of(context)
                                 .textTheme
                                 .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                         ),
                         if (_reviewingCommunityQuestionId == question.id)
@@ -2669,16 +2817,16 @@ class _AdminScreenState extends State<AdminScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.mutedInk),
+                          ?.copyWith(color: Colors.white70),
                     ),
                     if ((question.aiReason ?? '').isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        'AI: ${question.aiReason}',
-                        style: Theme.of(context)
+                      MathText(
+                        text: 'AI: ${question.aiReason}',
+                        textStyle: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.mutedInk),
+                            ?.copyWith(color: Colors.white70),
                       ),
                     ],
                   ],
@@ -2699,7 +2847,7 @@ class _AdminScreenState extends State<AdminScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        AppCard(
+        _AdminCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2799,7 +2947,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Row(
@@ -2908,7 +3056,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.mutedInk),
+                    ?.copyWith(color: Colors.white70),
               ),
               if (_bulkQuestionMessages.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -2917,14 +3065,14 @@ class _AdminScreenState extends State<AdminScreen> {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ],
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
@@ -2975,7 +3123,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
@@ -3036,7 +3184,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        AppCard(
+        _AdminCard(
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Row(
@@ -3177,5 +3325,46 @@ class _QuestionsTab extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return state._buildQuestionsTab();
+  }
+}
+
+class _AdminCard extends StatelessWidget {
+  final Widget child;
+
+  const _AdminCard({
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
+      ),
+    );
   }
 }

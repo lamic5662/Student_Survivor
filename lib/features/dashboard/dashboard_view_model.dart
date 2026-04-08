@@ -9,6 +9,7 @@ class DashboardViewModel {
   final int gamesPlayed;
   final List<WeakTopic> weakTopics;
   final List<Note> recommendedNotes;
+  final List<RevisionItem> revisionQueue;
   final QuizAttempt? latestAttempt;
 
   const DashboardViewModel({
@@ -20,6 +21,7 @@ class DashboardViewModel {
     required this.gamesPlayed,
     required this.weakTopics,
     required this.recommendedNotes,
+    required this.revisionQueue,
     required this.latestAttempt,
   });
 
@@ -32,6 +34,7 @@ class DashboardViewModel {
     int? gamesPlayed,
     List<WeakTopic>? weakTopics,
     List<Note>? recommendedNotes,
+    List<RevisionItem>? revisionQueue,
     QuizAttempt? latestAttempt,
   }) {
     return DashboardViewModel(
@@ -43,6 +46,7 @@ class DashboardViewModel {
       gamesPlayed: gamesPlayed ?? this.gamesPlayed,
       weakTopics: weakTopics ?? this.weakTopics,
       recommendedNotes: recommendedNotes ?? this.recommendedNotes,
+      revisionQueue: revisionQueue ?? this.revisionQueue,
       latestAttempt: latestAttempt ?? this.latestAttempt,
     );
   }
@@ -57,6 +61,7 @@ class DashboardViewModel {
       gamesPlayed: 0,
       weakTopics: const [],
       recommendedNotes: const [],
+      revisionQueue: const [],
       latestAttempt: null,
     );
   }

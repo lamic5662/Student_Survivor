@@ -15,6 +15,7 @@ abstract class DashboardView extends BaseView {
   void openBooks();
   void openProgrammingWorld();
   void openCoach();
+  void openRevisionQueue();
 }
 
 class DashboardPresenter extends Presenter<DashboardView> {
@@ -29,6 +30,7 @@ class DashboardPresenter extends Presenter<DashboardView> {
   late final ValueNotifier<DashboardViewModel> state;
   late final VoidCallback _listener;
   late final DashboardService _dashboardService;
+  bool _loading = false;
 
   void _refreshFromProfile() {
     state.value = state.value.copyWith(profile: AppState.profile.value);
@@ -36,6 +38,8 @@ class DashboardPresenter extends Presenter<DashboardView> {
   }
 
   Future<void> _load() async {
+    if (_loading) return;
+    _loading = true;
     state.value = state.value.copyWith(isLoading: true, errorMessage: null);
     try {
       final data = await _dashboardService.fetchDashboard(
@@ -48,6 +52,7 @@ class DashboardPresenter extends Presenter<DashboardView> {
         gamesPlayed: data.gamesPlayed,
         weakTopics: data.weakTopics,
         recommendedNotes: data.recommendedNotes,
+        revisionQueue: data.revisionQueue,
         latestAttempt: data.latestAttempt,
       );
     } catch (error) {
@@ -55,6 +60,8 @@ class DashboardPresenter extends Presenter<DashboardView> {
         isLoading: false,
         errorMessage: 'Failed to load dashboard: $error',
       );
+    } finally {
+      _loading = false;
     }
   }
 
@@ -73,6 +80,8 @@ class DashboardPresenter extends Presenter<DashboardView> {
   void onProgrammingWorld() => view?.openProgrammingWorld();
 
   void onCoach() => view?.openCoach();
+
+  void onRevisionQueue() => view?.openRevisionQueue();
 
   @override
   void onViewDetached() {

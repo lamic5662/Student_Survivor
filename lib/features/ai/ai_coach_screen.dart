@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
-import 'package:student_survivor/core/widgets/app_card.dart';
+import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/coach_service.dart';
 import 'package:student_survivor/data/dashboard_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -22,12 +24,29 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   bool _isLoading = true;
   String? _error;
   final Set<int> _revealed = {};
+  final ScrollController _scrollController = ScrollController();
+  bool _showTitle = true;
 
   @override
   void initState() {
     super.initState();
     _coachService = CoachService(DashboardService(SupabaseConfig.client));
     _load();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final shouldShow = _scrollController.offset < 24;
+    if (shouldShow != _showTitle) {
+      setState(() => _showTitle = shouldShow);
+    }
   }
 
   Future<void> _load() async {
@@ -47,7 +66,10 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Coach failed: $error';
+        _error = context.tr(
+          'Coach failed: $error',
+          'कोच असफल भयो: $error',
+        );
         _isLoading = false;
       });
     }
@@ -55,24 +77,54 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final topInset =
+        MediaQuery.of(context).padding.top + kToolbarHeight + 12;
+    return GameZoneScaffold(
+      extendBodyBehindAppBar: true,
+      useSafeArea: false,
       appBar: AppBar(
-        title: const Text('AI Personal Coach'),
+        title: AnimatedOpacity(
+          opacity: _showTitle ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            context.tr('AI Personal Coach', 'एआई पर्सनल कोच'),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _load,
           ),
         ],
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+            )
           : _error != null
-              ? Center(child: Text(_error!))
+              ? Center(
+                  child: Text(
+                    _error!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                )
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(
-                    padding: const EdgeInsets.all(20),
+                    controller: _scrollController,
+                    padding: EdgeInsets.fromLTRB(20, topInset, 20, 24),
                     children: [
                       _CoachHero(snapshot: _snapshot!),
                       const SizedBox(height: 16),
@@ -125,17 +177,19 @@ class _CoachHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Row(
         children: [
           Container(
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.14),
+              color: const Color(0xFF111B2E),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1E2A44)),
             ),
-            child: const Icon(Icons.auto_awesome, color: AppColors.secondary),
+            child:
+                const Icon(Icons.auto_awesome, color: Color(0xFF38BDF8)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -143,19 +197,25 @@ class _CoachHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Today’s AI Coach Plan',
+                  context.tr('Today’s AI Coach Plan', 'आजको एआई कोच योजना'),
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Personalized for ${snapshot.date.toIso8601String().split('T').first}',
+                  context.tr(
+                    'Personalized for ${snapshot.date.toIso8601String().split('T').first}',
+                    'मिति: ${snapshot.date.toIso8601String().split('T').first}',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -173,25 +233,31 @@ class _WeakTopicsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Weak Topics',
+            context.tr('Weak Topics', 'कमजोर विषयहरू'),
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           if (topics.isEmpty)
             Text(
-              'No weak topics detected yet. Take a quiz to unlock insights.',
+              context.tr(
+                'No weak topics detected yet. Take a quiz to unlock insights.',
+                'अहिले कमजोर विषय भेटिएन। जानकारीका लागि क्विज दिनुहोस्।',
+              ),
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             )
           else
             Wrap(
@@ -219,21 +285,27 @@ class _NextStudyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'What to study next',
+            context.tr('What to study next', 'अर्को के पढ्ने'),
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             text,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: Colors.white70),
           ),
         ],
       ),
@@ -248,25 +320,31 @@ class _SmartSuggestionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Smart Suggestions',
+            context.tr('Smart Suggestions', 'स्मार्ट सुझावहरू'),
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           if (suggestions.isEmpty)
             Text(
-              'Complete more quizzes to unlock tips.',
+              context.tr(
+                'Complete more quizzes to unlock tips.',
+                'थप सुझावका लागि धेरै क्विज पूरा गर्नुहोस्।',
+              ),
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             )
           else
             ...suggestions.map(
@@ -280,7 +358,10 @@ class _SmartSuggestionsCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         text,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white70),
                       ),
                     ),
                   ],
@@ -312,15 +393,16 @@ class _AdaptiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _colorFor(difficulty);
-    return AppCard(
+    return _GameCard(
       child: Row(
         children: [
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
+              color: const Color(0xFF111B2E),
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: Icon(Icons.tune, color: color),
           ),
@@ -330,19 +412,25 @@ class _AdaptiveCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Adaptive Difficulty',
+                  context.tr('Adaptive Difficulty', 'अनुकुल कठिनाइ'),
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Recommended level: ${difficulty.toUpperCase()}',
+                  context.tr(
+                    'Recommended level: ${difficulty.toUpperCase()}',
+                    'सिफारिस स्तर: ${difficulty.toUpperCase()}',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -360,18 +448,19 @@ class _AskCoachCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Row(
         children: [
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.14),
+              color: const Color(0xFF111B2E),
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: const Icon(Icons.chat_bubble_outline,
-                color: AppColors.secondary),
+                color: Color(0xFF38BDF8)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -379,19 +468,25 @@ class _AskCoachCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ask your coach',
+                  context.tr('Ask your coach', 'कोचसँग सोध्नुहोस्'),
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Chat for explanations or study help.',
+                  context.tr(
+                    'Chat for explanations or study help.',
+                    'व्याख्या वा पढाइ सहयोगका लागि च्याट गर्नुहोस्।',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.mutedInk),
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -399,7 +494,11 @@ class _AskCoachCard extends StatelessWidget {
           const SizedBox(width: 12),
           FilledButton.tonal(
             onPressed: onOpen,
-            child: const Text('Open Chat'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF38BDF8),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(context.tr('Open Chat', 'च्याट खोल्नुहोस्')),
           ),
         ],
       ),
@@ -414,25 +513,31 @@ class _DailyPlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Daily Plan',
+            context.tr('Daily Plan', 'दैनिक योजना'),
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           if (plan.isEmpty)
             Text(
-              'Add subjects to generate a study plan.',
+              context.tr(
+                'Add subjects to generate a study plan.',
+                'अध्ययन योजना बनाउन विषयहरू थप्नुहोस्।',
+              ),
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             )
           else
             ...plan.map(
@@ -452,7 +557,10 @@ class _DailyPlanCard extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -460,7 +568,7 @@ class _DailyPlanCard extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
-                                ?.copyWith(color: AppColors.mutedInk),
+                                ?.copyWith(color: Colors.white70),
                           ),
                         ],
                       ),
@@ -490,41 +598,59 @@ class _DailyQuestionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _GameCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Daily 10 Questions',
+            context.tr('Daily 10 Questions', 'दैनिक १० प्रश्न'),
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+                ?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
           ),
           const SizedBox(height: 8),
           if (questions.isEmpty)
             Text(
-              'No notes available to build daily questions.',
+              context.tr(
+                'No notes available to build daily questions.',
+                'दैनिक प्रश्न बनाउन नोट उपलब्ध छैन।',
+              ),
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.mutedInk),
+                  ?.copyWith(color: Colors.white70),
             )
           else
             ...questions.asMap().entries.map(
                   (entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: AppCard(
-                      color: AppColors.paper,
+                    child: _OutlineCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Q${entry.key + 1}. ${entry.value.prompt}',
+                            'Q${entry.key + 1}. ',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                          ),
+                          MathText(
+                            text: entry.value.prompt,
+                            textStyle: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -532,22 +658,31 @@ class _DailyQuestionsCard extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .labelSmall
-                                ?.copyWith(color: AppColors.mutedInk),
+                                ?.copyWith(color: Colors.white70),
                           ),
                           const SizedBox(height: 8),
                           if (revealed.contains(entry.key))
-                            Text(
-                              entry.value.answer,
-                              style: Theme.of(context).textTheme.bodySmall,
+                            MathText(
+                              text: entry.value.answer,
+                              textStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.white70),
                             ),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: () => onToggle(entry.key),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF38BDF8),
+                              ),
                               child: Text(
                                 revealed.contains(entry.key)
-                                    ? 'Hide answer'
-                                    : 'Show answer',
+                                    ? context.tr('Hide answer', 'उत्तर लुकाउनुहोस्')
+                                    : context.tr(
+                                        'Show answer',
+                                        'उत्तर देखाउनुहोस्',
+                                      ),
                               ),
                             ),
                           ),
@@ -575,6 +710,7 @@ class _Chip extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
@@ -600,6 +736,64 @@ class _Bullet extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _OutlineCard extends StatelessWidget {
+  final Widget child;
+
+  const _OutlineCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final Widget child;
+
+  const _GameCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: child,
       ),
     );
   }

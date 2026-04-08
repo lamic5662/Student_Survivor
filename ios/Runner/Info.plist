@@ -33,6 +33,10 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Allow access to local Ollama server for AI features.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allow microphone access for voice input in AI chat.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Allow speech recognition to transcribe your voice into text.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

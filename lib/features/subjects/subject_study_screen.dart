@@ -1,8 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -31,12 +34,14 @@ class SubjectStudyScreen extends StatefulWidget {
   State<SubjectStudyScreen> createState() => _SubjectStudyScreenState();
 }
 
-class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
+class _SubjectStudyScreenState extends State<SubjectStudyScreen>
+    with SingleTickerProviderStateMixin {
   late final AiQuizService _aiQuizService;
   late final Chapter _subjectChapter;
   final _random = Random();
   bool _showTitle = true;
   bool _showTabs = true;
+  TabController? _tabController;
 
   List<QuizQuestionItem> _questions = const [];
   bool _isGeneratingQuiz = false;
@@ -50,16 +55,47 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
     super.initState();
     _aiQuizService = AiQuizService(SupabaseConfig.client);
     _subjectChapter = _buildSubjectChapter(widget.subject);
+    _ensureTabController();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _tabController
+      ?..removeListener(_handleTabChange)
+      ..dispose();
     super.dispose();
+  }
+
+  void _ensureTabController() {
+    if (_tabController != null) return;
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    )..addListener(_handleTabChange);
+  }
+
+  void _handleTabChange() {
+    if ((_tabController?.index ?? 0) == 1 && (!_showTitle || !_showTabs)) {
+      setState(() {
+        _showTitle = true;
+        _showTabs = true;
+      });
+    }
   }
 
   bool _handleScroll(ScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    if ((_tabController?.index ?? 0) == 1) {
+      if (!_showTitle || !_showTabs) {
+        setState(() {
+          _showTitle = true;
+          _showTabs = true;
+        });
+      }
       return false;
     }
     final shouldShow = notification.metrics.pixels < 24;
@@ -231,13 +267,16 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _ensureTabController();
+    final tabController = _tabController!;
     final tabBar = TabBar(
+      controller: tabController,
       labelColor: Colors.white,
       unselectedLabelColor: Colors.white70,
       indicatorColor: const Color(0xFF38BDF8),
-      tabs: const [
-        Tab(text: 'Notes'),
-        Tab(text: 'Questions'),
+      tabs: [
+        Tab(text: context.tr('Notes', 'नोट्स')),
+        Tab(text: context.tr('Questions', 'प्रश्नहरू')),
       ],
     );
 
@@ -278,6 +317,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
     final body = NotificationListener<ScrollNotification>(
       onNotification: _handleScroll,
       child: TabBarView(
+        controller: tabController,
         children: [
           _SubjectNotesTab(
             subject: widget.subject,
@@ -289,15 +329,11 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
       ),
     );
 
-    return DefaultTabController(
-      length: 2,
-      initialIndex: widget.initialTabIndex,
-      child: GameZoneScaffold(
-        appBar: appBar,
-        body: body,
-        useSafeArea: false,
-        extendBodyBehindAppBar: true,
-      ),
+    return GameZoneScaffold(
+      appBar: appBar,
+      body: body,
+      useSafeArea: false,
+      extendBodyBehindAppBar: true,
     );
   }
 
@@ -316,7 +352,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Subject Quiz',
+                  context.tr('AI Subject Quiz', 'AI विषय क्विज'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -324,7 +360,10 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Generate MCQs using all chapters in this subject.',
+                  context.tr(
+                    'Generate MCQs using all chapters in this subject.',
+                    'यस विषयका सबै अध्यायबाट MCQ बनाउनुहोस्।',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -338,13 +377,15 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                     foregroundColor: Colors.white,
                   ),
                   child: Text(
-                      _isGeneratingQuiz ? 'Generating...' : 'Generate Questions'),
+                      _isGeneratingQuiz
+                          ? context.tr('Generating...', 'बनाइँदैछ...')
+                          : context.tr('Generate Questions', 'प्रश्न बनाउनुहोस्')),
                 ),
               ],
             ),
           ),
           if (_quizError != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Text(
               _quizError!,
               style: Theme.of(context)
@@ -354,18 +395,21 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
             ),
           ],
           if (_questions.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                '${_questions.length} questions',
+                context.tr(
+                  '${_questions.length} questions',
+                  '${_questions.length} प्रश्न',
+                ),
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
                     ?.copyWith(color: Colors.white70),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -375,9 +419,16 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                 itemBuilder: (context, index) {
                   final page = pages[index];
                   return ListView(
+                    padding: EdgeInsets.zero,
+                    primary: false,
                     children: [
-                      _SectionTitle(title: 'Page ${index + 1}'),
-                      const SizedBox(height: 12),
+                      _SectionTitle(
+                        title: context.tr(
+                          'Page ${index + 1}',
+                          'पृष्ठ ${index + 1}',
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       ...page.map((question) => _buildQuestionCard(context, question)),
                       const SizedBox(height: 8),
                       Wrap(
@@ -389,7 +440,8 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                             OutlinedButton.icon(
                               onPressed: () => _goToPage(index - 1),
                               icon: const Icon(Icons.chevron_left),
-                              label: const Text('Previous'),
+                              label:
+                                  Text(context.tr('Previous', 'अघिल्लो')),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
@@ -401,7 +453,8 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                             OutlinedButton.icon(
                               onPressed: () => _goToPage(index + 1),
                               icon: const Icon(Icons.chevron_right),
-                              label: const Text('Next Page'),
+                              label:
+                                  Text(context.tr('Next Page', 'अर्को पृष्ठ')),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
@@ -415,7 +468,12 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                                   ? null
                                   : _generateSubjectQuiz,
                               icon: const Icon(Icons.auto_awesome),
-                              label: const Text('Generate Next Page'),
+                              label: Text(
+                                context.tr(
+                                  'Generate Next Page',
+                                  'अर्को पृष्ठ बनाउनुहोस्',
+                                ),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
@@ -438,7 +496,9 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                 foregroundColor: Colors.white,
               ),
               child: Text(
-                _isGeneratingQuiz ? 'Generating...' : 'Generate Next Page',
+                _isGeneratingQuiz
+                    ? context.tr('Generating...', 'बनाइँदैछ...')
+                    : context.tr('Generate Next Page', 'अर्को पृष्ठ बनाउनुहोस्'),
               ),
             ),
           ],
@@ -466,16 +526,15 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
 
   Widget _buildQuestionCard(BuildContext context, QuizQuestionItem question) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 4),
       child: _GameCard(
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              question.prompt,
-              softWrap: true,
-              overflow: TextOverflow.visible,
-              style: Theme.of(context)
+            MathText(
+              text: question.prompt,
+              textStyle: Theme.of(context)
                   .textTheme
                   .titleSmall
                   ?.copyWith(
@@ -483,27 +542,27 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
                     color: Colors.white,
                   ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             ...question.options.asMap().entries.map(
                   (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '${String.fromCharCode(65 + entry.key)}. ${entry.value}',
-                      softWrap: true,
-                      overflow: TextOverflow.visible,
-                      style: Theme.of(context)
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: MathText(
+                      text:
+                          '${String.fromCharCode(65 + entry.key)}. ${entry.value}',
+                      textStyle: Theme.of(context)
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: Colors.white70),
                     ),
                   ),
                 ),
-            const SizedBox(height: 8),
-            Text(
-              'Answer: ${_answerFor(question)}',
-              softWrap: true,
-              overflow: TextOverflow.visible,
-              style: Theme.of(context)
+            const SizedBox(height: 6),
+            MathText(
+              text: context.tr(
+                'Answer: ${_answerFor(context, question)}',
+                'उत्तर: ${_answerFor(context, question)}',
+              ),
+              textStyle: Theme.of(context)
                   .textTheme
                   .bodySmall
                   ?.copyWith(
@@ -513,10 +572,10 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
             ),
             if (question.explanation != null &&
                 question.explanation!.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                question.explanation!,
-                style: Theme.of(context)
+              const SizedBox(height: 4),
+              MathText(
+                text: question.explanation!,
+                textStyle: Theme.of(context)
                     .textTheme
                     .bodySmall
                     ?.copyWith(color: Colors.white70),
@@ -541,12 +600,12 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen> {
     }
   }
 
-  String _answerFor(QuizQuestionItem question) {
+  String _answerFor(BuildContext context, QuizQuestionItem question) {
     final index = question.correctIndex;
     if (index >= 0 && index < question.options.length) {
       return question.options[index];
     }
-    return 'Answer not available';
+    return context.tr('Answer not available', 'उत्तर उपलब्ध छैन');
   }
 
 }
@@ -630,7 +689,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load notes: $error';
+        _errorMessage = context.tr(
+          'Failed to load notes: $error',
+          'नोट लोड गर्न असफल: $error',
+        );
         _isLoading = false;
       });
     }
@@ -650,7 +712,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       if (!mounted) return;
       if (draft == null) {
         setState(() {
-          _errorMessage = 'AI notes unavailable. Enable Ollama to generate.';
+          _errorMessage = context.tr(
+            'AI notes unavailable. Enable Ollama to generate.',
+            'AI नोट उपलब्ध छैन। बनाउन Ollama सक्षम गर्नुहोस्।',
+          );
         });
         return;
       }
@@ -660,7 +725,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to generate note: $error';
+        _errorMessage = context.tr(
+          'Failed to generate note: $error',
+          'नोट बनाउन असफल: $error',
+        );
       });
     } finally {
       if (mounted) {
@@ -703,7 +771,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to save note: $error';
+        _errorMessage = context.tr(
+          'Failed to save note: $error',
+          'नोट सुरक्षित गर्न असफल: $error',
+        );
       });
       return;
     } finally {
@@ -721,7 +792,14 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     await _loadUserNotes();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saved ${chapter.title} to My Notes')),
+      SnackBar(
+        content: Text(
+          context.tr(
+            'Saved ${chapter.title} to My Notes',
+            '${chapter.title} मेरो नोटमा सुरक्षित भयो',
+          ),
+        ),
+      ),
     );
   }
 
@@ -731,7 +809,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
   }) {
     if (url.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No attachment available.')),
+        SnackBar(
+          content: Text(
+            context.tr('No attachment available.', 'संलग्न फाइल छैन।'),
+          ),
+        ),
       );
       return;
     }
@@ -771,10 +853,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
-            return ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              children: [
+      final safeUrl = fileUrl ?? '';
+      return ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
                 Container(
                   height: 4,
                   width: 40,
@@ -795,7 +878,45 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       ),
                 ),
                 const SizedBox(height: 16),
-                if ((fileUrl ?? '').isNotEmpty) ...[
+                if (safeUrl.isNotEmpty) ...[
+                  if (_isImageUrl(safeUrl)) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        safeUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 180,
+                            alignment: Alignment.center,
+                            color: const Color(0xFF0B1220),
+                            child: const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 180,
+                          alignment: Alignment.center,
+                          color: const Color(0xFF0B1220),
+                          child: Text(
+                            context.tr(
+                              'Image unavailable',
+                              'तस्बिर उपलब्ध छैन',
+                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   _GameCard(
                     child: Row(
                       children: [
@@ -806,7 +927,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Attachment available',
+                            context.tr('Attachment available', 'संलग्न उपलब्ध'),
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
@@ -819,12 +940,12 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                         TextButton(
                           onPressed: () => _openAttachment(
                             title: title,
-                            url: fileUrl!,
+                            url: safeUrl,
                           ),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFF38BDF8),
                           ),
-                          child: const Text('Open'),
+                          child: Text(context.tr('Open', 'खोल्नुहोस्')),
                         ),
                       ],
                     ),
@@ -834,7 +955,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                 if (detailedAnswer.isNotEmpty ||
                     shortAnswer.isNotEmpty) ...[
                   Text(
-                    'Notes',
+                    context.tr('Notes', 'नोट्स'),
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
@@ -854,9 +975,12 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                         .bodySmall
                         ?.copyWith(color: Colors.white70),
                   ),
-                ] else if ((fileUrl ?? '').isEmpty) ...[
+                ] else if (safeUrl.isEmpty) ...[
                   Text(
-                    'No note content available yet.',
+                    context.tr(
+                      'No note content available yet.',
+                      'अहिलेसम्म नोट सामग्री छैन।',
+                    ),
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -899,25 +1023,141 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     required Set<String> difficultWords,
     TextStyle? style,
   }) {
-    final lines = text.split('\n');
     final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium!;
+    final segments = _splitBlockMath(text);
+    final widgets = <Widget>[];
+    for (final segment in segments) {
+      if (segment.isMath) {
+        widgets.add(_buildMathBlock(segment.text, baseStyle));
+        continue;
+      }
+      final lines = segment.text.split('\n');
+      for (var i = 0; i < lines.length; i += 1) {
+        final lineWidgets = _buildInlineMathWidgets(
+          lines[i],
+          baseStyle,
+          contextText,
+          mainWords,
+          difficultWords,
+        );
+        if (lineWidgets.isNotEmpty) {
+          widgets.add(Wrap(children: lineWidgets));
+        }
+        if (i != lines.length - 1) {
+          widgets.add(const SizedBox(height: 6));
+        }
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < lines.length; i++) ...[
-          Wrap(
-            children: _buildWordWidgets(
-              lines[i],
-              baseStyle,
-              contextText,
-              mainWords,
-              difficultWords,
+      children: widgets,
+    );
+  }
+
+  List<_MathSegment> _splitBlockMath(String text) {
+    final regex = RegExp(r'\$\$(.+?)\$\$', dotAll: true);
+    final segments = <_MathSegment>[];
+    var cursor = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > cursor) {
+        segments.add(_MathSegment(
+          text: text.substring(cursor, match.start),
+          isMath: false,
+        ));
+      }
+      final math = match.group(1) ?? '';
+      segments.add(_MathSegment(text: math, isMath: true));
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      segments.add(_MathSegment(text: text.substring(cursor), isMath: false));
+    }
+    if (segments.isEmpty) {
+      segments.add(_MathSegment(text: text, isMath: false));
+    }
+    return segments;
+  }
+
+  Widget _buildMathBlock(String tex, TextStyle style) {
+    final content = tex.trim();
+    if (content.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Math.tex(
+          content,
+          mathStyle: MathStyle.display,
+          textStyle: style.copyWith(color: style.color),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildInlineMathWidgets(
+    String line,
+    TextStyle style,
+    String contextText,
+    Set<String> mainWords,
+    Set<String> difficultWords,
+  ) {
+    if (line.isEmpty) return const [];
+    final inlineRegex = RegExp(r'\$(.+?)\$');
+    final widgets = <Widget>[];
+    var cursor = 0;
+    for (final match in inlineRegex.allMatches(line)) {
+      if (match.start > cursor) {
+        widgets.addAll(_buildWordWidgets(
+          line.substring(cursor, match.start),
+          style,
+          contextText,
+          mainWords,
+          difficultWords,
+        ));
+      }
+      final tex = match.group(1)?.trim() ?? '';
+      if (tex.isNotEmpty) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Math.tex(
+              tex,
+              mathStyle: MathStyle.text,
+              textStyle: style.copyWith(color: style.color),
             ),
           ),
-          if (i != lines.length - 1) const SizedBox(height: 6),
-        ],
-      ],
-    );
+        );
+      }
+      cursor = match.end;
+    }
+    if (cursor < line.length) {
+      widgets.addAll(_buildWordWidgets(
+        line.substring(cursor),
+        style,
+        contextText,
+        mainWords,
+        difficultWords,
+      ));
+    }
+    return widgets;
+  }
+
+  bool _isImageUrl(String url) {
+    try {
+      final path = Uri.parse(url).path.toLowerCase();
+      return path.endsWith('.png') ||
+          path.endsWith('.jpg') ||
+          path.endsWith('.jpeg') ||
+          path.endsWith('.gif') ||
+          path.endsWith('.webp');
+    } catch (_) {
+      final lower = url.toLowerCase();
+      return lower.contains('.png') ||
+          lower.contains('.jpg') ||
+          lower.contains('.jpeg') ||
+          lower.contains('.gif') ||
+          lower.contains('.webp');
+    }
   }
 
   List<Widget> _buildWordWidgets(
@@ -947,7 +1187,8 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       );
       widgets.add(
         Tooltip(
-          message: cached ?? 'Tap to see meaning',
+          message: cached ??
+              context.tr('Tap to see meaning', 'अर्थ हेर्न ट्याप गर्नुहोस्'),
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
@@ -1004,16 +1245,22 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                 );
               }
               if (snapshot.hasError) {
-                return Text('Failed to load meaning: ${snapshot.error}');
+                return Text(
+                  context.tr(
+                    'Failed to load meaning: ${snapshot.error}',
+                    'अर्थ लोड गर्न असफल: ${snapshot.error}',
+                  ),
+                );
               }
-              final meaning = snapshot.data ?? 'No meaning available.';
+              final meaning = snapshot.data ??
+                  context.tr('No meaning available.', 'अर्थ उपलब्ध छैन।');
               return Text(meaning);
             },
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
+              child: Text(context.tr('Close', 'बन्द गर्नुहोस्')),
             ),
           ],
         );
@@ -1180,16 +1427,21 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete note?'),
-          content: const Text('This will remove the note permanently.'),
+          title: Text(context.tr('Delete note?', 'नोट हटाउने?')),
+          content: Text(
+            context.tr(
+              'This will remove the note permanently.',
+              'यसले नोट स्थायी रूपमा हटाउनेछ।',
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel', 'रद्द गर्नुहोस्')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
+              child: Text(context.tr('Delete', 'हटाउनुहोस्')),
             ),
           ],
         );
@@ -1210,12 +1462,15 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
       await _loadUserNotes();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note deleted')),
+        SnackBar(content: Text(context.tr('Note deleted', 'नोट हटाइयो'))),
       );
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to delete note: $error';
+        _errorMessage = context.tr(
+          'Failed to delete note: $error',
+          'नोट हटाउन असफल: $error',
+        );
       });
     } finally {
       if (mounted) {
@@ -1311,7 +1566,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   ),
                   if (showAttachmentBadge)
                     _noteBadge(
-                      label: 'Attachment',
+                      label: context.tr('Attachment', 'संलग्न'),
                       color: AppColors.warning,
                       icon: Icons.attach_file_rounded,
                     ),
@@ -1361,7 +1616,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   ),
                 if (showAttachmentBadge)
                   _noteBadge(
-                    label: 'Attachment',
+                    label: context.tr('Attachment', 'संलग्न'),
                     color: AppColors.warning,
                     icon: Icons.attach_file_rounded,
                   ),
@@ -1410,7 +1665,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Tap to open full note',
+                  context.tr(
+                    'Tap to open full note',
+                    'पूरा नोट खोल्न ट्याप गर्नुहोस्',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .labelSmall
@@ -1469,7 +1727,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                 children: [
                   Expanded(
                     child: Text(
-                      'AI Chapter Notes',
+                      context.tr('AI Chapter Notes', 'AI अध्याय नोट्स'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -1491,16 +1749,19 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white70,
                       ),
-                      child: const Text('Generate All'),
+                      child: Text(context.tr('Generate All', 'सबै बनाउनुहोस्')),
                     ),
                 ],
               ),
               childrenPadding: const EdgeInsets.only(bottom: 8),
               children: [
                 if (_chapters.isEmpty)
-                  const Text(
-                    'No chapters found for this subject.',
-                    style: TextStyle(color: Colors.white70),
+                  Text(
+                    context.tr(
+                      'No chapters found for this subject.',
+                      'यस विषयका कुनै अध्याय भेटिएन।',
+                    ),
+                    style: const TextStyle(color: Colors.white70),
                   )
                 else
                   ..._chapters.map(
@@ -1542,9 +1803,12 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                               ),
                               const SizedBox(height: 8),
                               if (draft == null)
-                                const Text(
-                                  'No AI note yet for this chapter.',
-                                  style: TextStyle(color: Colors.white70),
+                                Text(
+                                  context.tr(
+                                    'No AI note yet for this chapter.',
+                                    'यस अध्यायका लागि AI नोट छैन।',
+                                  ),
+                                  style: const TextStyle(color: Colors.white70),
                                 )
                               else
                                 _noteCard(
@@ -1552,11 +1816,11 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                   shortAnswer: draft.shortAnswer,
                                   detailedAnswer: draft.detailedAnswer,
                                   collapsible: true,
-                                  badgeLabel: 'AI Draft',
+                                  badgeLabel: context.tr('AI Draft', 'AI ड्राफ्ट'),
                                   badgeColor: AppColors.secondary,
                                   badgeIcon: Icons.auto_awesome_rounded,
                                   trailing: IconButton(
-                                    tooltip: 'Open',
+                                    tooltip: context.tr('Open', 'खोल्नुहोस्'),
                                     onPressed: () => _showTextNoteDetails(
                                       title: draft.title,
                                       shortAnswer: draft.shortAnswer,
@@ -1580,7 +1844,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       foregroundColor: Colors.white,
                                     ),
                                     child: Text(
-                                      draft == null ? 'Generate' : 'Regenerate',
+                                      draft == null
+                                          ? context.tr('Generate', 'बनाउनुहोस्')
+                                          : context.tr('Regenerate', 'पुनः बनाउनुहोस्'),
                                     ),
                                   ),
                                   if (draft != null)
@@ -1604,7 +1870,12 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                                 color: Color(0xFF38BDF8),
                                               ),
                                             )
-                                          : const Text('Save to My Notes'),
+                                          : Text(
+                                              context.tr(
+                                                'Save to My Notes',
+                                                'मेरो नोटमा सुरक्षित गर्नुहोस्',
+                                              ),
+                                            ),
                                     ),
                                   if (draft != null)
                                     TextButton(
@@ -1619,7 +1890,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       style: TextButton.styleFrom(
                                         foregroundColor: Colors.white70,
                                       ),
-                                      child: const Text('Discard'),
+                                      child: Text(
+                                        context.tr('Discard', 'रद्द गर्नुहोस्'),
+                                      ),
                                     ),
                                 ],
                               ),
@@ -1646,8 +1919,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           KeyedSubtree(
             key: _myNotesKey,
             child: _SectionTitle(
-              title: 'My Notes',
-              actionLabel: _isLoading ? null : 'Refresh',
+              title: context.tr('My Notes', 'मेरो नोट्स'),
+              actionLabel:
+                  _isLoading ? null : context.tr('Refresh', 'रिफ्रेस'),
               onAction: _isLoading ? null : _loadUserNotes,
             ),
           ),
@@ -1659,9 +1933,9 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               ),
             )
           else if (_userNotes.isEmpty)
-            const Text(
-              'No saved notes yet.',
-              style: TextStyle(color: Colors.white70),
+            Text(
+              context.tr('No saved notes yet.', 'अहिलेसम्म नोट सुरक्षित छैन।'),
+              style: const TextStyle(color: Colors.white70),
             )
           else
             ..._userNotes.map(
@@ -1673,19 +1947,19 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   detailedAnswer: note.detailedAnswer,
                   onTap: () => _showUserNoteDetails(note),
                   showTapHint: true,
-                  badgeLabel: 'My Note',
+                  badgeLabel: context.tr('My Note', 'मेरो नोट'),
                   badgeColor: AppColors.accent,
                   badgeIcon: Icons.bookmark_rounded,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        tooltip: 'Open',
+                        tooltip: context.tr('Open', 'खोल्नुहोस्'),
                         onPressed: () => _showUserNoteDetails(note),
                         icon: const Icon(Icons.open_in_new),
                       ),
                       IconButton(
-                        tooltip: 'Delete',
+                        tooltip: context.tr('Delete', 'हटाउनुहोस्'),
                         onPressed: _deletingNoteId == note.id
                             ? null
                             : () => _confirmDelete(note),
@@ -1706,13 +1980,15 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           const SizedBox(height: 24),
           KeyedSubtree(
             key: _officialNotesKey,
-            child: const _SectionTitle(title: 'Official Notes'),
+            child: _SectionTitle(
+              title: context.tr('Official Notes', 'आधिकारिक नोट्स'),
+            ),
           ),
           const SizedBox(height: 12),
           if (officialNotes.isEmpty)
-            const Text(
-              'No official notes yet.',
-              style: TextStyle(color: Colors.white70),
+            Text(
+              context.tr('No official notes yet.', 'अहिलेसम्म आधिकारिक नोट्स छैन।'),
+              style: const TextStyle(color: Colors.white70),
             )
           else
             ...officialNotes.map(
@@ -1729,7 +2005,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                     fileUrl: entry.note.fileUrl,
                   ),
                   showTapHint: true,
-                  badgeLabel: 'Official',
+                  badgeLabel: context.tr('Official', 'आधिकारिक'),
                   badgeColor: AppColors.secondary,
                   badgeIcon: Icons.verified_rounded,
                   showAttachmentBadge: (entry.note.fileUrl ?? '').isNotEmpty,
@@ -1748,7 +2024,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                             size: 14, color: Color(0xFF38BDF8)),
                         const SizedBox(width: 4),
                         Text(
-                          'Open',
+                          context.tr('Open', 'खोल्नुहोस्'),
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
                                     color: const Color(0xFF38BDF8),
@@ -1806,9 +2082,11 @@ class _SectionTitle extends StatelessWidget {
 
 class _GameCard extends StatelessWidget {
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   const _GameCard({
     required this.child,
+    this.padding = const EdgeInsets.all(16),
   });
 
   @override
@@ -1833,7 +2111,7 @@ class _GameCard extends StatelessWidget {
         ],
       ),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: padding,
         decoration: BoxDecoration(
           color: const Color(0xFF0B1220),
           borderRadius: BorderRadius.circular(18),
@@ -1843,4 +2121,14 @@ class _GameCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MathSegment {
+  final String text;
+  final bool isMath;
+
+  const _MathSegment({
+    required this.text,
+    required this.isMath,
+  });
 }

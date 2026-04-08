@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 
@@ -46,7 +47,7 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Free Books',
+            context.l10n.freeBooks,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -74,7 +75,10 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Free textbook libraries',
+                      context.tr(
+                        'Free textbook libraries',
+                        'निःशुल्क पाठ्यपुस्तक पुस्तकालय',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -85,9 +89,14 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Browse open textbooks from trusted sources. Use the site '
-                      'search to find BCA topics like programming, databases, OS, '
-                      'networks, and statistics.',
+                      context.tr(
+                        'Browse open textbooks from trusted sources. Use the site '
+                        'search to find BCA topics like programming, databases, OS, '
+                        'networks, and statistics.',
+                        'विश्वसनीय स्रोतबाट खुला पाठ्यपुस्तकहरू हेर्नुहोस्। '
+                        'प्रोग्रामिङ, डेटाबेस, OS, नेटवर्क र सांख्यिकी जस्ता '
+                        'BCA विषयहरू खोज्न साइट खोज प्रयोग गर्नुहोस्।',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -97,7 +106,9 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const _SectionTitle(title: 'Sources'),
+              _SectionTitle(
+                title: context.tr('Sources', 'स्रोतहरू'),
+              ),
               const SizedBox(height: 12),
               _FilterRow(
                 filter: _filter,
@@ -109,7 +120,10 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Showing results for: ${_filterLabel(_filter)}',
+                context.tr(
+                  'Showing results for: ${_filterLabel(_filter)}',
+                  'नतिजा देखाइँदै: ${_filterLabel(_filter)}',
+                ),
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
@@ -127,7 +141,9 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const _SectionTitle(title: 'Suggested Topics'),
+              _SectionTitle(
+                title: context.tr('Suggested Topics', 'सुझाव गरिएको विषय'),
+              ),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -235,7 +251,12 @@ class _SourceCard extends StatelessWidget {
                         backgroundColor: const Color(0xFF38BDF8),
                         foregroundColor: Colors.white,
                       ),
-                      child: Text('Open $filterLabel'),
+                      child: Text(
+                        context.tr(
+                          'Open $filterLabel',
+                          '$filterLabel खोल्नुहोस्',
+                        ),
+                      ),
                     ),
                     TextButton(
                       onPressed: () {
@@ -251,7 +272,9 @@ class _SourceCard extends StatelessWidget {
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white70,
                       ),
-                      child: const Text('Visit site'),
+                      child: Text(
+                        context.tr('Visit site', 'वेबसाइट खोल्नुहोस्'),
+                      ),
                     ),
                   ],
                 ),

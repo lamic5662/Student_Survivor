@@ -520,7 +520,7 @@ class AiNotesService {
         uri,
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'model': SupabaseConfig.ollamaModel,
+          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.notes),
           'stream': false,
           'messages': [
             {'role': 'system', 'content': systemPrompt},

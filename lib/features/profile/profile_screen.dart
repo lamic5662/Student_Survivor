@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
+import 'package:student_survivor/core/localization/locale_controller.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -51,19 +53,20 @@ class _ProfileScreenState
   ProfilePresenter createPresenter() => ProfilePresenter();
 
   Future<void> _handleLogout() async {
+    final l10n = context.l10n;
     final confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Are you sure you want to logout?'),
+            title: Text(l10n.logoutTitle),
+            content: Text(l10n.logoutMessage),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancel),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Logout'),
+                child: Text(l10n.logout),
               ),
             ],
           ),
@@ -88,9 +91,10 @@ class _ProfileScreenState
   }
 
   void _openCommunityQna(UserProfile profile) {
+    final l10n = context.l10n;
     if (profile.subjects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No subjects available yet.')),
+        SnackBar(content: Text(l10n.noSubjects)),
       );
       return;
     }
@@ -107,7 +111,7 @@ class _ProfileScreenState
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
               Text(
-                'Community Q&A',
+                l10n.communityQna,
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -118,7 +122,7 @@ class _ProfileScreenState
               ),
               const SizedBox(height: 6),
               Text(
-                'Choose a subject to view questions.',
+                l10n.chooseSubject,
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
@@ -183,6 +187,8 @@ class _ProfileScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final currentLocale = LocaleController.instance.value;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF070B14),
@@ -191,7 +197,7 @@ class _ProfileScreenState
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Profile',
+            l10n.profile,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -271,8 +277,8 @@ class _ProfileScreenState
                                   _ProfileChip(label: profile.semester.name),
                                   _ProfileChip(
                                     label: profile.isAdmin
-                                        ? 'Admin'
-                                        : 'Student',
+                                        ? l10n.adminRole
+                                        : l10n.student,
                                   ),
                                 ],
                               ),
@@ -298,7 +304,7 @@ class _ProfileScreenState
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Quick actions',
+                    l10n.quickActions,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
@@ -307,7 +313,7 @@ class _ProfileScreenState
                   const SizedBox(height: 12),
                   _ProfileItem(
                     icon: Icons.search,
-                    label: 'Search',
+                    label: l10n.search,
                     subtitle: 'Find notes, questions, and quizzes.',
                     onTap: () {
                       Navigator.of(context).push(
@@ -317,13 +323,13 @@ class _ProfileScreenState
                   ),
                   _ProfileItem(
                     icon: Icons.forum_outlined,
-                    label: 'Community Q&A',
+                    label: l10n.communityQna,
                     subtitle: 'Ask questions and help classmates.',
                     onTap: () => _openCommunityQna(profile),
                   ),
                   _ProfileItem(
                     icon: Icons.event_note,
-                    label: 'Study Planner',
+                    label: l10n.studyPlanner,
                     subtitle: 'Plan sessions and stay on track.',
                     onTap: () {
                       Navigator.of(context).push(
@@ -333,7 +339,7 @@ class _ProfileScreenState
                   ),
                   _ProfileItem(
                     icon: Icons.insights,
-                    label: 'Progress Tracking',
+                    label: l10n.progressTracking,
                     subtitle: 'Review goals and achievements.',
                     onTap: () {
                       Navigator.of(context).push(
@@ -343,7 +349,7 @@ class _ProfileScreenState
                   ),
                   _ProfileItem(
                     icon: Icons.list_alt,
-                    label: 'Syllabus',
+                    label: l10n.syllabus,
                     subtitle: 'Open official course outlines.',
                     onTap: () {
                       Navigator.of(context).push(
@@ -351,10 +357,18 @@ class _ProfileScreenState
                       );
                     },
                   ),
+                  _ProfileItem(
+                    icon: Icons.language,
+                    label: l10n.language,
+                    subtitle: currentLocale?.languageCode == 'ne'
+                        ? l10n.nepali
+                        : l10n.english,
+                    onTap: () => _showLanguagePicker(context),
+                  ),
                   if (profile.isAdmin)
                     _ProfileItem(
                       icon: Icons.admin_panel_settings,
-                      label: 'Admin',
+                      label: l10n.admin,
                       subtitle: 'Manage content and approvals.',
                       onTap: () {
                         Navigator.of(context).push(
@@ -365,7 +379,7 @@ class _ProfileScreenState
                   const SizedBox(height: 8),
                   _ProfileItem(
                     icon: Icons.logout,
-                    label: 'Logout',
+                    label: l10n.logout,
                     subtitle: 'Sign out of your account.',
                     onTap: _handleLogout,
                   ),
@@ -375,6 +389,82 @@ class _ProfileScreenState
           );
         },
       ),
+    );
+  }
+
+  void _showLanguagePicker(BuildContext context) {
+    final l10n = context.l10n;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            children: [
+              Text(
+                l10n.language,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              _GameCard(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    LocaleController.instance
+                        .setLocale(const Locale('en'));
+                    Navigator.of(context).pop();
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.language, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.english,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _GameCard(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    LocaleController.instance
+                        .setLocale(const Locale('ne'));
+                    Navigator.of(context).pop();
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.language, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 12),
+                      Text(
+                        l10n.nepali,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

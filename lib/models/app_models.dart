@@ -6,6 +6,10 @@ enum QuizType { mcq, time, level }
 
 enum QuizDifficulty { easy, medium, hard }
 
+enum RevisionItemType { topic, chapter, note, question }
+
+enum RevisionPriority { high, medium, low }
+
 class UserProfile {
   final String name;
   final String email;
@@ -260,6 +264,32 @@ class WeakTopic {
   const WeakTopic({
     required this.name,
     required this.reason,
+  });
+}
+
+class RevisionItem {
+  final String id;
+  final RevisionItemType type;
+  final RevisionPriority priority;
+  final String title;
+  final String detail;
+  final DateTime dueAt;
+  final Subject? subject;
+  final Chapter? chapter;
+  final Note? note;
+  final Question? question;
+
+  const RevisionItem({
+    required this.id,
+    required this.type,
+    required this.priority,
+    required this.title,
+    required this.detail,
+    required this.dueAt,
+    this.subject,
+    this.chapter,
+    this.note,
+    this.question,
   });
 }
 

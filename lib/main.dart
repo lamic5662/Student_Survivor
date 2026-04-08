@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:student_survivor/app.dart';
+import 'package:student_survivor/core/localization/locale_controller.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 
 Future<void> main() async {
@@ -11,6 +12,7 @@ Future<void> main() async {
   } catch (_) {}
   await Hive.initFlutter();
   await SupabaseConfig.initialize();
+  await LocaleController.instance.load();
 
   if (!SupabaseConfig.isConfigured) {
     runApp(const MissingSupabaseConfigApp());

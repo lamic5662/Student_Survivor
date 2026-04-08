@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/features/dashboard/dashboard_presenter.dart';
@@ -9,6 +10,8 @@ import 'package:student_survivor/features/programming_world/programming_world_sc
 import 'package:student_survivor/features/notices/bca_notices_screen.dart';
 import 'package:student_survivor/features/planner/planner_screen.dart';
 import 'package:student_survivor/features/progress/progress_screen.dart';
+import 'package:student_survivor/features/revision/quick_revision_quiz_screen.dart';
+import 'package:student_survivor/features/revision/revision_queue_screen.dart';
 import 'package:student_survivor/features/search/search_screen.dart';
 import 'package:student_survivor/features/syllabus/syllabus_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -106,7 +109,36 @@ class _DashboardScreenState
   }
 
   @override
+  void openRevisionQueue() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RevisionQueueScreen()),
+    );
+  }
+
+  Future<void> _openQuickRevision(List<RevisionItem> items) async {
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'No revision items yet.',
+              'अहिले पुनरावलोकन सामग्री छैन।',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuickRevisionQuizScreen(items: items),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF070B14),
@@ -117,7 +149,7 @@ class _DashboardScreenState
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Dashboard',
+            l10n.dashboard,
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -137,12 +169,8 @@ class _DashboardScreenState
           ValueListenableBuilder<DashboardViewModel>(
             valueListenable: presenter.state,
             builder: (context, model, _) {
-              if (model.isLoading) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                );
-              }
-              if (model.errorMessage != null) {
+              final showLoading = model.isLoading;
+              if (model.errorMessage != null && !showLoading) {
                 return Center(
                   child: Text(
                     model.errorMessage!,
@@ -153,81 +181,158 @@ class _DashboardScreenState
                   ),
                 );
               }
-              return ListView(
-                controller: _scrollController,
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  kToolbarHeight + 36,
-                  20,
-                  28,
-                ),
+              final recommendedNotes = model.recommendedNotes;
+              final itemCount = recommendedNotes.isEmpty
+                  ? 23
+                  : 22 + recommendedNotes.length;
+              return Stack(
                 children: [
-                  _HeroCard(model: model),
-                  const SizedBox(height: 20),
-                  _CoachCard(onOpen: presenter.onCoach),
-                  const SizedBox(height: 20),
-                  const _GameSectionHeader(title: 'Quick Actions'),
-                  const SizedBox(height: 12),
-                  _QuickActions(
-                    onPlanner: presenter.onPlanner,
-                    onSyllabus: presenter.onSyllabus,
-                    onProgress: presenter.onProgress,
-                    onNotices: presenter.onNotices,
-                    onBooks: presenter.onBooks,
-                    onProgrammingWorld: presenter.onProgrammingWorld,
-                  ),
-                  const SizedBox(height: 24),
-                  const _GameSectionHeader(title: 'Progress Snapshot'),
-                  const SizedBox(height: 12),
-                  _SnapshotRow(
-                    xp: model.xp,
-                    gamesPlayed: model.gamesPlayed,
-                  ),
-                  const SizedBox(height: 24),
-                  const _GameSectionHeader(title: 'Weak Topics'),
-                  const SizedBox(height: 12),
-                  _WeakTopics(topics: model.weakTopics),
-                  const SizedBox(height: 24),
-                  const _GameSectionHeader(title: 'Recommended Notes'),
-                  const SizedBox(height: 12),
-                  if (model.recommendedNotes.isEmpty)
-                    Text(
-                      'No recommendations yet.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: Colors.white70),
-                    )
-                  else
-                    ...model.recommendedNotes.map(
-                      (note) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _GameCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                note.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                note.shortAnswer,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(color: Colors.white70),
-                              ),
-                              const SizedBox(height: 12),
-                              const _GameTag(label: 'AI pick'),
-                            ],
+                  ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      MediaQuery.of(context).padding.top +
+                          kToolbarHeight -
+                          44,
+                      20,
+                      28,
+                    ),
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) {
+                      switch (index) {
+                        case 0:
+                          return RepaintBoundary(
+                              child: _HeroCard(model: model));
+                        case 1:
+                          return const SizedBox(height: 20);
+                        case 2:
+                          return RepaintBoundary(
+                            child: _CoachCard(onOpen: presenter.onCoach),
+                          );
+                        case 3:
+                          return const SizedBox(height: 16);
+                        case 4:
+                          return _GameSectionHeader(
+                              title: l10n.quickActions);
+                        case 5:
+                          return const SizedBox(height: 12);
+                        case 6:
+                          return RepaintBoundary(
+                            child: _QuickActions(
+                              onPlanner: presenter.onPlanner,
+                              onSyllabus: presenter.onSyllabus,
+                              onProgress: presenter.onProgress,
+                              onNotices: presenter.onNotices,
+                              onBooks: presenter.onBooks,
+                              onProgrammingWorld:
+                                  presenter.onProgrammingWorld,
+                            ),
+                          );
+                        case 7:
+                          return const SizedBox(height: 24);
+                        case 8:
+                          return _GameSectionHeader(
+                              title: l10n.progressSnapshot);
+                        case 9:
+                          return const SizedBox(height: 12);
+                        case 10:
+                          return RepaintBoundary(
+                            child: _SnapshotRow(
+                              xp: model.xp,
+                              gamesPlayed: model.gamesPlayed,
+                            ),
+                          );
+                        case 11:
+                          return const SizedBox(height: 24);
+                        case 12:
+                          return _GameSectionHeader(title: l10n.weakTopics);
+                        case 13:
+                          return const SizedBox(height: 12);
+                        case 14:
+                          return RepaintBoundary(
+                            child: _WeakTopics(topics: model.weakTopics),
+                          );
+                        case 15:
+                          return const SizedBox(height: 24);
+                        case 16:
+                          return _GameSectionHeader(
+                              title: l10n.revisionQueue);
+                        case 17:
+                          return const SizedBox(height: 12);
+                        case 18:
+                          return RepaintBoundary(
+                            child: _RevisionQueueCard(
+                              items: model.revisionQueue,
+                              onOpen: presenter.onRevisionQueue,
+                              onQuickStart: () =>
+                                  _openQuickRevision(model.revisionQueue),
+                            ),
+                          );
+                        case 19:
+                          return const SizedBox(height: 24);
+                        case 20:
+                          return _GameSectionHeader(
+                              title: l10n.recommendedNotes);
+                        case 21:
+                          return const SizedBox(height: 12);
+                      }
+
+                      if (recommendedNotes.isEmpty) {
+                        return Text(
+                          l10n.noRecommendations,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: Colors.white70),
+                        );
+                      }
+                      final note = recommendedNotes[index - 22];
+                      return RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _GameCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  note.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  note.shortAnswer,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(color: Colors.white70),
+                                ),
+                                const SizedBox(height: 12),
+                                _GameTag(label: l10n.aiPick),
+                              ],
+                            ),
                           ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (showLoading)
+                    const Positioned(
+                      left: 20,
+                      right: 20,
+                      top: kToolbarHeight + 16,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
+                        child: LinearProgressIndicator(
+                          minHeight: 3,
+                          backgroundColor: Color(0xFF0F172A),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
                         ),
                       ),
                     ),
@@ -556,7 +661,7 @@ class _HeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome back,',
+                      context.l10n.welcomeBackShort,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -580,7 +685,10 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Overall progress: ${_percent(model.progress)} for ${model.profile.semester.name}.',
+            context.l10n.overallProgressMessage(
+              _percent(model.progress),
+              model.profile.semester.name,
+            ),
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -601,16 +709,18 @@ class _HeroCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              const _GameTag(label: 'AI Adaptive'),
+              _GameTag(label: context.l10n.aiAdaptive),
               if (model.latestAttempt != null)
                 _GameTag(
-                  label: model.latestAttempt!.isPass ? 'Pass' : 'Fail',
+                  label: model.latestAttempt!.isPass
+                      ? context.l10n.pass
+                      : context.l10n.fail,
                   accent: model.latestAttempt!.isPass
                       ? AppColors.success
                       : AppColors.danger,
                 )
               else
-                const _GameTag(label: 'No attempts'),
+                _GameTag(label: context.l10n.noAttempts),
               _HeroChip(label: model.profile.semester.name),
             ],
           ),
@@ -673,7 +783,7 @@ class _CoachCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Personal Coach',
+                  context.l10n.aiPersonalCoach,
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
@@ -681,7 +791,7 @@ class _CoachCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Weak topics, daily plan, and 10 questions.',
+                  context.l10n.aiCoachSubtitle,
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -692,7 +802,7 @@ class _CoachCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           _GameActionButton(
-            label: 'Open',
+            label: context.l10n.open,
             onPressed: onOpen,
           ),
         ],
@@ -732,8 +842,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.event_note,
                 color: AppColors.secondary,
-                label: 'Study Planner',
-                subtitle: 'Plan your week',
+                label: context.l10n.studyPlanner,
+                subtitle: context.l10n.studyPlannerSubtitle,
                 onTap: onPlanner,
               ),
             ),
@@ -742,8 +852,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.insights,
                 color: AppColors.accent,
-                label: 'Progress',
-                subtitle: 'Track growth',
+                label: context.l10n.progressShort,
+                subtitle: context.l10n.progressSubtitle,
                 onTap: onProgress,
               ),
             ),
@@ -752,8 +862,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.list_alt,
                 color: AppColors.warning,
-                label: 'Syllabus',
-                subtitle: 'Official PDFs',
+                label: context.l10n.syllabus,
+                subtitle: context.l10n.syllabusSubtitle,
                 onTap: onSyllabus,
               ),
             ),
@@ -762,8 +872,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.campaign_rounded,
                 color: AppColors.success,
-                label: 'BCA Notices',
-                subtitle: 'TU updates',
+                label: context.l10n.bcaNotices,
+                subtitle: context.l10n.bcaNoticesSubtitle,
                 onTap: onNotices,
               ),
             ),
@@ -772,8 +882,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.auto_stories_rounded,
                 color: AppColors.secondary,
-                label: 'Free Books',
-                subtitle: 'Open textbooks',
+                label: context.l10n.freeBooks,
+                subtitle: context.l10n.freeBooksSubtitle,
                 onTap: onBooks,
               ),
             ),
@@ -782,8 +892,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.code_rounded,
                 color: AppColors.accent,
-                label: 'Programming World',
-                subtitle: 'Tracks & practice',
+                label: context.l10n.programmingWorld,
+                subtitle: context.l10n.programmingWorldSubtitle,
                 onTap: onProgrammingWorld,
               ),
             ),
@@ -870,7 +980,7 @@ class _SnapshotRow extends StatelessWidget {
       children: [
         Expanded(
           child: _SnapshotCard(
-            label: 'XP earned',
+            label: context.l10n.xpEarned,
             value: xp.toString(),
             icon: Icons.bolt,
             accent: AppColors.warning,
@@ -879,7 +989,7 @@ class _SnapshotRow extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _SnapshotCard(
-            label: 'Games played',
+            label: context.l10n.gamesPlayed,
             value: gamesPlayed.toString(),
             icon: Icons.sports_esports,
             accent: AppColors.secondary,
@@ -958,9 +1068,9 @@ class _WeakTopics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (topics.isEmpty) {
-      return const Text(
-        'No weak topics detected yet.',
-        style: TextStyle(color: Colors.white70),
+      return Text(
+        context.l10n.noWeakTopics,
+        style: const TextStyle(color: Colors.white70),
       );
     }
     return Column(
@@ -1016,6 +1126,181 @@ class _WeakTopics extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _RevisionQueueCard extends StatelessWidget {
+  final List<RevisionItem> items;
+  final VoidCallback onOpen;
+  final VoidCallback? onQuickStart;
+
+  const _RevisionQueueCard({
+    required this.items,
+    required this.onOpen,
+    this.onQuickStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    if (items.isEmpty) {
+      return _GameCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr(
+                'No revision tasks right now.',
+                'हाल कुनै पुनरावलोकन कार्य छैन।',
+              ),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: onOpen,
+                child: Text(l10n.open),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final preview = items.take(3).toList();
+    return _GameCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...preview.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  _QueueIcon(type: item.type),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _GameTag(
+                    label: _dueLabel(context, item.dueAt),
+                    accent: const Color(0xFF22D3EE),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: onOpen,
+                child: Text(context.tr('View all', 'सबै हेर्नुहोस्')),
+              ),
+              if (onQuickStart != null) ...[
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: onQuickStart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF38BDF8),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(context.tr('Quick revision', 'छिटो पुनरावलोकन')),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dueLabel(BuildContext context, DateTime dueAt) {
+    final l10n = context.l10n;
+    final now = DateTime.now();
+    final diff = dueAt.difference(now);
+    if (diff.inHours <= 0) return l10n.dueToday;
+    if (diff.inDays == 0) return l10n.dueToday;
+    if (diff.inDays == 1) return l10n.dueTomorrow;
+    return l10n.dueInDays(diff.inDays);
+  }
+}
+
+class _QueueIcon extends StatelessWidget {
+  final RevisionItemType type;
+
+  const _QueueIcon({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData icon;
+    Color accent;
+    switch (type) {
+      case RevisionItemType.chapter:
+        icon = Icons.menu_book_rounded;
+        accent = const Color(0xFF4F46E5);
+        break;
+      case RevisionItemType.note:
+        icon = Icons.description_rounded;
+        accent = const Color(0xFF22D3EE);
+        break;
+      case RevisionItemType.question:
+        icon = Icons.quiz_rounded;
+        accent = const Color(0xFF38BDF8);
+        break;
+      case RevisionItemType.topic:
+        icon = Icons.warning_amber_rounded;
+        accent = AppColors.warning;
+        break;
+    }
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+      ),
+      child: Icon(icon, color: accent),
     );
   }
 }

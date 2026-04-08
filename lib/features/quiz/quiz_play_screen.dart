@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -94,7 +96,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load quiz: $error';
+        _errorMessage = context.tr(
+          'Failed to load quiz: $error',
+          'क्विज लोड गर्न सकिएन: $error',
+        );
         _isLoading = false;
       });
     }
@@ -126,25 +131,30 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
       return;
     }
     if (!force && _unansweredCount > 0) {
-      final proceed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Unanswered Questions'),
-              content: Text(
-                'You have $_unansweredCount unanswered question(s). Submit anyway?',
+        final proceed = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text(
+                  context.tr('Unanswered Questions', 'जवाफ नदिएका प्रश्नहरू'),
+                ),
+                content: Text(
+                  context.tr(
+                    'You have $_unansweredCount unanswered question(s). Submit anyway?',
+                    'तपाईंले $_unansweredCount प्रश्नको उत्तर दिनुभएको छैन। जे भए पनि बुझाउने?',
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(context.tr('Go back', 'फर्कनुहोस्')),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: Text(context.tr('Submit', 'पेश गर्नुहोस्')),
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Go back'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Submit'),
-                ),
-              ],
-            ),
-          ) ??
+            ) ??
           false;
       if (!mounted) {
         return;
@@ -228,7 +238,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to submit: $error';
+        _errorMessage = context.tr(
+          'Failed to submit: $error',
+          'पेश गर्न असफल: $error',
+        );
         _isSubmitting = false;
       });
     }
@@ -257,7 +270,11 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
     final selected = _answers[current.id];
     if (selected == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select an answer to continue.')),
+        SnackBar(
+          content: Text(
+            context.tr('Select an answer to continue.', 'जारी राख्न उत्तर छान्नुहोस्।'),
+          ),
+        ),
       );
       return;
     }
@@ -341,8 +358,14 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         body: Center(
           child: Text(
             _isAiMode
-                ? 'AI quiz unavailable. Enable Ollama or add quiz questions.'
-                : 'No questions available yet.',
+                ? context.tr(
+                    'AI quiz unavailable. Enable Ollama or add quiz questions.',
+                    'AI क्विज उपलब्ध छैन। Ollama सक्षम गर्नुहोस् वा प्रश्न थप्नुहोस्।',
+                  )
+                : context.tr(
+                    'No questions available yet.',
+                    'अहिलेसम्म प्रश्नहरू उपलब्ध छैनन्।',
+                  ),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: _isGameTheme ? Colors.white70 : null,
                 ),
@@ -393,7 +416,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         _timeRemaining.isNegative ? Duration.zero : _timeRemaining;
     final timeLabel = _isTimeMode
         ? '${remaining.inMinutes.remainder(60).toString().padLeft(2, '0')}:${(remaining.inSeconds.remainder(60)).toString().padLeft(2, '0')}'
-        : '${widget.quiz.duration.inMinutes}:00 min';
+        : context.tr(
+            '${widget.quiz.duration.inMinutes}:00 min',
+            '${widget.quiz.duration.inMinutes}:00 मिनेट',
+          );
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -404,7 +430,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
               ),
         ),
         Text(
-          'Answered: ${_answers.length}/${_questions.length}',
+          context.tr(
+            'Answered: ${_answers.length}/${_questions.length}',
+            'जवाफ: ${_answers.length}/${_questions.length}',
+          ),
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: _isGameTheme ? Colors.white70 : null,
               ),
@@ -434,7 +463,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         const SizedBox(height: 12),
         _isGameTheme
             ? _PrimaryActionButton(
-                label: 'Submit Answers',
+                label: context.tr('Submit Answers', 'जवाफ पेश गर्नुहोस्'),
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _submit,
               )
@@ -448,7 +477,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Submit Answers'),
+                      : Text(context.tr('Submit Answers', 'जवाफ पेश गर्नुहोस्')),
                 ),
               ),
       ],
@@ -463,7 +492,10 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         _buildHeader(context),
         const SizedBox(height: 20),
         Text(
-          'Level ${_currentIndex + 1} of ${_questions.length}',
+          context.tr(
+            'Level ${_currentIndex + 1} of ${_questions.length}',
+            'लेभल ${_currentIndex + 1} / ${_questions.length}',
+          ),
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: _isGameTheme ? Colors.white70 : null,
               ),
@@ -490,8 +522,8 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
         _isGameTheme
             ? _PrimaryActionButton(
                 label: _currentIndex == _questions.length - 1
-                    ? 'Finish'
-                    : 'Next',
+                    ? context.tr('Finish', 'समाप्त')
+                    : context.tr('Next', 'अर्को'),
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _nextLevel,
               )
@@ -507,8 +539,8 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
                         )
                       : Text(
                           _currentIndex == _questions.length - 1
-                              ? 'Finish'
-                              : 'Next',
+                              ? context.tr('Finish', 'समाप्त')
+                              : context.tr('Next', 'अर्को'),
                         ),
                 ),
               ),
@@ -537,9 +569,9 @@ class _QuestionCard extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Q$index. ${question.prompt}',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        MathText(
+          text: 'Q$index. ${question.prompt}',
+          textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isGameTheme ? Colors.white : null,
               ),
@@ -577,7 +609,13 @@ class _QuestionCard extends StatelessWidget {
                   onPressed: () => onSelect(entry.key),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(entry.value),
+                    child: MathText(
+                      text: entry.value,
+                      textStyle:
+                          Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: isGameTheme ? Colors.white : null,
+                              ),
+                    ),
                   ),
                 ),
               ),

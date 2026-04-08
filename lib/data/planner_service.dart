@@ -219,7 +219,7 @@ class PlannerService {
         uri,
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'model': SupabaseConfig.ollamaModel,
+          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.studyPlan),
           'stream': false,
           'messages': [
             {'role': 'system', 'content': systemPrompt},

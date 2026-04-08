@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/core/widgets/section_header.dart';
 import 'package:student_survivor/core/widgets/tag.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -64,7 +66,10 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load recommendations: $error';
+        _errorMessage = context.tr(
+          'Failed to load recommendations: $error',
+          'सिफारिस लोड गर्न असफल: $error',
+        );
         _isLoading = false;
         _isPracticeLoading = false;
       });
@@ -85,33 +90,83 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     return QuizDifficulty.easy;
   }
 
-  List<String> _coachTips() {
+  List<String> _coachTips(BuildContext context) {
     final tips = <String>[];
     if (widget.attempt.total == 0) {
-      return const ['Try a quiz to unlock feedback tips.'];
+      return [
+        context.tr(
+          'Try a quiz to unlock feedback tips.',
+          'फिडब्याक सुझाव खोल्न क्विज प्रयास गर्नुहोस्।',
+        ),
+      ];
     }
     final ratio = widget.attempt.score / widget.attempt.total;
     final duration = widget.attempt.durationSeconds;
     if (duration != null && duration > 0) {
       final avg = duration / widget.attempt.total;
       if (avg > 75) {
-        tips.add('You took a bit long per question. Practice with a timer.');
+        tips.add(
+          context.tr(
+            'You took a bit long per question. Practice with a timer.',
+            'तपाईंले प्रत्येक प्रश्नमा धेरै समय लिनुभयो। टाइमरसँग अभ्यास गर्नुहोस्।',
+          ),
+        );
       } else if (avg < 20) {
-        tips.add('Great speed! Slow down if you see mistakes.');
+        tips.add(
+          context.tr(
+            'Great speed! Slow down if you see mistakes.',
+            'उत्तम गति! गल्ती देखिएमा अलि ढिलो गर्नुहोस्।',
+          ),
+        );
       }
     }
     if (ratio < 0.5) {
-      tips.add('Revise the chapter notes before the next quiz.');
-      tips.add('Start with Easy difficulty and rebuild confidence.');
+      tips.add(
+        context.tr(
+          'Revise the chapter notes before the next quiz.',
+          'अर्को क्विज अघि अध्यायका नोटहरू दोहोर्याउनुहोस्।',
+        ),
+      );
+      tips.add(
+        context.tr(
+          'Start with Easy difficulty and rebuild confidence.',
+          'Easy कठिनाइबाट सुरु गरी आत्मविश्वास बढाउनुहोस्।',
+        ),
+      );
     } else if (ratio < 0.8) {
-      tips.add('Focus on weak topics and practice 5 MCQs each.');
-      tips.add('Summarize each wrong answer in your own words.');
+      tips.add(
+        context.tr(
+          'Focus on weak topics and practice 5 MCQs each.',
+          'कमजोर विषयमा ध्यान दिनुहोस् र हरेक विषयका ५ MCQ अभ्यास गर्नुहोस्।',
+        ),
+      );
+      tips.add(
+        context.tr(
+          'Summarize each wrong answer in your own words.',
+          'प्रत्येक गलत उत्तर आफ्नो शब्दमा सारांश लेख्नुहोस्।',
+        ),
+      );
     } else {
-      tips.add('Great work! Try Medium or Hard difficulty next.');
-      tips.add('Challenge yourself with a timed quiz.');
+      tips.add(
+        context.tr(
+          'Great work! Try Medium or Hard difficulty next.',
+          'उत्कृष्ट! अब Medium वा Hard कठिनाइ प्रयास गर्नुहोस्।',
+        ),
+      );
+      tips.add(
+        context.tr(
+          'Challenge yourself with a timed quiz.',
+          'टाइम्ड क्विजसँग आफूलाई चुनौती दिनुहोस्।',
+        ),
+      );
     }
     if (widget.attempt.weakTopics.isNotEmpty) {
-      tips.add('Weak topics: ${widget.attempt.weakTopics.first.name}.');
+      tips.add(
+        context.tr(
+          'Weak topics: ${widget.attempt.weakTopics.first.name}.',
+          'कमजोर विषय: ${widget.attempt.weakTopics.first.name}.',
+        ),
+      );
     }
     return tips;
   }
@@ -120,7 +175,11 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     final practiceContext = _practiceContext;
     if (practiceContext == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Practice quiz not ready yet.')),
+        SnackBar(
+          content: Text(
+            context.tr('Practice quiz not ready yet.', 'अभ्यास क्विज अझै तयार छैन।'),
+          ),
+        ),
       );
       return;
     }
@@ -128,7 +187,10 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     final recommended = _recommendedDifficulty();
     final practiceQuiz = Quiz(
       id: baseQuiz.id,
-      title: 'AI Practice • ${baseQuiz.title}',
+      title: context.tr(
+        'AI Practice • ${baseQuiz.title}',
+        'AI अभ्यास • ${baseQuiz.title}',
+      ),
       type: baseQuiz.type,
       difficulty: recommended,
       questionCount: baseQuiz.questionCount > 0 ? baseQuiz.questionCount : 10,
@@ -151,7 +213,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
   @override
   Widget build(BuildContext context) {
     final appBar = AppBar(
-      title: const Text('Quiz Result'),
+      title: Text(context.tr('Quiz Result', 'क्विज नतिजा')),
       backgroundColor: widget.useGameZoneTheme ? AppColors.paper : null,
       foregroundColor: widget.useGameZoneTheme ? AppColors.ink : null,
       elevation: widget.useGameZoneTheme ? 0 : null,
@@ -159,7 +221,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
       surfaceTintColor: widget.useGameZoneTheme ? Colors.transparent : null,
       actions: [
         IconButton(
-          tooltip: 'Refresh',
+          tooltip: context.tr('Refresh', 'रिफ्रेस'),
           onPressed: _isLoading ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
@@ -181,7 +243,9 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.attempt.isPass ? 'Pass' : 'Fail',
+                  widget.attempt.isPass
+                      ? context.l10n.pass
+                      : context.l10n.fail,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: widget.attempt.isPass
@@ -191,12 +255,18 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Score: ${widget.attempt.score}/${widget.attempt.total}',
+                  context.tr(
+                    'Score: ${widget.attempt.score}/${widget.attempt.total}',
+                    'स्कोर: ${widget.attempt.score}/${widget.attempt.total}',
+                  ),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '+${widget.attempt.xpEarned} XP earned',
+                  context.tr(
+                    '+${widget.attempt.xpEarned} XP earned',
+                    '+${widget.attempt.xpEarned} XP प्राप्त',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -206,10 +276,17 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'AI Adaptive Learning'),
+          SectionHeader(
+            title: context.tr('AI Adaptive Learning', 'AI अनुकूली अध्ययन'),
+          ),
           const SizedBox(height: 12),
           if (widget.attempt.weakTopics.isEmpty)
-            const Text('Great job! No weak topics detected.')
+            Text(
+              context.tr(
+                'Great job! No weak topics detected.',
+                'उत्तम! कमजोर विषय भेटिएन।',
+              ),
+            )
           else
             ...widget.attempt.weakTopics.map(
               (topic) => Padding(
@@ -234,21 +311,28 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                             ?.copyWith(color: AppColors.mutedInk),
                       ),
                       const SizedBox(height: 8),
-                      const Tag(label: 'Needs revision'),
+                      Tag(
+                        label:
+                            context.tr('Needs revision', 'पुनरावलोकन चाहिन्छ'),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Recommended Notes'),
+          SectionHeader(
+            title: context.tr('Recommended Notes', 'सिफारिस नोटहरू'),
+          ),
           const SizedBox(height: 12),
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
           else if (_errorMessage != null)
             Text(_errorMessage!)
           else if (_recommendedNotes.isEmpty)
-            const Text('No recommendations yet.')
+            Text(
+              context.tr('No recommendations yet.', 'अहिलेसम्म सिफारिस छैन।'),
+            )
           else
             ..._recommendedNotes.map(
               (note) => Padding(
@@ -265,9 +349,9 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        note.shortAnswer,
-                        style: Theme.of(context)
+                      MathText(
+                        text: note.shortAnswer,
+                        textStyle: Theme.of(context)
                             .textTheme
                             .bodySmall
                             ?.copyWith(color: AppColors.mutedInk),
@@ -278,12 +362,19 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
               ),
             ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Important Questions'),
+          SectionHeader(
+            title: context.tr('Important Questions', 'महत्वपूर्ण प्रश्नहरू'),
+          ),
           const SizedBox(height: 12),
           if (_isLoading)
             const SizedBox.shrink()
           else if (_importantQuestions.isEmpty)
-            const Text('No important questions added yet.')
+            Text(
+              context.tr(
+                'No important questions added yet.',
+                'अहिलेसम्म महत्वपूर्ण प्रश्न थपिएको छैन।',
+              ),
+            )
           else
             ..._importantQuestions.map(
               (question) => Padding(
@@ -294,9 +385,14 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                       const Icon(Icons.help_outline, color: AppColors.secondary),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(question.prompt),
+                        child: MathText(text: question.prompt),
                       ),
-                      Tag(label: '${question.marks} marks'),
+                      Tag(
+                        label: context.tr(
+                          '${question.marks} marks',
+                          '${question.marks} अंक',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -309,7 +405,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Coach Feedback',
+                  context.tr('Coach Feedback', 'कोच प्रतिक्रिया'),
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
@@ -317,14 +413,17 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                  context.tr(
+                    'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                    'सिफारिस कठिनाइ: ${_recommendedDifficulty().name.toUpperCase()}',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
                       ?.copyWith(color: AppColors.mutedInk),
                 ),
                 const SizedBox(height: 12),
-                ..._coachTips().map(
+                ..._coachTips(context).map(
                   (tip) => Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
@@ -347,17 +446,27 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Answer Review'),
+          SectionHeader(title: context.tr('Answer Review', 'उत्तर समीक्षा')),
           const SizedBox(height: 12),
           if (widget.reviews.isEmpty)
-            const Text('Answer review is not available for this quiz.')
+            Text(
+              context.tr(
+                'Answer review is not available for this quiz.',
+                'यस क्विजका लागि उत्तर समीक्षा उपलब्ध छैन।',
+              ),
+            )
           else
             Builder(
               builder: (context) {
                 final wrong =
                     widget.reviews.where((review) => !review.isCorrect).toList();
                 if (wrong.isEmpty) {
-                  return const Text('All answers were correct. Great job!');
+                  return Text(
+                    context.tr(
+                      'All answers were correct. Great job!',
+                      'सबै उत्तरहरू सही छन्। राम्रो काम!',
+                    ),
+                  );
                 }
                 return Column(
                   children: wrong.asMap().entries.map((entry) {
@@ -368,36 +477,42 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                             selected >= 0 &&
                             selected < review.options.length)
                         ? review.options[selected]
-                        : 'Not answered';
+                        : context.tr('Not answered', 'जवाफ दिएको छैन');
                     final correctText = (correct >= 0 &&
                             correct < review.options.length)
                         ? review.options[correct]
-                        : 'N/A';
+                        : context.tr('N/A', 'लागू छैन');
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: AppCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              review.prompt,
-                              style: Theme.of(context)
+                            MathText(
+                              text: review.prompt,
+                              textStyle: Theme.of(context)
                                   .textTheme
                                   .titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              'Your answer: $selectedText',
-                              style: Theme.of(context)
+                            MathText(
+                              text: context.tr(
+                                'Your answer: $selectedText',
+                                'तपाईंको उत्तर: $selectedText',
+                              ),
+                              textStyle: Theme.of(context)
                                   .textTheme
                                   .bodySmall
                                   ?.copyWith(color: AppColors.danger),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              'Correct answer: $correctText',
-                              style: Theme.of(context)
+                            MathText(
+                              text: context.tr(
+                                'Correct answer: $correctText',
+                                'सही उत्तर: $correctText',
+                              ),
+                              textStyle: Theme.of(context)
                                   .textTheme
                                   .bodySmall
                                   ?.copyWith(color: AppColors.success),
@@ -405,9 +520,9 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                             if (review.explanation != null &&
                                 review.explanation!.trim().isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              Text(
-                                review.explanation!,
-                                style: Theme.of(context)
+                              MathText(
+                                text: review.explanation!,
+                                textStyle: Theme.of(context)
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(color: AppColors.mutedInk),
@@ -422,7 +537,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
               },
             ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'More Practice'),
+          SectionHeader(title: context.tr('More Practice', 'थप अभ्यास')),
           const SizedBox(height: 12),
           if (_isPracticeLoading)
             const Center(child: CircularProgressIndicator())
@@ -432,12 +547,15 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AI Practice Questions',
+                    context.tr('AI Practice Questions', 'AI अभ्यास प्रश्नहरू'),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Practice more questions based on your quiz performance.',
+                    context.tr(
+                      'Practice more questions based on your quiz performance.',
+                      'तपाईंको क्विज प्रदर्शनका आधारमा थप प्रश्न अभ्यास गर्नुहोस्।',
+                    ),
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -445,7 +563,10 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                    context.tr(
+                      'Recommended difficulty: ${_recommendedDifficulty().name.toUpperCase()}',
+                      'सिफारिस कठिनाइ: ${_recommendedDifficulty().name.toUpperCase()}',
+                    ),
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -456,7 +577,9 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _practiceContext == null ? null : _startPractice,
-                      child: const Text('Start AI Practice'),
+                      child: Text(
+                        context.tr('Start AI Practice', 'AI अभ्यास सुरु गर्नुहोस्'),
+                      ),
                     ),
                   ),
                 ],

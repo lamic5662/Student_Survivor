@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/search_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
@@ -72,7 +73,10 @@ class _SearchScreenState extends State<SearchScreen> {
       } catch (error) {
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'Search failed: $error';
+          _errorMessage = context.tr(
+            'Search failed: $error',
+            'खोज असफल: $error',
+          );
           _isLoading = false;
         });
       }
@@ -91,7 +95,7 @@ class _SearchScreenState extends State<SearchScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Search',
+            context.tr('Search', 'खोज'),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -104,105 +108,121 @@ class _SearchScreenState extends State<SearchScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
-      body: ListView(
+      body: ListView.builder(
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(20, topInset, 20, 24),
-        children: [
-          _GameCard(
-            child: TextField(
-              controller: _controller,
-              onChanged: _onQueryChanged,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Search notes, questions, topics... (typo friendly)',
-                hintStyle: const TextStyle(color: Colors.white54),
-                prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF0B1220),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide:
-                      const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+        itemCount: _isLoading || _errorMessage != null || _results.isEmpty
+            ? 5
+            : 4 + _results.length,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _GameCard(
+              child: TextField(
+                controller: _controller,
+                onChanged: _onQueryChanged,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: context.tr(
+                    'Search notes, questions, topics... (typo friendly)',
+                    'नोट, प्रश्न, विषय खोज्नुहोस्... (गल्ती भए पनि)',
+                  ),
+                  hintStyle: const TextStyle(color: Colors.white54),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                  filled: true,
+                  fillColor: const Color(0xFF0B1220),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _SearchChip(label: 'Notes'),
-              _SearchChip(label: 'Important Questions'),
-              _SearchChip(label: 'Quizzes'),
-              _SearchChip(label: 'Topics'),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_isLoading)
-            const Center(
+            );
+          }
+          if (index == 1) return const SizedBox(height: 16);
+          if (index == 2) {
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _SearchChip(label: context.tr('Notes', 'नोट')),
+                _SearchChip(
+                    label: context.tr(
+                        'Important Questions', 'महत्त्वपूर्ण प्रश्न')),
+                _SearchChip(label: context.tr('Quizzes', 'क्विज')),
+                _SearchChip(label: context.tr('Topics', 'विषय')),
+              ],
+            );
+          }
+          if (index == 3) return const SizedBox(height: 20);
+          if (_isLoading) {
+            return const Center(
               child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
-            )
-          else if (_errorMessage != null)
-            Text(
+            );
+          }
+          if (_errorMessage != null) {
+            return Text(
               _errorMessage!,
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
                   ?.copyWith(color: const Color(0xFFF87171)),
-            )
-          else if (_results.isEmpty)
-            const Text(
-              'Type to search the syllabus and notes.',
-              style: TextStyle(color: Colors.white70),
-            )
-          else
-            ..._results.map(
-              (result) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _GameCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        result.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        result.type,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: const Color(0xFF38BDF8),
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        result.snippet,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ],
+            );
+          }
+          if (_results.isEmpty) {
+            return Text(
+              context.tr(
+                'Type to search the syllabus and notes.',
+                'पाठ्यक्रम र नोट खोज्न टाइप गर्नुहोस्।',
+              ),
+              style: const TextStyle(color: Colors.white70),
+            );
+          }
+          final result = _results[index - 4];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _GameCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  Text(
+                    result.type,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF38BDF8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    result.snippet,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                ],
               ),
             ),
-        ],
+          );
+        },
       ),
     );
   }

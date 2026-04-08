@@ -179,7 +179,7 @@ class CommunityQnaService {
         uri,
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'model': SupabaseConfig.ollamaModel,
+          'model': SupabaseConfig.ollamaModelForFeature(AiFeature.tutor),
           'stream': false,
           'messages': [
             {'role': 'system', 'content': systemPrompt},

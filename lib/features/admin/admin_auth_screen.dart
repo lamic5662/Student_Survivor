@@ -1,8 +1,6 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
-import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
 import 'package:student_survivor/features/auth/auth_view_model.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -18,10 +16,12 @@ class AdminAuthScreen extends StatefulWidget {
 
 class _AdminAuthScreenState
     extends PresenterState<AdminAuthScreen, AuthView, AuthPresenter>
+    with SingleTickerProviderStateMixin
     implements AuthView {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
+  AnimationController? _scanline;
 
   @override
   AuthPresenter createPresenter() => AuthPresenter(
@@ -31,7 +31,17 @@ class _AdminAuthScreenState
       );
 
   @override
+  void initState() {
+    super.initState();
+    _scanline = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
   void dispose() {
+    _scanline?.dispose();
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -44,60 +54,226 @@ class _AdminAuthScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: ValueListenableBuilder<AuthViewModel>(
-        valueListenable: presenter.state,
-        builder: (context, model, _) {
-          return Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF071526),
-                  Color(0xFF0F2E3F),
-                  Color(0xFF0B3558),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        body: ValueListenableBuilder<AuthViewModel>(
+          valueListenable: presenter.state,
+          builder: (context, model, _) {
+            final theme = Theme.of(context);
+            InputDecoration gameInputDecoration({
+              required String label,
+              required IconData icon,
+            }) {
+              return InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(color: Color(0xFFB6C2D9)),
+                floatingLabelStyle: const TextStyle(color: Color(0xFF7DD3FC)),
+                prefixIcon: Icon(icon, color: const Color(0xFF9FB3C8)),
+                filled: true,
+                fillColor: const Color(0xFF0B1220),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF38BDF8),
+                    width: 1.4,
+                  ),
+                ),
+              );
+            }
+            final hero = const _AdminAuthHero();
+            final card = _AuthCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'ADMIN ACCESS',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            letterSpacing: 1.4,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        _StatusChip(
+                          label:
+                              (model.isLogin ? 'LOGIN' : 'SIGNUP').toUpperCase(),
+                          glow: model.isLogin
+                              ? const Color(0xFF38BDF8)
+                              : const Color(0xFFA78BFA),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 1,
+                      width: double.infinity,
+                      color: const Color(0xFF1E2A44),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: _ModeToggle(
+                        isLogin: model.isLogin,
+                        onToggle: presenter.toggleMode,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      model.isLogin ? 'Admin Login' : 'Create Admin Account',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      model.isLogin
+                          ? 'Sign in to manage notes, quizzes, and syllabus.'
+                          : 'Create an admin profile to publish content.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _AuthMethodSelector(
+                      selected: model.method,
+                      onChanged: presenter.setAuthMethod,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _identifierController,
+                      keyboardType: model.method == AuthMethod.email
+                          ? TextInputType.emailAddress
+                          : TextInputType.phone,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: gameInputDecoration(
+                        label: model.method == AuthMethod.email
+                            ? 'Email'
+                            : 'Phone',
+                        icon: model.method == AuthMethod.email
+                            ? Icons.alternate_email
+                            : Icons.phone_iphone,
+                      ),
+                      validator: (value) {
+                        final input = value?.trim() ?? '';
+                        if (input.isEmpty) {
+                          return model.method == AuthMethod.email
+                              ? 'Email is required'
+                              : 'Phone is required';
+                        }
+                        if (model.method == AuthMethod.email &&
+                            !input.contains('@')) {
+                          return 'Enter a valid email';
+                        }
+                        if (model.method == AuthMethod.phone &&
+                            input.length < 8) {
+                          return 'Enter a valid phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: gameInputDecoration(
+                        label: 'Password',
+                        icon: Icons.lock_outline,
+                      ),
+                      validator: (value) {
+                        final input = value?.trim() ?? '';
+                        if (input.isEmpty) {
+                          return 'Password is required';
+                        }
+                        if (input.length < 6) {
+                          return 'Minimum 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    _InfoCallout(isLogin: model.isLogin),
+                    const SizedBox(height: 22),
+                    _AuthPrimaryButton(
+                      isLoading: model.isSubmitting,
+                      label: model.isLogin ? 'Continue' : 'Create Account',
+                      onPressed: model.isSubmitting
+                          ? null
+                          : () {
+                              if (_formKey.currentState?.validate() != true) {
+                                return;
+                              }
+                              presenter.submit(
+                                identifier: _identifierController.text.trim(),
+                                password: _passwordController.text,
+                              );
+                            },
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Stack(
+            );
+            return Stack(
               children: [
-                const _AdminBackdrop(),
+                const _AuthBackdrop(),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: _ScanlineOverlay(
+                      animation: _scanline ??=
+                          AnimationController(
+                            vsync: this,
+                            duration: const Duration(milliseconds: 2200),
+                          )..repeat(),
+                    ),
+                  ),
+                ),
                 SafeArea(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 860;
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight - 68,
+                            minHeight: constraints.maxHeight - 60,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _HeroHeader(
-                                isLogin: model.isLogin,
-                                onToggle: presenter.toggleMode,
-                              ),
-                              const SizedBox(height: 24),
-                              _AdminAuthCard(
-                                formKey: _formKey,
-                                model: model,
-                                identifierController: _identifierController,
-                                passwordController: _passwordController,
-                                onSubmit: () {
-                                  if (_formKey.currentState?.validate() !=
-                                      true) {
-                                    return;
-                                  }
-                                  presenter.submit(
-                                    identifier:
-                                        _identifierController.text.trim(),
-                                    password: _passwordController.text,
-                                  );
-                                },
-                                onMethodChanged: presenter.setAuthMethod,
-                              ),
+                              isWide
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(flex: 5, child: hero),
+                                        const SizedBox(width: 30),
+                                        Expanded(flex: 4, child: card),
+                                      ],
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        hero,
+                                        const SizedBox(height: 22),
+                                        card,
+                                      ],
+                                    ),
                               const SizedBox(height: 18),
                               const _AdminFooterNote(),
                             ],
@@ -108,70 +284,79 @@ class _AdminAuthScreenState
                   ),
                 ),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _AdminBackdrop extends StatelessWidget {
-  const _AdminBackdrop();
+class _AdminAuthHero extends StatelessWidget {
+  const _AdminAuthHero();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: const [
-        Positioned.fill(child: CustomPaint(painter: _AdminPatternPainter())),
-        Positioned(
-          top: -80,
-          right: -50,
-          child: _GlowOrb(
-            size: 220,
-            color: Color(0x3344C3FF),
+    final theme = Theme.of(context);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 16),
+            child: child,
           ),
-        ),
-        Positioned(
-          bottom: -70,
-          left: -40,
-          child: _GlowOrb(
-            size: 200,
-            color: Color(0x33F97316),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B1220),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: const _GradientTitle(text: 'StudentSurge Admin'),
+                ),
+              ),
+            ],
           ),
-        ),
-        Positioned(
-          top: 140,
-          left: 24,
-          child: _GlowOrb(
-            size: 140,
-            color: Color(0x3322D3EE),
+          const SizedBox(height: 10),
+          Text(
+            'Lead the knowledge arena. Publish smarter, faster.',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const _GlowOrb({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 70,
-            spreadRadius: 12,
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _FeatureTag(icon: Icons.shield, label: 'Secure Access'),
+              _FeatureTag(icon: Icons.auto_graph, label: 'Live Insights'),
+              _FeatureTag(icon: Icons.edit_note, label: 'Content Studio'),
+            ],
           ),
         ],
       ),
@@ -179,86 +364,43 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
-class _HeroHeader extends StatelessWidget {
-  final bool isLogin;
-  final VoidCallback onToggle;
+class _FeatureTag extends StatelessWidget {
+  final IconData icon;
+  final String label;
 
-  const _HeroHeader({
-    required this.isLogin,
-    required this.onToggle,
+  const _FeatureTag({
+    required this.icon,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Colors.white.withValues(alpha: 0.76),
-        );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _GradientTitle(text: 'Admin Studio'),
-        const SizedBox(height: 8),
-        Text(
-          'Control notes, quizzes, and announcements with confidence.',
-          style: subtitleStyle,
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            _MetaChip(
-              icon: Icons.shield_moon_outlined,
-              label: 'Secure Access',
-            ),
-            const SizedBox(width: 10),
-            _MetaChip(
-              icon: Icons.auto_graph,
-              label: 'Live Insights',
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _ModeToggle(
-          isLogin: isLogin,
-          onToggle: onToggle,
-        ),
-      ],
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _MetaChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: const Color(0xFF0B1220),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        border: Border.all(color: const Color(0xFF1E2A44)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 14,
+            color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+            blurRadius: 16,
             offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Colors.white),
+          Icon(icon, size: 16, color: const Color(0xFF38BDF8)),
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -270,33 +412,39 @@ class _ModeToggle extends StatelessWidget {
   final bool isLogin;
   final VoidCallback onToggle;
 
-  const _ModeToggle({required this.isLogin, required this.onToggle});
+  const _ModeToggle({
+    required this.isLogin,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: const Color(0xFF0B1220),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        border: Border.all(color: const Color(0xFF1E2A44)),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _ModeToggleButton(
-              label: 'Login',
-              isActive: isLogin,
-              onTap: isLogin ? null : onToggle,
-            ),
+          _ModeChip(
+            label: 'Login',
+            selected: isLogin,
+            onTap: () {
+              if (!isLogin) {
+                onToggle();
+              }
+            },
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _ModeToggleButton(
-              label: 'Sign up',
-              isActive: !isLogin,
-              onTap: isLogin ? onToggle : null,
-            ),
+          _ModeChip(
+            label: 'Sign Up',
+            selected: !isLogin,
+            onTap: () {
+              if (isLogin) {
+                onToggle();
+              }
+            },
           ),
         ],
       ),
@@ -304,56 +452,55 @@ class _ModeToggle extends StatelessWidget {
   }
 }
 
-class _ModeToggleButton extends StatelessWidget {
+class _ModeChip extends StatelessWidget {
   final String label;
-  final bool isActive;
-  final VoidCallback? onTap;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _ModeToggleButton({
+  const _ModeChip({
     required this.label,
-    required this.isActive,
+    required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      decoration: BoxDecoration(
-        gradient: isActive
-            ? const LinearGradient(
-                colors: [
-                  Color(0xFF38BDF8),
-                  Color(0xFF6366F1),
-                ],
-              )
-            : null,
-        color: isActive ? null : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
-      ),
+    final theme = Theme.of(context);
+    return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: selected ? null : onTap,
         borderRadius: BorderRadius.circular(14),
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [
+                      Color(0xFF38BDF8),
+                      Color(0xFF6366F1),
+                    ],
+                  )
+                : null,
+            color: selected ? null : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
           child: Center(
             child: Text(
               label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: isActive
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color:
+                    selected ? Colors.white : Colors.white.withValues(alpha: 0.7),
+              ),
             ),
           ),
         ),
@@ -362,166 +509,97 @@ class _ModeToggleButton extends StatelessWidget {
   }
 }
 
-class _AdminAuthCard extends StatelessWidget {
-  final GlobalKey<FormState> formKey;
-  final AuthViewModel model;
-  final TextEditingController identifierController;
-  final TextEditingController passwordController;
-  final VoidCallback onSubmit;
-  final ValueChanged<AuthMethod> onMethodChanged;
+class _AuthCard extends StatelessWidget {
+  final Widget child;
 
-  const _AdminAuthCard({
-    required this.formKey,
-    required this.model,
-    required this.identifierController,
-    required this.passwordController,
-    required this.onSubmit,
-    required this.onMethodChanged,
-  });
+  const _AuthCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    final heading = model.isLogin ? 'Admin Login' : 'Create Admin Account';
-    final subheading = model.isLogin
-        ? 'Sign in to manage content.'
-        : 'Create an admin profile to publish content.';
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.92),
-                const Color(0xFFF1F5F9).withValues(alpha: 0.88),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 30,
-                offset: const Offset(0, 18),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF22D3EE),
+            Color(0xFF38BDF8),
+            Color(0xFF4F46E5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 34,
+            offset: const Offset(0, 20),
           ),
-          child: Form(
-            key: formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  heading,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subheading,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppColors.mutedInk),
-                ),
-                const SizedBox(height: 16),
-                _AuthMethodSelector(
-                  selected: model.method,
-                  onChanged: onMethodChanged,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: identifierController,
-                  keyboardType: model.method == AuthMethod.email
-                      ? TextInputType.emailAddress
-                      : TextInputType.phone,
-                  decoration: InputDecoration(
-                    labelText:
-                        model.method == AuthMethod.email ? 'Email' : 'Phone',
-                  ),
-                  validator: (value) {
-                    final input = value?.trim() ?? '';
-                    if (input.isEmpty) {
-                      return model.method == AuthMethod.email
-                          ? 'Email is required'
-                          : 'Phone is required';
-                    }
-                    if (model.method == AuthMethod.email &&
-                        !input.contains('@')) {
-                      return 'Enter a valid email';
-                    }
-                    if (model.method == AuthMethod.phone &&
-                        input.length < 8) {
-                      return 'Enter a valid phone number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (value) {
-                    final input = value?.trim() ?? '';
-                    if (input.isEmpty) {
-                      return 'Password is required';
-                    }
-                    if (input.length < 6) {
-                      return 'Minimum 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentSoft.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.verified_user, size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          model.isLogin
-                              ? 'Only admin accounts can access the dashboard.'
-                              : 'New accounts are granted admin access automatically.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          borderRadius: BorderRadius.circular(21),
+          border: Border.all(color: const Color(0xFF1E2A44)),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -60,
+              right: -50,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0x3322D3EE),
+                      Color(0x00000000),
                     ],
                   ),
                 ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: model.isSubmitting ? null : onSubmit,
-                    child: model.isSubmitting
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(model.isLogin ? 'Login' : 'Create Account'),
+              ),
+            ),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoCallout extends StatelessWidget {
+  final bool isLogin;
+
+  const _InfoCallout({required this.isLogin});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF1E2A44),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.verified_user, size: 22, color: Color(0xFF38BDF8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isLogin
+                  ? 'Only admin accounts can access the dashboard.'
+                  : 'New accounts are granted admin access automatically.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
-                ),
-              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -532,11 +610,22 @@ class _AdminFooterNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      'Need help? Contact the main admin to enable access for your account.',
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.white.withValues(alpha: 0.75),
-          ),
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white.withValues(alpha: 0.75),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Need help? Contact the main admin to enable access for your account.',
+          style: style,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '© 2026 StudentSurge. All rights reserved.',
+          style: style?.copyWith(color: Colors.white.withValues(alpha: 0.65)),
+        ),
+      ],
     );
   }
 }
@@ -552,6 +641,7 @@ class _AuthMethodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SegmentedButton<AuthMethod>(
       segments: const [
         ButtonSegment(
@@ -566,32 +656,140 @@ class _AuthMethodSelector extends StatelessWidget {
         ),
       ],
       selected: {selected},
-      onSelectionChanged: (values) => onChanged(values.first),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const Color(0xFF38BDF8).withValues(alpha: 0.18);
+            return const Color(0xFF1E293B);
           }
-          return Colors.white.withValues(alpha: 0.6);
+          return const Color(0xFF0B1220);
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const Color(0xFF0F172A);
+            return const Color(0xFF38BDF8);
           }
-          return const Color(0xFF0F172A).withValues(alpha: 0.7);
+          return Colors.white.withValues(alpha: 0.7);
         }),
         side: WidgetStateProperty.resolveWith(
-          (_) => BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+          (_) => const BorderSide(color: Color(0xFF1E2A44)),
         ),
         textStyle: WidgetStateProperty.all(
-          Theme.of(context)
-              .textTheme
-              .labelLarge
-              ?.copyWith(fontWeight: FontWeight.w600),
+          theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
+      ),
+      onSelectionChanged: (values) => onChanged(values.first),
+    );
+  }
+}
+
+class _AuthPrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _AuthPrimaryButton({
+    required this.label,
+    required this.onPressed,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    return Opacity(
+      opacity: disabled ? 0.6 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF007AFF),
+              Color(0xFF4F46E5),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color glow;
+
+  const _StatusChip({
+    required this.label,
+    required this.glow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+        boxShadow: [
+          BoxShadow(
+            color: glow.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: glow,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+            ),
       ),
     );
   }
@@ -614,7 +812,7 @@ class _GradientTitle extends StatelessWidget {
         colors: [
           Color(0xFF38BDF8),
           Color(0xFF22D3EE),
-          Color(0xFF6366F1),
+          Color(0xFFA78BFA),
         ],
       ).createShader(rect),
       child: Text(text, style: style),
@@ -622,62 +820,165 @@ class _GradientTitle extends StatelessWidget {
   }
 }
 
-class _AdminPatternPainter extends CustomPainter {
-  static final List<Offset> _dots = List.generate(
-    24,
-    (index) => Offset(
-      (0.06 + (index * 0.23)) % 1.0,
-      (0.14 + (index * 0.31)) % 1.0,
-    ),
-  );
+class _AuthBackdrop extends StatelessWidget {
+  const _AuthBackdrop();
 
-  const _AdminPatternPainter();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF070B14),
+            Color(0xFF0B1324),
+            Color(0xFF101C2E),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: const [
+          Positioned.fill(child: CustomPaint(painter: _GameGridPainter())),
+          Positioned(
+            top: -120,
+            right: -60,
+            child: _GlowSpot(
+              size: 260,
+              color: Color(0x3322D3EE),
+            ),
+          ),
+          Positioned(
+            bottom: -90,
+            left: -40,
+            child: _GlowSpot(
+              size: 220,
+              color: Color(0x334F46E5),
+            ),
+          ),
+          Positioned(
+            top: 140,
+            left: 40,
+            child: _GlowSpot(
+              size: 160,
+              color: Color(0x332DD4BF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowSpot extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowSpot({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: 70,
+            spreadRadius: 14,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GameGridPainter extends CustomPainter {
+  const _GameGridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.4)
       ..strokeWidth = 1;
-    for (int i = 0; i < 5; i += 1) {
-      final y = size.height * (0.2 + i * 0.14);
-      canvas.drawLine(
-        Offset(-20, y),
-        Offset(size.width + 20, y - 50),
-        linePaint,
-      );
+    const gap = 44.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final wavePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.08)
+    final glowPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.2)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    final path = Path()
-      ..moveTo(0, size.height * 0.74)
-      ..quadraticBezierTo(
-        size.width * 0.4,
-        size.height * 0.62,
-        size.width * 0.72,
-        size.height * 0.7,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.92,
-        size.height * 0.78,
-        size.width,
-        size.height * 0.7,
-      );
-    canvas.drawPath(path, wavePaint);
-
-    final dotPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.22);
-    for (final point in _dots) {
-      canvas.drawCircle(
-        Offset(size.width * point.dx, size.height * point.dy),
-        2,
-        dotPaint,
-      );
-    }
+      ..strokeWidth = 1.4;
+    final rect = Rect.fromLTWH(
+      size.width * 0.1,
+      size.height * 0.12,
+      size.width * 0.8,
+      size.height * 0.7,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(24)),
+      glowPaint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _AdminPatternPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GameGridPainter oldDelegate) => false;
+}
+
+class _ScanlineOverlay extends StatelessWidget {
+  final Animation<double> animation;
+
+  const _ScanlineOverlay({required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _ScanlinePainter(progress: animation.value),
+        );
+      },
+    );
+  }
+}
+
+class _ScanlinePainter extends CustomPainter {
+  final double progress;
+
+  const _ScanlinePainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scanPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.04)
+      ..strokeWidth = 1;
+    const gap = 14.0;
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), scanPaint);
+    }
+
+    final bandY = (size.height + 120) * progress - 60;
+    final bandPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.transparent,
+          const Color(0xFF38BDF8).withValues(alpha: 0.18),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromLTWH(0, bandY, size.width, 120));
+    canvas.drawRect(Rect.fromLTWH(0, bandY, size.width, 120), bandPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanlinePainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }

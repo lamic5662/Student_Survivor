@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/features/profile/profile_edit_presenter.dart';
 import 'package:student_survivor/features/profile/profile_edit_view_model.dart';
@@ -69,7 +70,7 @@ class _ProfileEditScreenState
       backgroundColor: const Color(0xFF070B14),
       appBar: AppBar(
         title: Text(
-          'Edit Profile',
+          context.tr('Edit Profile', 'प्रोफाइल सम्पादन'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -126,7 +127,7 @@ class _ProfileEditScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Profile Info',
+                          context.tr('Profile Info', 'प्रोफाइल जानकारी'),
                           style: Theme.of(context)
                               .textTheme
                               .titleSmall
@@ -140,14 +141,16 @@ class _ProfileEditScreenState
                           controller: _nameController,
                           style: const TextStyle(color: Colors.white),
                           cursorColor: const Color(0xFF38BDF8),
-                          decoration: _darkInputDecoration('Full name'),
+                          decoration: _darkInputDecoration(
+                            context.tr('Full name', 'पुरा नाम'),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           readOnly: true,
                           style: const TextStyle(color: Colors.white),
                           decoration: _darkInputDecoration(
-                            'Email',
+                            context.tr('Email', 'इमेल'),
                             hint: model.email,
                           ),
                         ),
@@ -160,7 +163,7 @@ class _ProfileEditScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Semester',
+                          context.tr('Semester', 'सेमेस्टर'),
                           style: Theme.of(context)
                               .textTheme
                               .titleSmall
@@ -176,8 +179,9 @@ class _ProfileEditScreenState
                           dropdownColor: const Color(0xFF0B1220),
                           style: const TextStyle(color: Colors.white),
                           iconEnabledColor: Colors.white70,
-                          decoration:
-                              _darkInputDecoration('Select semester'),
+                          decoration: _darkInputDecoration(
+                            context.tr('Select semester', 'सेमेस्टर छान्नुहोस्'),
+                          ),
                           items: model.semesters
                               .map(
                                 (semester) => DropdownMenuItem(
@@ -197,7 +201,10 @@ class _ProfileEditScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'All subjects in this semester will be available in Play.',
+                          context.tr(
+                            'All subjects in this semester will be available in Play.',
+                            'यस सेमेस्टरका सबै विषय Play मा उपलब्ध हुनेछन्।',
+                          ),
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -208,7 +215,7 @@ class _ProfileEditScreenState
                   ),
                   const SizedBox(height: 24),
                   _PrimaryActionButton(
-                    label: 'Save Changes',
+                    label: context.tr('Save Changes', 'परिवर्तन सुरक्षित गर्नुहोस्'),
                     enabled: model.canSave,
                     onPressed: model.canSave ? presenter.save : null,
                   ),

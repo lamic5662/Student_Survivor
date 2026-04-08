@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
+import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/activity_log_service.dart';
 import 'package:student_survivor/data/ai_quiz_service.dart';
 import 'package:student_survivor/data/quiz_service.dart';
@@ -1094,9 +1095,9 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
                                             .withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(14),
                                       ),
-                                      child: Text(
-                                        _question!.prompt,
-                                        style: Theme.of(context)
+                                      child: MathText(
+                                        text: _question!.prompt,
+                                        textStyle: Theme.of(context)
                                             .textTheme
                                             .titleSmall
                                             ?.copyWith(
@@ -1138,9 +1139,9 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
-                                              child: Text(
-                                                _hint!,
-                                                style: Theme.of(context)
+                                              child: MathText(
+                                                text: _hint!,
+                                                textStyle: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall
                                                     ?.copyWith(
@@ -1524,10 +1525,9 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
                             ?.copyWith(color: AppColors.mutedInk),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        _lastWrongPrompt!,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                      MathText(
+                        text: _lastWrongPrompt!,
+                        textStyle: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -1540,10 +1540,9 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
                             ?.copyWith(color: AppColors.mutedInk),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        _lastWrongSelected!,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context)
+                      MathText(
+                        text: _lastWrongSelected!,
+                        textStyle: Theme.of(context)
                             .textTheme
                             .bodyMedium
                             ?.copyWith(fontWeight: FontWeight.w600),
@@ -1558,19 +1557,17 @@ class _SurvivalQuizGameScreenState extends State<SurvivalQuizGameScreen>
                           ?.copyWith(color: AppColors.mutedInk),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      _correctAnswer!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context)
+                    MathText(
+                      text: _correctAnswer!,
+                      textStyle: Theme.of(context)
                           .textTheme
                           .bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      _answerExplanation ?? '',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context)
+                    MathText(
+                      text: _answerExplanation ?? '',
+                      textStyle: Theme.of(context)
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: AppColors.mutedInk),
@@ -2197,9 +2194,9 @@ class _QuizOptionTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context)
+            child: MathText(
+              text: label,
+              textStyle: Theme.of(context)
                   .textTheme
                   .bodySmall
                   ?.copyWith(fontWeight: FontWeight.w600),

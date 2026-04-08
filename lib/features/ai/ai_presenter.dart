@@ -17,6 +17,7 @@ class AiPresenter extends Presenter<AiView> {
     _freeAiService = FreeAiService(SupabaseConfig.client);
     _ollamaService = OllamaAiService();
     _lmStudioService = LmStudioAiService();
+    _loadConversations();
   }
 
   late final ValueNotifier<AiViewModel> state;
@@ -25,11 +26,67 @@ class AiPresenter extends Presenter<AiView> {
   late final OllamaAiService _ollamaService;
   late final LmStudioAiService _lmStudioService;
   String? _conversationId;
+  bool _loadingConversations = false;
+
+  Future<void> _loadConversations() async {
+    if (_loadingConversations) return;
+    _loadingConversations = true;
+    try {
+      final rows = await _aiService.fetchConversations(limit: 20);
+      final conversations = rows.map((row) {
+        final title = row['title']?.toString().trim();
+        final created = row['created_at']?.toString();
+        final updated = row['updated_at']?.toString();
+        final timestamp = (updated?.isNotEmpty ?? false) ? updated : created;
+        return AiConversation(
+          id: row['id']?.toString() ?? '',
+          title: (title == null || title.isEmpty)
+              ? 'Study Session'
+              : title,
+          updatedAt: timestamp == null
+              ? null
+              : DateTime.tryParse(timestamp),
+        );
+      }).where((item) => item.id.isNotEmpty).toList();
+      state.value = state.value.copyWith(conversations: conversations);
+    } catch (_) {
+      // ignore for now
+    } finally {
+      _loadingConversations = false;
+    }
+  }
+
+  Future<void> openConversation(String conversationId) async {
+    if (conversationId.isEmpty) return;
+    _conversationId = conversationId;
+    state.value =
+        state.value.copyWith(activeConversationId: conversationId);
+    try {
+      final rows = await _aiService.fetchConversationMessages(conversationId);
+      final messages = rows
+          .map((row) => AiMessage(
+                isUser: row['role']?.toString() == 'user',
+                text: row['content']?.toString() ?? '',
+              ))
+          .where((message) => message.text.trim().isNotEmpty)
+          .toList();
+      state.value = state.value.copyWith(messages: messages);
+    } catch (_) {
+      // ignore
+    }
+  }
 
   Future<void> sendMessage(String message, {String? mode}) async {
     final trimmed = message.trim();
     if (trimmed.isEmpty) {
       return;
+    }
+
+    if (_conversationId == null) {
+      try {
+        _conversationId =
+            await _aiService.createConversation(title: _titleFrom(trimmed));
+      } catch (_) {}
     }
 
     final extracted = _extractMode(trimmed);
@@ -47,13 +104,79 @@ class AiPresenter extends Presenter<AiView> {
     try {
       final reply = await _send(cleanedMessage, chosenMode);
       messages.add(AiMessage(isUser: false, text: reply.isEmpty ? '...' : reply));
-      state.value = state.value.copyWith(messages: messages, isLoading: false);
+      state.value = state.value.copyWith(
+        messages: messages,
+        isLoading: false,
+        activeConversationId: _conversationId,
+      );
+      await _loadConversations();
     } catch (error) {
       state.value = state.value.copyWith(
         isLoading: false,
         errorMessage: 'AI failed: $error',
       );
     }
+  }
+
+  Future<void> deleteConversation(String conversationId) async {
+    if (conversationId.isEmpty) return;
+    final wasActive = _conversationId == conversationId ||
+        state.value.activeConversationId == conversationId;
+    state.value = state.value.copyWith(
+      conversations: state.value.conversations
+          .where((conversation) => conversation.id != conversationId)
+          .toList(),
+      activeConversationId: wasActive ? null : state.value.activeConversationId,
+      messages: wasActive ? const [] : state.value.messages,
+    );
+    try {
+      await _aiService.deleteConversation(conversationId);
+      if (wasActive) {
+        _conversationId = null;
+      }
+      await _loadConversations();
+    } catch (error) {
+      state.value = state.value.copyWith(
+        errorMessage: 'Delete failed: $error',
+      );
+      await _loadConversations();
+    }
+  }
+
+  Future<void> deleteAllConversations() async {
+    state.value = state.value.copyWith(
+      conversations: const [],
+      activeConversationId: null,
+      messages: const [],
+      errorMessage: null,
+      isLoading: false,
+    );
+    _conversationId = null;
+    try {
+      await _aiService.clearUserHistory();
+      await _loadConversations();
+    } catch (error) {
+      state.value = state.value.copyWith(
+        errorMessage: 'Delete failed: $error',
+      );
+      await _loadConversations();
+    }
+  }
+
+  void resetConversation() {
+    _conversationId = null;
+    state.value = state.value.copyWith(
+      messages: const [],
+      activeConversationId: null,
+      isLoading: false,
+      errorMessage: null,
+    );
+  }
+
+  String _titleFrom(String message) {
+    final normalized = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) return 'Study Session';
+    return normalized.length > 42 ? '${normalized.substring(0, 42)}…' : normalized;
   }
 
   Future<String> _send(String message, String? mode) async {

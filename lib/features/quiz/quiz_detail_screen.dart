@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
@@ -62,7 +63,10 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.quiz.questionCount} questions • ${widget.quiz.duration.inMinutes} min',
+                  context.tr(
+                    '${widget.quiz.questionCount} questions • ${widget.quiz.duration.inMinutes} min',
+                    '${widget.quiz.questionCount} प्रश्न • ${widget.quiz.duration.inMinutes} मिनेट',
+                  ),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
@@ -77,12 +81,12 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Game mode',
+                  context.tr('Game mode', 'गेम मोड'),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _modeLabel(widget.quiz.type),
+                  _modeLabel(context, widget.quiz.type),
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
@@ -90,7 +94,7 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Difficulty',
+                  context.tr('Difficulty', 'कठिनाइ'),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
@@ -110,9 +114,14 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
           AppCard(
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('AI Generated Questions'),
-              subtitle: const Text(
-                'Uses AI to generate questions and adapts difficulty (Ollama recommended).',
+              title: Text(
+                context.tr('AI Generated Questions', 'AI प्रश्नहरू'),
+              ),
+              subtitle: Text(
+                context.tr(
+                  'Uses AI to generate questions and adapts difficulty (Ollama recommended).',
+                  'AI ले प्रश्न बनाउँछ र कठिनाइ मिलाउँछ (Ollama सिफारिस)।',
+                ),
               ),
               value: _useAi,
               onChanged: (value) {
@@ -129,7 +138,7 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AI Difficulty',
+                    context.tr('AI Difficulty', 'AI कठिनाइ'),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: 8),
@@ -168,11 +177,16 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'What you will get',
+                  context.tr('What you will get', 'तपाईंले पाउनुहुने'),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
-                const Text('XP points, adaptive feedback, and smart notes.'),
+                Text(
+                  context.tr(
+                    'XP points, adaptive feedback, and smart notes.',
+                    'XP अंक, अनुकूली प्रतिक्रिया र स्मार्ट नोटहरू।',
+                  ),
+                ),
               ],
             ),
           ),
@@ -203,7 +217,7 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
                   ),
                 );
               },
-              child: const Text('Start Quiz'),
+              child: Text(context.tr('Start Quiz', 'क्विज सुरु गर्नुहोस्')),
             ),
           ),
         ],
@@ -223,14 +237,14 @@ class _QuizDetailScreenState extends State<QuizDetailScreen> {
     );
   }
 
-  String _modeLabel(QuizType type) {
+  String _modeLabel(BuildContext context, QuizType type) {
     switch (type) {
       case QuizType.mcq:
-        return 'MCQ Quickfire';
+        return context.tr('MCQ Quickfire', 'MCQ छिटो');
       case QuizType.time:
-        return 'Time Attack';
+        return context.tr('Time Attack', 'टाइम अट्याक');
       case QuizType.level:
-        return 'Level Mode';
+        return context.tr('Level Mode', 'लेभल मोड');
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/progress_service.dart';
@@ -68,7 +69,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load progress: $error';
+        _errorMessage = context.tr(
+          'Failed to load progress: $error',
+          'प्रगति लोड गर्न असफल: $error',
+        );
         _isLoading = false;
       });
     }
@@ -85,7 +89,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           opacity: _showTitle ? 1 : 0,
           duration: const Duration(milliseconds: 200),
           child: Text(
-            'Progress Tracking',
+            context.tr('Progress Tracking', 'प्रगति ट्र्याकिङ'),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -137,7 +141,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Overall learning progress',
+                        context.tr(
+                          'Overall learning progress',
+                          'कुल सिकाइ प्रगति',
+                        ),
                         style:
                             Theme.of(context).textTheme.titleMedium?.copyWith(
                                   color: Colors.white,
@@ -154,7 +161,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${(_overall * 100).round()}% overall progress',
+                        context.tr(
+                          '${(_overall * 100).round()}% overall progress',
+                          'कुल प्रगति ${(_overall * 100).round()}%',
+                        ),
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
@@ -170,7 +180,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Feature progress',
+                        context.tr('Feature progress', 'फिचर प्रगति'),
                         style:
                             Theme.of(context).textTheme.titleMedium?.copyWith(
                                   color: Colors.white,
@@ -179,27 +189,27 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       ),
                       const SizedBox(height: 12),
                       _FeatureProgressRow(
-                        label: 'Syllabus',
+                        label: context.tr('Syllabus', 'पाठ्यक्रम'),
                         value: _snapshot!.syllabus,
                         color: AppColors.secondary,
                       ),
                       _FeatureProgressRow(
-                        label: 'Planner',
+                        label: context.tr('Planner', 'योजना'),
                         value: _snapshot!.planner,
                         color: AppColors.accent,
                       ),
                       _FeatureProgressRow(
-                        label: 'Practice',
+                        label: context.tr('Practice', 'अभ्यास'),
                         value: _snapshot!.practice,
                         color: AppColors.success,
                       ),
                       _FeatureProgressRow(
-                        label: 'AI Usage',
+                        label: context.tr('AI Usage', 'एआई प्रयोग'),
                         value: _snapshot!.ai,
                         color: AppColors.warning,
                       ),
                       _FeatureProgressRow(
-                        label: 'Community',
+                        label: context.tr('Community', 'समुदाय'),
                         value: _snapshot!.community,
                         color: AppColors.danger,
                       ),
@@ -209,7 +219,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               ],
               const SizedBox(height: 20),
               Text(
-                'Subject progress',
+                context.tr('Subject progress', 'विषय प्रगति'),
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
@@ -220,9 +230,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
               ),
               const SizedBox(height: 12),
               if (profile.subjects.isEmpty)
-                const Text(
-                  'Select a semester to track progress.',
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  context.tr(
+                    'Select a semester to track progress.',
+                    'प्रगति ट्र्याक गर्न सेमेस्टर छान्नुहोस्।',
+                  ),
+                  style: const TextStyle(color: Colors.white70),
                 )
               else
                 ...profile.subjects.map(

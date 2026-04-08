@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -39,6 +40,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
     return ValueListenableBuilder(
       valueListenable: AppState.profile,
       builder: (context, profile, _) {
+        final l10n = context.l10n;
         final subjects = profile.subjects;
         final totalChapters =
             subjects.fold<int>(0, (sum, subject) => sum + subject.chapters.length);
@@ -50,7 +52,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
               opacity: _showTitle ? 1 : 0,
               duration: const Duration(milliseconds: 200),
               child: Text(
-                'Syllabus',
+                l10n.syllabus,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -93,7 +95,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Syllabus Hub',
+                                context.tr('Syllabus Hub', 'पाठ्यक्रम केन्द्र'),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleLarge
@@ -104,7 +106,10 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Open official syllabuses for your subjects.',
+                                context.tr(
+                                  'Open official syllabuses for your subjects.',
+                                  'आफ्ना विषयहरूको आधिकारिक पाठ्यक्रम खोल्नुहोस्।',
+                                ),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
@@ -116,8 +121,9 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                                 runSpacing: 8,
                                 children: [
                                   _InfoChip(
-                                      label: '${subjects.length} subjects'),
-                                  _InfoChip(label: '$totalChapters chapters'),
+                                      label: l10n.subjectsCount(subjects.length)),
+                                  _InfoChip(
+                                      label: l10n.chaptersCount(totalChapters)),
                                 ],
                               ),
                             ],
@@ -135,7 +141,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                               size: 48, color: Colors.white54),
                           const SizedBox(height: 12),
                           Text(
-                            'No syllabus available yet.',
+                            l10n.noSyllabusAvailable,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -143,7 +149,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Select a semester to view syllabus.',
+                            l10n.selectSemesterPrompt,
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -158,7 +164,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _SyllabusCard(
                           subject: subject,
-                          description: _detailForSubject(subject),
+                          description: _detailForSubject(context, subject),
                           onOpen: () => _openSyllabus(
                             context,
                             subject.name,
@@ -176,22 +182,31 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
     );
   }
 
-  String _detailForSubject(Subject subject) {
+  String _detailForSubject(BuildContext context, Subject subject) {
     if (subject.chapters.isEmpty) {
-      return 'Chapters will appear once content is added.';
+      return context.tr(
+        'Chapters will appear once content is added.',
+        'सामग्री थपिएपछि अध्यायहरू देखिनेछन्।',
+      );
     }
     final titles = subject.chapters
         .take(4)
         .map((chapter) => chapter.title)
         .toList();
-    return titles.isEmpty ? 'Content coming soon.' : titles.join(', ');
+    return titles.isEmpty
+        ? context.tr('Content coming soon.', 'सामग्री छिट्टै आउँदैछ।')
+        : titles.join(', ');
   }
 
   void _openSyllabus(BuildContext context, String title, String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid syllabus link.')),
+        SnackBar(
+          content: Text(
+            context.tr('Invalid syllabus link.', 'अवैध पाठ्यक्रम लिंक।'),
+          ),
+        ),
       );
       return;
     }
@@ -260,9 +275,11 @@ class _SyllabusCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _InfoChip(
-                label: hasPdf ? 'PDF Ready' : 'Missing',
-              ),
+      _InfoChip(
+        label: hasPdf
+            ? context.tr('PDF Ready', 'पीडीएफ तयार')
+            : context.tr('Missing', 'फेला परेन'),
+      ),
             ],
           ),
           const SizedBox(height: 10),
@@ -275,7 +292,9 @@ class _SyllabusCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _PrimaryActionButton(
-            label: hasPdf ? 'Open syllabus' : 'No file',
+            label: hasPdf
+                ? context.tr('Open syllabus', 'पाठ्यक्रम खोल्नुहोस्')
+                : context.tr('No file', 'फाइल छैन'),
             enabled: hasPdf,
             onPressed: hasPdf ? onOpen : null,
           ),

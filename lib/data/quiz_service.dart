@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:student_survivor/data/supabase_mappers.dart';
 import 'package:student_survivor/models/app_models.dart';
@@ -41,171 +43,206 @@ class QuizService {
 
   QuizService(this._client);
 
+  static const String _quizCardsKey = 'quiz_cards_v1';
+  static const String _quizQuestionsPrefix = 'quiz_questions_v1_';
+  static const String _quizContextPrefix = 'quiz_context_v1_';
+
   Future<List<QuizCardItem>> fetchQuizCardsForUser() async {
     final user = _client.auth.currentUser;
     if (user == null) {
       return [];
     }
+    final userId = user.id;
 
-    final profile = await _client
-        .from('profiles')
-        .select('semester_id')
-        .eq('id', user.id)
-        .maybeSingle();
-    final semesterId = profile?['semester_id']?.toString() ?? '';
-    if (semesterId.isEmpty) {
-      return [];
-    }
-
-    final subjectRows = await _client
-        .from('subjects')
-        .select('id,name,code,accent_color')
-        .eq('semester_id', semesterId)
-        .order('sort_order');
-
-    final subjectById = <String, Subject>{};
-    for (final row in subjectRows as List<dynamic>) {
-      final id = row['id']?.toString() ?? '';
-      if (id.isEmpty) {
-        continue;
+    try {
+      final profile = await _client
+          .from('profiles')
+          .select('semester_id')
+          .eq('id', user.id)
+          .maybeSingle();
+      final semesterId = profile?['semester_id']?.toString() ?? '';
+      if (semesterId.isEmpty) {
+        return [];
       }
-      subjectById[id] = Subject(
-        id: id,
-        name: row['name']?.toString() ?? 'Subject',
-        code: row['code']?.toString() ?? '',
-        accentColor: parseAccentColor(row['accent_color']?.toString()),
-        pastPapers: const [],
-        chapters: const [],
-      );
-    }
 
-    final subjectIds = subjectById.keys.toList();
-    if (subjectIds.isEmpty) {
-      return [];
-    }
+      final subjectRows = await _client
+          .from('subjects')
+          .select('id,name,code,accent_color')
+          .eq('semester_id', semesterId)
+          .order('sort_order');
 
-    final chapterRows = await _client
-        .from('chapters')
-        .select('id, subject_id')
-        .inFilter('subject_id', subjectIds);
-
-    final subjectByChapter = <String, Subject>{};
-    for (final row in chapterRows as List<dynamic>) {
-      final chapterId = row['id']?.toString() ?? '';
-      final subjectId = row['subject_id']?.toString() ?? '';
-      final subject = subjectById[subjectId];
-      if (chapterId.isEmpty || subject == null) {
-        continue;
+      final subjectById = <String, Subject>{};
+      for (final row in subjectRows as List<dynamic>) {
+        final id = row['id']?.toString() ?? '';
+        if (id.isEmpty) {
+          continue;
+        }
+        subjectById[id] = Subject(
+          id: id,
+          name: row['name']?.toString() ?? 'Subject',
+          code: row['code']?.toString() ?? '',
+          accentColor: parseAccentColor(row['accent_color']?.toString()),
+          pastPapers: const [],
+          chapters: const [],
+        );
       }
-      subjectByChapter[chapterId] = subject;
-    }
 
-    final chapterIds = subjectByChapter.keys.toList();
-    if (chapterIds.isEmpty) {
-      return [];
-    }
-
-    final quizRows = await _client
-        .from('quizzes')
-        .select(
-          'id,title,quiz_type,difficulty,question_count,duration_minutes,chapter_id',
-        )
-        .inFilter('chapter_id', chapterIds);
-
-    final items = <QuizCardItem>[];
-    for (final row in quizRows as List<dynamic>) {
-      final chapterId = row['chapter_id']?.toString() ?? '';
-      final subject = subjectByChapter[chapterId];
-      if (subject == null) {
-        continue;
+      final subjectIds = subjectById.keys.toList();
+      if (subjectIds.isEmpty) {
+        return [];
       }
-      final quiz = Quiz(
-        id: row['id']?.toString() ?? '',
-        title: row['title']?.toString() ?? 'Quiz',
-        type: parseQuizType(row['quiz_type']?.toString()),
-        difficulty: parseQuizDifficulty(row['difficulty']?.toString()),
-        questionCount: (row['question_count'] as num?)?.toInt() ?? 0,
-        duration: Duration(
-          minutes: (row['duration_minutes'] as num?)?.toInt() ?? 10,
-        ),
-      );
-      items.add(QuizCardItem(quiz: quiz, subject: subject));
+
+      final chapterRows = await _client
+          .from('chapters')
+          .select('id, subject_id')
+          .inFilter('subject_id', subjectIds);
+
+      final subjectByChapter = <String, Subject>{};
+      for (final row in chapterRows as List<dynamic>) {
+        final chapterId = row['id']?.toString() ?? '';
+        final subjectId = row['subject_id']?.toString() ?? '';
+        final subject = subjectById[subjectId];
+        if (chapterId.isEmpty || subject == null) {
+          continue;
+        }
+        subjectByChapter[chapterId] = subject;
+      }
+
+      final chapterIds = subjectByChapter.keys.toList();
+      if (chapterIds.isEmpty) {
+        return [];
+      }
+
+      final quizRows = await _client
+          .from('quizzes')
+          .select(
+            'id,title,quiz_type,difficulty,question_count,duration_minutes,chapter_id',
+          )
+          .inFilter('chapter_id', chapterIds);
+
+      final items = <QuizCardItem>[];
+      for (final row in quizRows as List<dynamic>) {
+        final chapterId = row['chapter_id']?.toString() ?? '';
+        final subject = subjectByChapter[chapterId];
+        if (subject == null) {
+          continue;
+        }
+        final quiz = Quiz(
+          id: row['id']?.toString() ?? '',
+          title: row['title']?.toString() ?? 'Quiz',
+          type: parseQuizType(row['quiz_type']?.toString()),
+          difficulty: parseQuizDifficulty(row['difficulty']?.toString()),
+          questionCount: (row['question_count'] as num?)?.toInt() ?? 0,
+          duration: Duration(
+            minutes: (row['duration_minutes'] as num?)?.toInt() ?? 10,
+          ),
+        );
+        items.add(QuizCardItem(quiz: quiz, subject: subject));
+      }
+      await _cacheQuizCards(userId, items);
+      return items;
+    } catch (_) {
+      final cached = await _loadCachedQuizCards(userId);
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+      rethrow;
     }
-    return items;
   }
 
   Future<List<QuizQuestionItem>> fetchQuestions(String quizId) async {
-    final data = await _client
-        .from('quiz_questions')
-        .select('id,prompt,options,correct_index,topic,explanation')
-        .eq('quiz_id', quizId)
-        .order('created_at');
+    if (quizId.isEmpty) return [];
+    try {
+      final data = await _client
+          .from('quiz_questions')
+          .select('id,prompt,options,correct_index,topic,explanation')
+          .eq('quiz_id', quizId)
+          .order('created_at');
 
-    return (data as List<dynamic>).map((row) {
-      final optionsRaw = row['options'] as List<dynamic>? ?? [];
-      return QuizQuestionItem(
-        id: row['id']?.toString() ?? '',
-        prompt: row['prompt']?.toString() ?? '',
-        options: optionsRaw.map((option) => option.toString()).toList(),
-        correctIndex: (row['correct_index'] as num?)?.toInt() ?? -1,
-        topic: row['topic']?.toString(),
-        difficulty: null,
-        explanation: row['explanation']?.toString(),
-      );
-    }).toList();
+      final items = (data as List<dynamic>).map((row) {
+        final optionsRaw = row['options'] as List<dynamic>? ?? [];
+        return QuizQuestionItem(
+          id: row['id']?.toString() ?? '',
+          prompt: row['prompt']?.toString() ?? '',
+          options: optionsRaw.map((option) => option.toString()).toList(),
+          correctIndex: (row['correct_index'] as num?)?.toInt() ?? -1,
+          topic: row['topic']?.toString(),
+          difficulty: null,
+          explanation: row['explanation']?.toString(),
+        );
+      }).toList();
+      await _cacheQuizQuestions(quizId, items);
+      return items;
+    } catch (_) {
+      final cached = await _loadCachedQuizQuestions(quizId);
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   Future<QuizContext?> fetchQuizContext(String quizId) async {
     if (quizId.isEmpty) return null;
-    final data = await _client
-        .from('quizzes')
-        .select(
-          'id,title,quiz_type,difficulty,question_count,duration_minutes,'
-          'chapter:chapters(id,title,subject:subjects(id,name,code,accent_color))',
-        )
-        .eq('id', quizId)
-        .maybeSingle();
+    try {
+      final data = await _client
+          .from('quizzes')
+          .select(
+            'id,title,quiz_type,difficulty,question_count,duration_minutes,'
+            'chapter:chapters(id,title,subject:subjects(id,name,code,accent_color))',
+          )
+          .eq('id', quizId)
+          .maybeSingle();
 
-    if (data == null) {
-      return null;
-    }
-    final chapterMap = data['chapter'] as Map<String, dynamic>?;
-    if (chapterMap == null) {
-      return null;
-    }
-    final subjectMap = chapterMap['subject'] as Map<String, dynamic>?;
-    if (subjectMap == null) {
-      return null;
-    }
+      if (data == null) {
+        return null;
+      }
+      final chapterMap = data['chapter'] as Map<String, dynamic>?;
+      if (chapterMap == null) {
+        return null;
+      }
+      final subjectMap = chapterMap['subject'] as Map<String, dynamic>?;
+      if (subjectMap == null) {
+        return null;
+      }
 
-    final subject = Subject(
-      id: subjectMap['id']?.toString() ?? '',
-      name: subjectMap['name']?.toString() ?? 'Subject',
-      code: subjectMap['code']?.toString() ?? '',
-      accentColor: parseAccentColor(subjectMap['accent_color']?.toString()),
-      pastPapers: const [],
-      chapters: const [],
-    );
-    final chapter = Chapter(
-      id: chapterMap['id']?.toString() ?? '',
-      title: chapterMap['title']?.toString() ?? 'Chapter',
-      notes: const [],
-      importantQuestions: const [],
-      pastQuestions: const [],
-      quizzes: const [],
-    );
-    final quiz = Quiz(
-      id: data['id']?.toString() ?? '',
-      title: data['title']?.toString() ?? 'Quiz',
-      type: parseQuizType(data['quiz_type']?.toString()),
-      difficulty: parseQuizDifficulty(data['difficulty']?.toString()),
-      questionCount: (data['question_count'] as num?)?.toInt() ?? 0,
-      duration: Duration(
-        minutes: (data['duration_minutes'] as num?)?.toInt() ?? 10,
-      ),
-    );
+      final subject = Subject(
+        id: subjectMap['id']?.toString() ?? '',
+        name: subjectMap['name']?.toString() ?? 'Subject',
+        code: subjectMap['code']?.toString() ?? '',
+        accentColor: parseAccentColor(subjectMap['accent_color']?.toString()),
+        pastPapers: const [],
+        chapters: const [],
+      );
+      final chapter = Chapter(
+        id: chapterMap['id']?.toString() ?? '',
+        title: chapterMap['title']?.toString() ?? 'Chapter',
+        notes: const [],
+        importantQuestions: const [],
+        pastQuestions: const [],
+        quizzes: const [],
+      );
+      final quiz = Quiz(
+        id: data['id']?.toString() ?? '',
+        title: data['title']?.toString() ?? 'Quiz',
+        type: parseQuizType(data['quiz_type']?.toString()),
+        difficulty: parseQuizDifficulty(data['difficulty']?.toString()),
+        questionCount: (data['question_count'] as num?)?.toInt() ?? 0,
+        duration: Duration(
+          minutes: (data['duration_minutes'] as num?)?.toInt() ?? 10,
+        ),
+      );
 
-    return QuizContext(quiz: quiz, subject: subject, chapter: chapter);
+      final context = QuizContext(quiz: quiz, subject: subject, chapter: chapter);
+      await _cacheQuizContext(quizId, context);
+      return context;
+    } catch (_) {
+      final cached = await _loadCachedQuizContext(quizId);
+      if (cached != null) {
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   Future<String> startAttempt(String quizId) async {
@@ -299,6 +336,211 @@ class QuizService {
       'completion_percent': updated,
       'last_activity_at': DateTime.now().toIso8601String(),
     }, onConflict: 'user_id,chapter_id');
+  }
+
+  Future<void> _cacheQuizCards(
+    String userId,
+    List<QuizCardItem> items,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = items
+          .map(
+            (item) => {
+              'quiz': _quizToMap(item.quiz),
+              'subject': _subjectToMap(item.subject),
+            },
+          )
+          .toList();
+      await prefs.setString(
+        '${userId}_$_quizCardsKey',
+        jsonEncode(payload),
+      );
+    } catch (_) {}
+  }
+
+  Future<List<QuizCardItem>> _loadCachedQuizCards(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('${userId}_$_quizCardsKey');
+      if (raw == null || raw.isEmpty) return [];
+      final data = jsonDecode(raw) as List<dynamic>;
+      return data
+          .whereType<Map>()
+          .map((entry) {
+            final map = Map<String, dynamic>.from(entry);
+            final quizMap = map['quiz'] as Map<String, dynamic>?;
+            final subjectMap = map['subject'] as Map<String, dynamic>?;
+            if (quizMap == null || subjectMap == null) return null;
+            return QuizCardItem(
+              quiz: _quizFromMap(Map<String, dynamic>.from(quizMap)),
+              subject:
+                  _subjectFromMap(Map<String, dynamic>.from(subjectMap)),
+            );
+          })
+          .whereType<QuizCardItem>()
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _cacheQuizQuestions(
+    String quizId,
+    List<QuizQuestionItem> items,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = items
+          .map(
+            (item) => {
+              'id': item.id,
+              'prompt': item.prompt,
+              'options': item.options,
+              'correct_index': item.correctIndex,
+              'topic': item.topic,
+              'explanation': item.explanation,
+            },
+          )
+          .toList();
+      await prefs.setString(
+        '$_quizQuestionsPrefix$quizId',
+        jsonEncode(payload),
+      );
+    } catch (_) {}
+  }
+
+  Future<List<QuizQuestionItem>> _loadCachedQuizQuestions(
+    String quizId,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_quizQuestionsPrefix$quizId');
+      if (raw == null || raw.isEmpty) return [];
+      final data = jsonDecode(raw) as List<dynamic>;
+      return data
+          .whereType<Map>()
+          .map((entry) {
+            final map = Map<String, dynamic>.from(entry);
+            final optionsRaw = map['options'] as List<dynamic>? ?? [];
+            return QuizQuestionItem(
+              id: map['id']?.toString() ?? '',
+              prompt: map['prompt']?.toString() ?? '',
+              options: optionsRaw.map((option) => option.toString()).toList(),
+              correctIndex: (map['correct_index'] as num?)?.toInt() ?? -1,
+              topic: map['topic']?.toString(),
+              difficulty: null,
+              explanation: map['explanation']?.toString(),
+            );
+          })
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _cacheQuizContext(String quizId, QuizContext context) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = {
+        'quiz': _quizToMap(context.quiz),
+        'subject': _subjectToMap(context.subject),
+        'chapter': _chapterToMap(context.chapter),
+      };
+      await prefs.setString(
+        '$_quizContextPrefix$quizId',
+        jsonEncode(payload),
+      );
+    } catch (_) {}
+  }
+
+  Future<QuizContext?> _loadCachedQuizContext(String quizId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_quizContextPrefix$quizId');
+      if (raw == null || raw.isEmpty) return null;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      final quizMap = map['quiz'] as Map<String, dynamic>?;
+      final subjectMap = map['subject'] as Map<String, dynamic>?;
+      final chapterMap = map['chapter'] as Map<String, dynamic>?;
+      if (quizMap == null || subjectMap == null || chapterMap == null) {
+        return null;
+      }
+      return QuizContext(
+        quiz: _quizFromMap(Map<String, dynamic>.from(quizMap)),
+        subject: _subjectFromMap(Map<String, dynamic>.from(subjectMap)),
+        chapter: _chapterFromMap(Map<String, dynamic>.from(chapterMap)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _quizToMap(Quiz quiz) {
+    return {
+      'id': quiz.id,
+      'title': quiz.title,
+      'quiz_type': quiz.type.name,
+      'difficulty': quiz.difficulty.name,
+      'question_count': quiz.questionCount,
+      'duration_minutes': quiz.duration.inMinutes,
+    };
+  }
+
+  Quiz _quizFromMap(Map<String, dynamic> map) {
+    return Quiz(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? 'Quiz',
+      type: parseQuizType(map['quiz_type']?.toString()),
+      difficulty: parseQuizDifficulty(map['difficulty']?.toString()),
+      questionCount: (map['question_count'] as num?)?.toInt() ?? 0,
+      duration: Duration(
+        minutes: (map['duration_minutes'] as num?)?.toInt() ?? 10,
+      ),
+    );
+  }
+
+  Map<String, dynamic> _subjectToMap(Subject subject) {
+    return {
+      'id': subject.id,
+      'name': subject.name,
+      'code': subject.code,
+      'accent_color': _colorToHex(subject.accentColor.toARGB32()),
+    };
+  }
+
+  Subject _subjectFromMap(Map<String, dynamic> map) {
+    return Subject(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'Subject',
+      code: map['code']?.toString() ?? '',
+      accentColor: parseAccentColor(map['accent_color']?.toString()),
+      pastPapers: const [],
+      chapters: const [],
+    );
+  }
+
+  Map<String, dynamic> _chapterToMap(Chapter chapter) {
+    return {
+      'id': chapter.id,
+      'title': chapter.title,
+    };
+  }
+
+  Chapter _chapterFromMap(Map<String, dynamic> map) {
+    return Chapter(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? 'Chapter',
+      notes: const [],
+      importantQuestions: const [],
+      pastQuestions: const [],
+      quizzes: const [],
+    );
+  }
+
+  String _colorToHex(int value) {
+    final rgb = value & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0')}';
   }
 
   double _ruleBasedProgressDelta({
