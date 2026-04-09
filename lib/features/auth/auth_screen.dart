@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/mvp/presenter_state.dart';
 import 'package:student_survivor/features/auth/auth_presenter.dart';
@@ -18,6 +19,8 @@ class _AuthScreenState
     extends PresenterState<AuthScreen, AuthView, AuthPresenter>
     with SingleTickerProviderStateMixin
     implements AuthView {
+  static const _lastEmailKey = 'auth_last_email';
+  static const _lastPhoneKey = 'auth_last_phone';
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -33,6 +36,7 @@ class _AuthScreenState
       vsync: this,
       duration: const Duration(milliseconds: 2200),
     )..repeat();
+    _loadSavedIdentifier(AuthMethod.email);
   }
 
   @override
@@ -45,9 +49,108 @@ class _AuthScreenState
 
   @override
   void goToHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AppShell()),
+    () async {
+      final save = await _promptSaveLoginIfNeeded();
+      TextInput.finishAutofillContext(shouldSave: save);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AppShell()),
+      );
+    }();
+  }
+
+  Future<void> _loadSavedIdentifier(
+    AuthMethod method, {
+    bool force = false,
+  }) async {
+    if (!force && _identifierController.text.trim().isNotEmpty) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final key = method == AuthMethod.email ? _lastEmailKey : _lastPhoneKey;
+    final saved = prefs.getString(key);
+    if (saved == null || saved.trim().isEmpty) return;
+    if (!mounted) return;
+    setState(() {
+      _identifierController.text = saved;
+    });
+  }
+
+  Future<void> _storeLastIdentifier(AuthMethod method, String value) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key = method == AuthMethod.email ? _lastEmailKey : _lastPhoneKey;
+    await prefs.setString(key, trimmed);
+  }
+
+  Future<bool> _promptSaveLoginIfNeeded() async {
+    final method = presenter.state.value.method;
+    final prefs = await SharedPreferences.getInstance();
+    final key = method == AuthMethod.email ? _lastEmailKey : _lastPhoneKey;
+    final existing = prefs.getString(key);
+    if (existing != null && existing.trim().isNotEmpty) {
+      return true;
+    }
+
+    if (!mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0B1220),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF1E2A44)),
+          ),
+          title: Text(
+            context.tr('Save login?', 'लगइन सेभ गर्ने?'),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          content: Text(
+            context.tr(
+              'Save your email/phone for quick login. Your device may also offer to save the password.',
+              'छिटो लगइनका लागि इमेल/फोन सेभ गर्नुहोस्। तपाईंको डिभाइसले पासवर्ड पनि सेभ गर्न प्रस्ताव गर्न सक्छ।',
+            ),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                context.tr('Not now', 'अहिल्यै होइन'),
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF4FA3C7),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(context.tr('Save', 'सेभ')),
+            ),
+          ],
+        );
+      },
     );
+
+    final save = result == true;
+    if (save) {
+      await _storeLastIdentifier(method, _identifierController.text);
+    }
+    return save;
+  }
+
+  void _handleAuthMethodChanged(AuthMethod method) {
+    presenter.setAuthMethod(method);
+    _loadSavedIdentifier(method, force: true);
   }
 
   @override
@@ -84,7 +187,7 @@ class _AuthScreenState
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(
-                    color: Color(0xFF38BDF8),
+                    color: Color(0xFF4FA3C7),
                     width: 1.4,
                   ),
                 ),
@@ -132,7 +235,7 @@ class _AuthScreenState
                                         ? l10n.login.toUpperCase()
                                         : l10n.signup.toUpperCase(),
                                     glow: model.isLogin
-                                        ? const Color(0xFF38BDF8)
+                                        ? const Color(0xFF4FA3C7)
                                         : const Color(0xFFA78BFA),
                                   ),
                                 ],
@@ -172,60 +275,85 @@ class _AuthScreenState
                               const SizedBox(height: 16),
                               _AuthMethodSelector(
                                 selected: model.method,
-                                onChanged: presenter.setAuthMethod,
+                                onChanged: _handleAuthMethodChanged,
                               ),
                               const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _identifierController,
-                                keyboardType: model.method == AuthMethod.email
-                                    ? TextInputType.emailAddress
-                                    : TextInputType.phone,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: gameInputDecoration(
-                                  label: model.method == AuthMethod.email
-                                      ? l10n.email
-                                      : l10n.phone,
-                                  icon: model.method == AuthMethod.email
-                                      ? Icons.alternate_email
-                                      : Icons.phone_iphone,
+                              AutofillGroup(
+                                child: Column(
+                                  children: [
+                                    TextFormField(
+                                      controller: _identifierController,
+                                      keyboardType:
+                                          model.method == AuthMethod.email
+                                              ? TextInputType.emailAddress
+                                              : TextInputType.phone,
+                                      textInputAction: TextInputAction.next,
+                                      autofillHints:
+                                          model.method == AuthMethod.email
+                                              ? const [
+                                                  AutofillHints.email,
+                                                  AutofillHints.username,
+                                                ]
+                                              : const [
+                                                  AutofillHints.telephoneNumber,
+                                                ],
+                                      style:
+                                          const TextStyle(color: Colors.white),
+                                      decoration: gameInputDecoration(
+                                        label: model.method == AuthMethod.email
+                                            ? l10n.email
+                                            : l10n.phone,
+                                        icon: model.method == AuthMethod.email
+                                            ? Icons.alternate_email
+                                            : Icons.phone_iphone,
+                                      ),
+                                      validator: (value) {
+                                        final input = value?.trim() ?? '';
+                                        if (input.isEmpty) {
+                                          return model.method ==
+                                                  AuthMethod.email
+                                              ? l10n.emailRequired
+                                              : l10n.phoneRequired;
+                                        }
+                                        if (model.method ==
+                                                AuthMethod.email &&
+                                            !input.contains('@')) {
+                                          return l10n.validEmail;
+                                        }
+                                        if (model.method == AuthMethod.phone &&
+                                            input.length < 8) {
+                                          return l10n.validPhone;
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextFormField(
+                                      controller: _passwordController,
+                                      obscureText: true,
+                                      textInputAction: TextInputAction.done,
+                                      autofillHints: const [
+                                        AutofillHints.password,
+                                      ],
+                                      style:
+                                          const TextStyle(color: Colors.white),
+                                      decoration: gameInputDecoration(
+                                        label: l10n.password,
+                                        icon: Icons.lock_outline,
+                                      ),
+                                      validator: (value) {
+                                        final input = value?.trim() ?? '';
+                                        if (input.isEmpty) {
+                                          return l10n.passwordRequired;
+                                        }
+                                        if (input.length < 6) {
+                                          return l10n.passwordMin;
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ],
                                 ),
-                                validator: (value) {
-                                  final input = value?.trim() ?? '';
-                                  if (input.isEmpty) {
-                                    return model.method == AuthMethod.email
-                                        ? l10n.emailRequired
-                                        : l10n.phoneRequired;
-                                  }
-                                  if (model.method == AuthMethod.email &&
-                                      !input.contains('@')) {
-                                    return l10n.validEmail;
-                                  }
-                                  if (model.method == AuthMethod.phone &&
-                                      input.length < 8) {
-                                    return l10n.validPhone;
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: true,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: gameInputDecoration(
-                                  label: l10n.password,
-                                  icon: Icons.lock_outline,
-                                ),
-                                validator: (value) {
-                                  final input = value?.trim() ?? '';
-                                  if (input.isEmpty) {
-                                    return l10n.passwordRequired;
-                                  }
-                                  if (input.length < 6) {
-                                    return l10n.passwordMin;
-                                  }
-                                  return null;
-                                },
                               ),
                               const SizedBox(height: 18),
                               const _InfoCallout(),
@@ -460,7 +588,7 @@ class _FeatureTag extends StatelessWidget {
         border: Border.all(color: const Color(0xFF1E2A44)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+            color: const Color(0xFF4FA3C7).withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -469,7 +597,7 @@ class _FeatureTag extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF38BDF8)),
+          Icon(icon, size: 16, color: const Color(0xFF4FA3C7)),
           const SizedBox(width: 6),
           Text(
             label,
@@ -552,7 +680,7 @@ class _ModeChip extends StatelessWidget {
             gradient: selected
                 ? const LinearGradient(
                     colors: [
-                      Color(0xFF38BDF8),
+                      Color(0xFF4FA3C7),
                       Color(0xFF6366F1),
                     ],
                   )
@@ -562,7 +690,7 @@ class _ModeChip extends StatelessWidget {
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                      color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -598,7 +726,7 @@ class _AuthCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -661,7 +789,7 @@ class _InfoCallout extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, size: 22, color: Color(0xFF38BDF8)),
+          const Icon(Icons.auto_awesome, size: 22, color: Color(0xFF4FA3C7)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -712,7 +840,7 @@ class _AuthMethodSelector extends StatelessWidget {
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const Color(0xFF38BDF8);
+            return const Color(0xFF4FA3C7);
           }
           return Colors.white.withValues(alpha: 0.7);
         }),
@@ -759,7 +887,7 @@ class _AuthPrimaryButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -857,7 +985,7 @@ class _GradientTitle extends StatelessWidget {
     return ShaderMask(
       shaderCallback: (rect) => const LinearGradient(
         colors: [
-          Color(0xFF38BDF8),
+          Color(0xFF4FA3C7),
           Color(0xFF22D3EE),
           Color(0xFFA78BFA),
         ],
@@ -884,7 +1012,7 @@ class _GameGridPainter extends CustomPainter {
     }
 
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.2)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -941,7 +1069,7 @@ class _ScanlinePainter extends CustomPainter {
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          const Color(0xFF38BDF8).withValues(alpha: 0.18),
+          const Color(0xFF4FA3C7).withValues(alpha: 0.18),
           Colors.transparent,
         ],
       ).createShader(Rect.fromLTWH(0, bandY, size.width, 120));

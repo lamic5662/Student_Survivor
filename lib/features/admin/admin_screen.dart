@@ -522,7 +522,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     child: Row(
                       children: [
                         const Icon(Icons.attach_file_rounded,
-                            color: Color(0xFF38BDF8)),
+                            color: Color(0xFF4FA3C7)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -542,14 +542,14 @@ class _AdminScreenState extends State<AdminScreen> {
                             url: note.fileUrl!,
                           ),
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF38BDF8),
+                            foregroundColor: const Color(0xFF4FA3C7),
                           ),
                           child: const Text('Open'),
                         ),
                         TextButton(
                           onPressed: () => _copyToClipboard(note.fileUrl!),
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF38BDF8),
+                            foregroundColor: const Color(0xFF4FA3C7),
                           ),
                           child: const Text('Copy link'),
                         ),
@@ -1889,7 +1889,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ? const TabBar(
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              indicatorColor: Color(0xFF38BDF8),
+              indicatorColor: Color(0xFF4FA3C7),
               tabs: [
                 Tab(text: 'Syllabus'),
                 Tab(text: 'Notes'),
@@ -2937,7 +2937,7 @@ class _AdminScreenState extends State<AdminScreen> {
                             onPressed: () =>
                                 _copyToClipboard(submission.fileUrl!),
                             style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF38BDF8),
+                              foregroundColor: const Color(0xFF4FA3C7),
                             ),
                             child: const Text('Copy link'),
                           ),
@@ -3545,7 +3545,7 @@ class _AdminCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

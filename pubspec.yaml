@@ -60,6 +60,8 @@ dependencies:
   flutter_math_fork: ^0.7.1
   connectivity_plus: ^6.0.5
   crypto: ^3.0.3
+  flutter_local_notifications: ^17.2.2
+  timezone: ^0.9.3
 
 dev_dependencies:
   flutter_test:

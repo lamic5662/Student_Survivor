@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:student_survivor/app.dart';
 import 'package:student_survivor/core/localization/locale_controller.dart';
+import 'package:student_survivor/core/notifications/notification_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
 
 Future<void> main() async {
@@ -11,6 +12,7 @@ Future<void> main() async {
     await dotenv.load(fileName: '.env');
   } catch (_) {}
   await Hive.initFlutter();
+  await NotificationService.initialize();
   await SupabaseConfig.initialize();
   await LocaleController.instance.load();
 

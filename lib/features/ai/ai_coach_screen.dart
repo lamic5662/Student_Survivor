@@ -108,7 +108,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             )
           : _error != null
               ? Center(
@@ -189,7 +189,7 @@ class _CoachHero extends StatelessWidget {
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child:
-                const Icon(Icons.auto_awesome, color: Color(0xFF38BDF8)),
+                const Icon(Icons.auto_awesome, color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -460,7 +460,7 @@ class _AskCoachCard extends StatelessWidget {
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: const Icon(Icons.chat_bubble_outline,
-                color: Color(0xFF38BDF8)),
+                color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -495,7 +495,7 @@ class _AskCoachCard extends StatelessWidget {
           FilledButton.tonal(
             onPressed: onOpen,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF38BDF8),
+              backgroundColor: const Color(0xFF4FA3C7),
               foregroundColor: Colors.white,
             ),
             child: Text(context.tr('Open Chat', 'च्याट खोल्नुहोस्')),
@@ -674,7 +674,7 @@ class _DailyQuestionsCard extends StatelessWidget {
                             child: TextButton(
                               onPressed: () => onToggle(entry.key),
                               style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFF38BDF8),
+                                foregroundColor: const Color(0xFF4FA3C7),
                               ),
                               child: Text(
                                 revealed.contains(entry.key)
@@ -773,7 +773,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

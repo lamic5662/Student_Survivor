@@ -199,7 +199,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                                 }
                               });
                             },
-                            activeColor: const Color(0xFF38BDF8),
+                            activeColor: const Color(0xFF4FA3C7),
                             title: Text(
                               user.name,
                               style: const TextStyle(color: Colors.white),
@@ -232,7 +232,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF38BDF8),
+                          backgroundColor: const Color(0xFF4FA3C7),
                           foregroundColor: const Color(0xFF0B1220),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -331,7 +331,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   const SizedBox(width: 10),
                   IconButton(
                     onPressed: _sendMessage,
-                    icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                    icon: const Icon(Icons.send, color: Color(0xFF4FA3C7)),
                   ),
                 ],
               ),
@@ -378,7 +378,7 @@ class _ChatBubble extends StatelessWidget {
             Text(
               tag,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF38BDF8),
+                    color: const Color(0xFF4FA3C7),
                     fontWeight: FontWeight.w600,
                   ),
             ),

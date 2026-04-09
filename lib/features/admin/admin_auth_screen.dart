@@ -85,7 +85,7 @@ class _AdminAuthScreenState
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(
-                    color: Color(0xFF38BDF8),
+                    color: Color(0xFF4FA3C7),
                     width: 1.4,
                   ),
                 ),
@@ -113,7 +113,7 @@ class _AdminAuthScreenState
                           label:
                               (model.isLogin ? 'LOGIN' : 'SIGNUP').toUpperCase(),
                           glow: model.isLogin
-                              ? const Color(0xFF38BDF8)
+                              ? const Color(0xFF4FA3C7)
                               : const Color(0xFFA78BFA),
                         ),
                       ],
@@ -384,7 +384,7 @@ class _FeatureTag extends StatelessWidget {
         border: Border.all(color: const Color(0xFF1E2A44)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+            color: const Color(0xFF4FA3C7).withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -393,7 +393,7 @@ class _FeatureTag extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF38BDF8)),
+          Icon(icon, size: 16, color: const Color(0xFF4FA3C7)),
           const SizedBox(width: 6),
           Text(
             label,
@@ -476,7 +476,7 @@ class _ModeChip extends StatelessWidget {
             gradient: selected
                 ? const LinearGradient(
                     colors: [
-                      Color(0xFF38BDF8),
+                      Color(0xFF4FA3C7),
                       Color(0xFF6366F1),
                     ],
                   )
@@ -486,7 +486,7 @@ class _ModeChip extends StatelessWidget {
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                      color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -522,7 +522,7 @@ class _AuthCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -587,7 +587,7 @@ class _InfoCallout extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.verified_user, size: 22, color: Color(0xFF38BDF8)),
+          const Icon(Icons.verified_user, size: 22, color: Color(0xFF4FA3C7)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -665,7 +665,7 @@ class _AuthMethodSelector extends StatelessWidget {
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const Color(0xFF38BDF8);
+            return const Color(0xFF4FA3C7);
           }
           return Colors.white.withValues(alpha: 0.7);
         }),
@@ -712,7 +712,7 @@ class _AuthPrimaryButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -810,7 +810,7 @@ class _GradientTitle extends StatelessWidget {
     return ShaderMask(
       shaderCallback: (rect) => const LinearGradient(
         colors: [
-          Color(0xFF38BDF8),
+          Color(0xFF4FA3C7),
           Color(0xFF22D3EE),
           Color(0xFFA78BFA),
         ],
@@ -913,7 +913,7 @@ class _GameGridPainter extends CustomPainter {
     }
 
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.2)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -970,7 +970,7 @@ class _ScanlinePainter extends CustomPainter {
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          const Color(0xFF38BDF8).withValues(alpha: 0.18),
+          const Color(0xFF4FA3C7).withValues(alpha: 0.18),
           Colors.transparent,
         ],
       ).createShader(Rect.fromLTWH(0, bandY, size.width, 120));

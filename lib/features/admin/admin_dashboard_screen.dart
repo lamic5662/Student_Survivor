@@ -709,7 +709,7 @@ class _RecentSectionCard extends StatelessWidget {
               TextButton(
                 onPressed: onAction,
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF38BDF8),
+                  foregroundColor: const Color(0xFF4FA3C7),
                 ),
                 child: Text(actionLabel),
               ),
@@ -745,7 +745,7 @@ class _RecentSectionCard extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(item.icon, color: const Color(0xFF38BDF8)),
+                              Icon(item.icon, color: const Color(0xFF4FA3C7)),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -980,7 +980,7 @@ class _ActionCard extends StatelessWidget {
           ElevatedButton(
             onPressed: onAction,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF38BDF8),
+              backgroundColor: const Color(0xFF4FA3C7),
               foregroundColor: Colors.black,
             ),
             child: Text(actionLabel),
@@ -1006,7 +1006,7 @@ class _AdminCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

@@ -195,7 +195,7 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                 width: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Color(0xFF38BDF8),
+                  color: Color(0xFF4FA3C7),
                 ),
               ),
             )
@@ -212,12 +212,12 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
           if (_isLoading)
             const Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF38BDF8),
+                color: Color(0xFF4FA3C7),
               ),
             )
           else
             RefreshIndicator(
-              color: const Color(0xFF38BDF8),
+              color: const Color(0xFF4FA3C7),
               backgroundColor: const Color(0xFF0B1220),
               onRefresh: _refresh,
               child: ListView.separated(
@@ -305,7 +305,7 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                               onSelected: (_) {
                                 setState(() => _filter = filter);
                               },
-                              selectedColor: const Color(0xFF38BDF8),
+                              selectedColor: const Color(0xFF4FA3C7),
                               backgroundColor: const Color(0xFF111B2E),
                               side: const BorderSide(
                                 color: Color(0xFF1E2A44),
@@ -381,7 +381,7 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                                   _openUrl(context.tr('BCA Notice', 'BCA सूचना'),
                                       notice.url),
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF38BDF8),
+                                backgroundColor: const Color(0xFF4FA3C7),
                                 foregroundColor: Colors.white,
                               ),
                               child: Text(
@@ -400,7 +400,7 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white70,
                                   side: const BorderSide(
-                                    color: Color(0xFF38BDF8),
+                                    color: Color(0xFF4FA3C7),
                                   ),
                                 ),
                                 child: Text(
@@ -411,6 +411,17 @@ class _BcaNoticesScreenState extends State<BcaNoticesScreen> {
                                 ),
                               ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          context.tr(
+                            'Source: TU FOHSS official notice. Opens original link.',
+                            'स्रोत: TU FOHSS आधिकारिक सूचना। मौलिक लिंक खोलिन्छ।',
+                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Colors.white60),
                         ),
                       ],
                     ),
@@ -568,7 +579,7 @@ class _NoticeGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -600,7 +611,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

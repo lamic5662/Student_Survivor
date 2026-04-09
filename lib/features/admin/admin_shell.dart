@@ -22,7 +22,7 @@ class _AdminShellState extends State<AdminShell> {
   }
 
   Widget _buildNavBar() {
-    const accent = Color(0xFF38BDF8);
+    const accent = Color(0xFF4FA3C7);
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0B1220),
@@ -47,7 +47,7 @@ class _AdminShellState extends State<AdminShell> {
                 gradient: LinearGradient(
                   colors: [
                     Color(0x0022D3EE),
-                    Color(0xFF38BDF8),
+                    Color(0xFF4FA3C7),
                     Color(0x004F46E5),
                   ],
                 ),

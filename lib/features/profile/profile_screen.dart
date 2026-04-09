@@ -244,7 +244,7 @@ class _ProfileScreenState
                                 .textTheme
                                 .titleMedium
                                 ?.copyWith(
-                                  color: const Color(0xFF38BDF8),
+                                  color: const Color(0xFF4FA3C7),
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -292,7 +292,7 @@ class _ProfileScreenState
                         ),
                         IconButton(
                           style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF38BDF8),
+                            backgroundColor: const Color(0xFF4FA3C7),
                             foregroundColor: Colors.white,
                           ),
                           onPressed: () {
@@ -462,7 +462,7 @@ class _ProfileScreenState
                   },
                   child: Row(
                     children: [
-                      const Icon(Icons.language, color: Color(0xFF38BDF8)),
+                      const Icon(Icons.language, color: Color(0xFF4FA3C7)),
                       const SizedBox(width: 12),
                       Text(
                         l10n.english,
@@ -486,7 +486,7 @@ class _ProfileScreenState
                   },
                   child: Row(
                     children: [
-                      const Icon(Icons.language, color: Color(0xFF38BDF8)),
+                      const Icon(Icons.language, color: Color(0xFF4FA3C7)),
                       const SizedBox(width: 12),
                       Text(
                         l10n.nepali,
@@ -554,7 +554,7 @@ class _ProfileScreenState
             contentPadding: const EdgeInsets.symmetric(horizontal: 20),
             leading: Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: selected ? const Color(0xFF38BDF8) : Colors.white54,
+              color: selected ? const Color(0xFF4FA3C7) : Colors.white54,
             ),
             title: Text(
               label,
@@ -682,7 +682,7 @@ class _ProfileItem extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFF1E2A44)),
                 ),
-                child: Icon(icon, color: const Color(0xFF38BDF8)),
+                child: Icon(icon, color: const Color(0xFF4FA3C7)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -751,7 +751,7 @@ class _ProfileToggleItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFF1E2A44)),
               ),
-              child: Icon(icon, color: const Color(0xFF38BDF8)),
+              child: Icon(icon, color: const Color(0xFF4FA3C7)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -781,7 +781,7 @@ class _ProfileToggleItem extends StatelessWidget {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeThumbColor: const Color(0xFF38BDF8),
+              activeThumbColor: const Color(0xFF4FA3C7),
               activeTrackColor: const Color(0xFF1E2A44),
             ),
           ],
@@ -899,7 +899,7 @@ class _ProfileGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -931,7 +931,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

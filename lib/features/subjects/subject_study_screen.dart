@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/ai_status_chip.dart';
@@ -322,7 +322,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
       controller: tabController,
       labelColor: Colors.white,
       unselectedLabelColor: Colors.white70,
-      indicatorColor: const Color(0xFF38BDF8),
+      indicatorColor: const Color(0xFF4FA3C7),
       tabs: [
         Tab(text: context.tr('Notes', 'नोट्स')),
         Tab(text: context.tr('Questions', 'प्रश्नहरू')),
@@ -424,7 +424,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
                 FilledButton(
                   onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
+                    backgroundColor: const Color(0xFF4FA3C7),
                     foregroundColor: Colors.white,
                   ),
                   child: Text(
@@ -496,7 +496,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
-                                  color: Color(0xFF38BDF8),
+                                  color: Color(0xFF4FA3C7),
                                 ),
                               ),
                             ),
@@ -509,7 +509,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
-                                  color: Color(0xFF38BDF8),
+                                  color: Color(0xFF4FA3C7),
                                 ),
                               ),
                             )
@@ -528,7 +528,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white70,
                                 side: const BorderSide(
-                                  color: Color(0xFF38BDF8),
+                                  color: Color(0xFF4FA3C7),
                                 ),
                               ),
                             ),
@@ -543,7 +543,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
             FilledButton(
               onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF38BDF8),
+                backgroundColor: const Color(0xFF4FA3C7),
                 foregroundColor: Colors.white,
               ),
               child: Text(
@@ -1148,7 +1148,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       children: [
                         const Icon(
                           Icons.attach_file_rounded,
-                          color: Color(0xFF38BDF8),
+                          color: Color(0xFF4FA3C7),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1169,7 +1169,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                             url: safeUrl,
                           ),
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF38BDF8),
+                            foregroundColor: const Color(0xFF4FA3C7),
                           ),
                           child: Text(context.tr('Open', 'खोल्नुहोस्')),
                         ),
@@ -1191,7 +1191,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                         ),
                   ),
                   const SizedBox(height: 8),
-                  _buildTappableText(
+                  ..._buildFormattedTappableNoteBody(
                     detailedAnswer.isNotEmpty ? detailedAnswer : shortAnswer,
                     contextText: contextText,
                     mainWords: highlight.mainWords,
@@ -1248,6 +1248,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     required Set<String> mainWords,
     required Set<String> difficultWords,
     TextStyle? style,
+    bool justify = false,
   }) {
     final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium!;
     final segments = _splitBlockMath(text);
@@ -1267,7 +1268,14 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           difficultWords,
         );
         if (lineWidgets.isNotEmpty) {
-          widgets.add(Wrap(children: lineWidgets));
+          widgets.add(
+            Wrap(
+              alignment:
+                  justify ? WrapAlignment.spaceBetween : WrapAlignment.start,
+              runSpacing: 6,
+              children: lineWidgets,
+            ),
+          );
         }
         if (i != lines.length - 1) {
           widgets.add(const SizedBox(height: 6));
@@ -1715,7 +1723,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
@@ -1806,6 +1814,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     TextStyle? style, {
     int? maxLines,
     TextOverflow overflow = TextOverflow.visible,
+    TextAlign textAlign = TextAlign.start,
     required bool isSpeaking,
   }) {
     final highlight = _resolveHighlightRange(text, isSpeaking);
@@ -1814,6 +1823,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         text,
         maxLines: maxLines,
         overflow: overflow,
+        textAlign: textAlign,
         style: style,
       );
     }
@@ -1826,6 +1836,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     return RichText(
       maxLines: maxLines,
       overflow: overflow,
+      textAlign: textAlign,
       text: TextSpan(
         style: baseStyle,
         children: [
@@ -1837,6 +1848,262 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           ),
           if (highlight.end < text.length)
             TextSpan(text: text.substring(highlight.end)),
+        ],
+      ),
+    );
+  }
+
+  List<_NoteBlock> _parseNoteBlocks(String text) {
+    final lines = text.replaceAll('\r\n', '\n').split('\n');
+    final blocks = <_NoteBlock>[];
+    final paragraph = <String>[];
+    final bullets = <String>[];
+
+    void flushParagraph() {
+      if (paragraph.isEmpty) return;
+      blocks.add(_NoteBlock.paragraph(paragraph.join(' ')));
+      paragraph.clear();
+    }
+
+    void flushBullets() {
+      if (bullets.isEmpty) return;
+      blocks.add(_NoteBlock.bullets(List<String>.from(bullets)));
+      bullets.clear();
+    }
+
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) {
+        flushParagraph();
+        flushBullets();
+        continue;
+      }
+      if (_isHeadingLine(line)) {
+        flushParagraph();
+        flushBullets();
+        blocks.add(_NoteBlock.heading(_cleanHeading(line)));
+        continue;
+      }
+      final bulletText = _extractBullet(line);
+      if (bulletText != null) {
+        flushParagraph();
+        bullets.add(bulletText);
+        continue;
+      }
+      if (bullets.isNotEmpty) {
+        flushBullets();
+      }
+      paragraph.add(line);
+    }
+    flushParagraph();
+    flushBullets();
+    return blocks;
+  }
+
+  bool _isHeadingLine(String line) {
+    if (line.startsWith('#')) return true;
+    final lowered = line.toLowerCase();
+    if (line.endsWith(':') && line.length <= 40) return true;
+    const tokens = [
+      'summary',
+      'key points',
+      'important',
+      'steps',
+      'examples',
+      'example',
+      'formula',
+      'definition',
+      'use cases',
+      'applications',
+    ];
+    return tokens.any(
+      (token) =>
+          lowered == token ||
+          lowered.startsWith('$token:') ||
+          lowered.startsWith('$token -'),
+    );
+  }
+
+  String _cleanHeading(String line) {
+    var cleaned = line.replaceAll(RegExp(r'^#+\\s*'), '').trim();
+    if (cleaned.endsWith(':')) {
+      cleaned = cleaned.substring(0, cleaned.length - 1).trim();
+    }
+    return cleaned;
+  }
+
+  String? _extractBullet(String line) {
+    final match = RegExp(r'^(\\d+[\\).\\s]+|[-*•]\\s+)(.+)$').firstMatch(line);
+    if (match == null) return null;
+    return match.group(2)?.trim();
+  }
+
+  List<Widget> _buildFormattedNoteBody(
+    String text, {
+    required bool isSpeaking,
+  }) {
+    final blocks = _parseNoteBlocks(text);
+    final widgets = <Widget>[];
+    for (final block in blocks) {
+      switch (block.type) {
+        case _NoteBlockType.heading:
+          widgets.add(_noteSectionHeader(block.text ?? ''));
+          break;
+        case _NoteBlockType.paragraph:
+          widgets.add(
+            _buildHighlightedText(
+              block.text ?? '',
+              Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white70,
+                  ),
+              textAlign: TextAlign.justify,
+              isSpeaking: isSpeaking,
+            ),
+          );
+          break;
+        case _NoteBlockType.bullets:
+          widgets.add(
+            Column(
+              children: [
+                for (final item in block.items ?? const [])
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(top: 6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4FA3C7),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildHighlightedText(
+                            item,
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                            textAlign: TextAlign.justify,
+                            isSpeaking: isSpeaking,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+          break;
+      }
+      widgets.add(const SizedBox(height: 10));
+    }
+    if (widgets.isNotEmpty) {
+      widgets.removeLast();
+    }
+    return widgets;
+  }
+
+  List<Widget> _buildFormattedTappableNoteBody(
+    String text, {
+    required String contextText,
+    required Set<String> mainWords,
+    required Set<String> difficultWords,
+    TextStyle? style,
+  }) {
+    final blocks = _parseNoteBlocks(text);
+    final widgets = <Widget>[];
+    for (final block in blocks) {
+      switch (block.type) {
+        case _NoteBlockType.heading:
+          widgets.add(_noteSectionHeader(block.text ?? ''));
+          break;
+        case _NoteBlockType.paragraph:
+          widgets.add(
+            _buildTappableText(
+              block.text ?? '',
+              contextText: contextText,
+              mainWords: mainWords,
+              difficultWords: difficultWords,
+              style: style,
+              justify: true,
+            ),
+          );
+          break;
+        case _NoteBlockType.bullets:
+          widgets.add(
+            Column(
+              children: [
+                for (final item in block.items ?? const [])
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(top: 6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4FA3C7),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildTappableText(
+                            item,
+                            contextText: contextText,
+                            mainWords: mainWords,
+                            difficultWords: difficultWords,
+                            style: style,
+                            justify: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+          break;
+      }
+      widgets.add(const SizedBox(height: 10));
+    }
+    if (widgets.isNotEmpty) {
+      widgets.removeLast();
+    }
+    return widgets;
+  }
+
+  Widget _noteSectionHeader(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF122039),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.auto_awesome_rounded,
+            size: 14,
+            color: Color(0xFF4FA3C7),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
         ],
       ),
     );
@@ -1856,6 +2123,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
     bool showAttachmentBadge = false,
     String? voiceKey,
     String? voiceText,
+    bool formatAsAi = false,
   }) {
     final speechText = (voiceText ?? '').trim();
     final resolvedKey = voiceKey ?? title;
@@ -1932,23 +2200,29 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
               const SizedBox(height: 10),
             ],
             if (detailText.isNotEmpty && detailText != summaryText) ...[
-              _buildHighlightedText(
-                detailText,
-                Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white70),
-                isSpeaking: isSpeaking,
-              ),
+              if (formatAsAi)
+                ..._buildFormattedNoteBody(detailText, isSpeaking: isSpeaking)
+              else
+                _buildHighlightedText(
+                  detailText,
+                  Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                  isSpeaking: isSpeaking,
+                ),
             ] else if (summaryText.isNotEmpty) ...[
-              _buildHighlightedText(
-                summaryText,
-                Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white70),
-                isSpeaking: isSpeaking,
-              ),
+              if (formatAsAi)
+                ..._buildFormattedNoteBody(summaryText, isSpeaking: isSpeaking)
+              else
+                _buildHighlightedText(
+                  summaryText,
+                  Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white70),
+                  isSpeaking: isSpeaking,
+                ),
             ],
           ],
         ),
@@ -2062,7 +2336,6 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         officialNotes.add((note: note, chapterTitle: chapter.title));
       }
     }
-
     return RefreshIndicator(
       onRefresh: _loadUserNotes,
       child: ListView(
@@ -2108,7 +2381,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       width: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFF38BDF8),
+                        color: Color(0xFF4FA3C7),
                       ),
                     )
                   else
@@ -2164,7 +2437,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       width: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Color(0xFF38BDF8),
+                                        color: Color(0xFF4FA3C7),
                                       ),
                                     ),
                                 ],
@@ -2184,6 +2457,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                   shortAnswer: draft.shortAnswer,
                                   detailedAnswer: draft.detailedAnswer,
                                   collapsible: true,
+                                  formatAsAi: true,
                                   badgeLabel: context.tr('AI Draft', 'AI ड्राफ्ट'),
                                   badgeColor: AppColors.secondary,
                                   badgeIcon: Icons.auto_awesome_rounded,
@@ -2214,7 +2488,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                         : () => _generateChapterNote(chapter),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor:
-                                          const Color(0xFF38BDF8),
+                                          const Color(0xFF4FA3C7),
                                       foregroundColor: Colors.white,
                                     ),
                                     child: Text(
@@ -2232,7 +2506,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: Colors.white70,
                                         side: const BorderSide(
-                                          color: Color(0xFF38BDF8),
+                                          color: Color(0xFF4FA3C7),
                                         ),
                                       ),
                                       child: isSaving
@@ -2241,7 +2515,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                               width: 16,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
-                                                color: Color(0xFF38BDF8),
+                                                color: Color(0xFF4FA3C7),
                                               ),
                                             )
                                           : Text(
@@ -2303,7 +2577,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           if (_isLoading)
             const Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF38BDF8),
+                color: Color(0xFF4FA3C7),
               ),
             )
           else if (_userNotes.isEmpty)
@@ -2321,6 +2595,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                   detailedAnswer: note.detailedAnswer,
                   onTap: () => _showUserNoteDetails(note),
                   showTapHint: true,
+                  formatAsAi: true,
                   badgeLabel: context.tr('My Note', 'मेरो नोट'),
                   badgeColor: AppColors.accent,
                   badgeIcon: Icons.bookmark_rounded,
@@ -2407,13 +2682,13 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.open_in_new,
-                            size: 14, color: Color(0xFF38BDF8)),
+                            size: 14, color: Color(0xFF4FA3C7)),
                         const SizedBox(width: 4),
                         Text(
                           context.tr('Open', 'खोल्नुहोस्'),
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: const Color(0xFF38BDF8),
+                                    color: const Color(0xFF4FA3C7),
                                     fontWeight: FontWeight.w600,
                                   ),
                         ),
@@ -2457,7 +2732,7 @@ class _SectionTitle extends StatelessWidget {
           TextButton(
             onPressed: onAction,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF38BDF8),
+              foregroundColor: const Color(0xFF4FA3C7),
             ),
             child: Text(actionLabel!),
           ),
@@ -2483,7 +2758,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -2524,4 +2799,23 @@ class _TextHighlightRange {
   final int end;
 
   const _TextHighlightRange(this.start, this.end);
+}
+
+enum _NoteBlockType { heading, paragraph, bullets }
+
+class _NoteBlock {
+  final _NoteBlockType type;
+  final String? text;
+  final List<String>? items;
+
+  const _NoteBlock._(this.type, {this.text, this.items});
+
+  factory _NoteBlock.heading(String text) =>
+      _NoteBlock._(_NoteBlockType.heading, text: text);
+
+  factory _NoteBlock.paragraph(String text) =>
+      _NoteBlock._(_NoteBlockType.paragraph, text: text);
+
+  factory _NoteBlock.bullets(List<String> items) =>
+      _NoteBlock._(_NoteBlockType.bullets, items: items);
 }

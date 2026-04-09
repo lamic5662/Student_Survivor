@@ -13,8 +13,8 @@ class AppColors {
   static const Color success = Color(0xFF22C55E);
   static const Color danger = Color(0xFFEF4444);
   static const Color outline = Color(0xFFE2E8F0);
-  static const Color darkInk = Color(0xFFE2E8F0);
-  static const Color darkMutedInk = Color(0xFF94A3B8);
+  static const Color darkInk = Color(0xFFE8EEF6);
+  static const Color darkMutedInk = Color(0xFFA6B3C6);
   static const Color darkPaper = Color(0xFF0B1220);
   static const Color darkSurface = Color(0xFF111827);
   static const Color darkOutline = Color(0xFF1E2A44);

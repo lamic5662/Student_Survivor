@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
+import 'package:student_survivor/core/notifications/notification_service.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/dashboard_service.dart';
@@ -29,6 +30,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
   static const _prefsReminderTime = 'planner_reminder_time';
   static const _prefsFocusMinutes = 'planner_focus_minutes';
   static const _prefsBreakMinutes = 'planner_break_minutes';
+  static const _prefsStudyStartTime = 'planner_study_start_time';
+  static const _prefsStudyEndTime = 'planner_study_end_time';
+  static const _prefsAutoAdjust = 'planner_auto_adjust';
+  static const _prefsLastAutoAdjust = 'planner_last_auto_adjust';
+  static const int _plannerReminderId = 5001;
   static const List<int> _estimateOptions = [30, 45, 60, 90, 120];
   static const List<String> _priorityOptions = ['Low', 'Medium', 'High'];
   static const int _maxPlanDays = 120;
@@ -60,6 +66,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
   bool _focusRunning = false;
   bool _inBreak = false;
   Timer? _focusTimer;
+  bool _autoAdjustEnabled = true;
+  TimeOfDay _studyStart = const TimeOfDay(hour: 6, minute: 0);
+  TimeOfDay _studyEnd = const TimeOfDay(hour: 9, minute: 0);
+  bool _autoAdjusting = false;
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = true;
 
@@ -124,6 +134,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _isLoading = false;
       });
       _ensureMetaForTasks(plan);
+      await _autoRescheduleMissedTasksIfNeeded();
+      await _schedulePlannerReminder();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -165,6 +177,21 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _focusMinutes = prefs.getInt(_prefsFocusMinutes) ?? 25;
     _breakMinutes = prefs.getInt(_prefsBreakMinutes) ?? 5;
     _focusRemaining = Duration(minutes: _focusMinutes);
+    _autoAdjustEnabled = prefs.getBool(_prefsAutoAdjust) ?? true;
+    final studyStart = prefs.getString(_prefsStudyStartTime);
+    if (studyStart != null && studyStart.contains(':')) {
+      final parts = studyStart.split(':');
+      final hour = int.tryParse(parts[0]) ?? 6;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      _studyStart = TimeOfDay(hour: hour, minute: minute);
+    }
+    final studyEnd = prefs.getString(_prefsStudyEndTime);
+    if (studyEnd != null && studyEnd.contains(':')) {
+      final parts = studyEnd.split(':');
+      final hour = int.tryParse(parts[0]) ?? 9;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      _studyEnd = TimeOfDay(hour: hour, minute: minute);
+    }
     _prefs = prefs;
     if (mounted) {
       setState(() {});
@@ -221,6 +248,158 @@ class _PlannerScreenState extends State<PlannerScreen> {
     );
     prefs.setInt(_prefsFocusMinutes, _focusMinutes);
     prefs.setInt(_prefsBreakMinutes, _breakMinutes);
+    prefs.setBool(_prefsAutoAdjust, _autoAdjustEnabled);
+    prefs.setString(
+      _prefsStudyStartTime,
+      '${_studyStart.hour.toString().padLeft(2, '0')}:${_studyStart.minute.toString().padLeft(2, '0')}',
+    );
+    prefs.setString(
+      _prefsStudyEndTime,
+      '${_studyEnd.hour.toString().padLeft(2, '0')}:${_studyEnd.minute.toString().padLeft(2, '0')}',
+    );
+    _schedulePlannerReminder();
+  }
+
+  int _timeToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  String _formatTimeValue(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickStudyStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _studyStart,
+    );
+    if (picked == null) return;
+    setState(() {
+      _studyStart = picked;
+    });
+    _persistSettings();
+  }
+
+  Future<void> _pickStudyEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _studyEnd,
+    );
+    if (picked == null) return;
+    setState(() {
+      _studyEnd = picked;
+    });
+    _persistSettings();
+  }
+
+  Future<void> _autoRescheduleMissedTasksIfNeeded() async {
+    if (!_autoAdjustEnabled || _autoAdjusting) return;
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayKey = today.toIso8601String().substring(0, 10);
+    final lastAdjust = prefs.getString(_prefsLastAutoAdjust);
+    if (lastAdjust == todayKey) return;
+
+    final overdue = <StudyTask>[];
+    for (final day in _days) {
+      for (final task in day.tasks) {
+        if (task.isDone) continue;
+        final date = _taskDate(task, day.label);
+        if (date == null) continue;
+        final normalized = DateTime(date.year, date.month, date.day);
+        if (normalized.isBefore(today)) {
+          overdue.add(task);
+        }
+      }
+    }
+
+    if (overdue.isEmpty) {
+      await prefs.setString(_prefsLastAutoAdjust, todayKey);
+      return;
+    }
+
+    _autoAdjusting = true;
+    try {
+      for (final task in overdue) {
+        if (task.id.isEmpty) continue;
+        await _plannerService.rescheduleTask(
+          taskId: task.id,
+          dueDate: today,
+        );
+      }
+      await prefs.setString(_prefsLastAutoAdjust, todayKey);
+      if (!mounted) return;
+      _showSnack(
+        context.tr(
+          'We moved ${overdue.length} missed tasks to today.',
+          'छुटेका ${overdue.length} काम आजको लागि सारियो।',
+        ),
+      );
+      await _load();
+      await _schedulePlannerReminder();
+    } finally {
+      _autoAdjusting = false;
+    }
+  }
+
+  int _countTasksForDate(DateTime date) {
+    final target = DateTime(date.year, date.month, date.day);
+    var count = 0;
+    for (final day in _days) {
+      for (final task in day.tasks) {
+        if (task.isDone) continue;
+        final taskDate = _taskDate(task, day.label);
+        if (taskDate == null) continue;
+        final normalized =
+            DateTime(taskDate.year, taskDate.month, taskDate.day);
+        if (normalized == target) {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  }
+
+  Future<void> _schedulePlannerReminder() async {
+    if (!_reminderEnabled) {
+      await NotificationService.cancel(_plannerReminderId);
+      return;
+    }
+    final granted = await NotificationService.requestPermissions();
+    if (!granted || !mounted) return;
+    final now = DateTime.now();
+    final tasksToday = _countTasksForDate(now);
+    final title = context.tr('Study time', 'अध्ययन समय');
+    final body = tasksToday > 0
+        ? context.tr(
+            'You have $tasksToday tasks today. Start at ${_studyStart.format(context)}.',
+            'आज $tasksToday काम छन्। ${_studyStart.format(context)} मा सुरु गर्नुहोस्।',
+          )
+        : context.tr(
+            'Time to revise a chapter and keep your streak.',
+            'आज एक अध्याय दोहोर्याएर स्ट्रिक जोगाउनुहोस्।',
+          );
+    await NotificationService.scheduleDailyReminder(
+      id: _plannerReminderId,
+      time: _reminderTime,
+      title: title,
+      body: body,
+    );
+  }
+
+  String _buildReminderPreview(BuildContext context) {
+    final now = DateTime.now();
+    final tasksToday = _countTasksForDate(now);
+    if (tasksToday > 0) {
+      return context.tr(
+        'Preview: You have $tasksToday tasks. Start at ${_studyStart.format(context)}.',
+        'पूर्वदृश्य: $tasksToday काम छन्। ${_studyStart.format(context)} मा सुरु गर्नुहोस्।',
+      );
+    }
+    return context.tr(
+      'Preview: Time to revise a chapter and keep your streak.',
+      'पूर्वदृश्य: आज एक अध्याय दोहोर्याएर स्ट्रिक जोगाउनुहोस्।',
+    );
   }
 
   Future<void> _pickExamDate() async {
@@ -343,7 +522,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                                   }
                                 });
                               },
-                              activeColor: const Color(0xFF38BDF8),
+                              activeColor: const Color(0xFF4FA3C7),
                               checkColor: Colors.black,
                             ),
                             Expanded(
@@ -435,6 +614,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
       return;
     }
 
+    if (_timeToMinutes(_studyEnd) <= _timeToMinutes(_studyStart)) {
+      _showSnack(context.tr(
+        'Study end time must be after start time.',
+        'अन्त्य समय सुरु समयभन्दा पछि हुनुपर्छ।',
+      ));
+      return;
+    }
+
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
     final maxDate = subjectDates.values.reduce(
@@ -477,6 +664,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
         endDate: end,
         weakTopics: weakTopics,
         subjectExamDates: subjectDates,
+        studyStart: _formatTimeValue(_studyStart),
+        studyEnd: _formatTimeValue(_studyEnd),
+        focusMinutes: _focusMinutes,
+        breakMinutes: _breakMinutes,
       );
       if (!mounted) return;
       setState(() {
@@ -692,9 +883,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         remind = value;
                       });
                     },
-                    activeThumbColor: const Color(0xFF38BDF8),
+                    activeThumbColor: const Color(0xFF4FA3C7),
                     activeTrackColor:
-                        const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                        const Color(0xFF4FA3C7).withValues(alpha: 0.35),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -916,9 +1107,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         remind = value;
                       });
                     },
-                    activeThumbColor: const Color(0xFF38BDF8),
+                    activeThumbColor: const Color(0xFF4FA3C7),
                     activeTrackColor:
-                        const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                        const Color(0xFF4FA3C7).withValues(alpha: 0.35),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1378,6 +1569,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               _ReminderCard(
                 enabled: _reminderEnabled,
                 time: _reminderTime,
+                previewText: _buildReminderPreview(context),
                 onToggle: (value) {
                   setState(() {
                     _reminderEnabled = value;
@@ -1407,7 +1599,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF38BDF8),
+                          color: Color(0xFF4FA3C7),
                         ),
                       ),
                       SizedBox(width: 12),
@@ -1450,6 +1642,100 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      context.tr(
+                        'College time (study window)',
+                        'कलेज समय (अध्ययन समय)',
+                      ),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DarkOptionButton(
+                            icon: Icons.schedule,
+                            label: context.tr(
+                              'Start ${_studyStart.format(context)}',
+                              'सुरु ${_studyStart.format(context)}',
+                            ),
+                            onTap: _pickStudyStartTime,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _DarkOptionButton(
+                            icon: Icons.schedule_outlined,
+                            label: context.tr(
+                              'End ${_studyEnd.format(context)}',
+                              'अन्त्य ${_studyEnd.format(context)}',
+                            ),
+                            onTap: _pickStudyEndTime,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _MetaChip(
+                          icon: Icons.timer_outlined,
+                          label: context.tr(
+                            'Focus $_focusMinutes / Break $_breakMinutes',
+                            'फोकस $_focusMinutes / ब्रेक $_breakMinutes',
+                          ),
+                          color: AppColors.secondary,
+                        ),
+                        _MetaChip(
+                          icon: Icons.auto_awesome,
+                          label: _autoAdjustEnabled
+                              ? context.tr(
+                                  'Auto adjust ON',
+                                  'अटो समायोजन ON',
+                                )
+                              : context.tr(
+                                  'Auto adjust OFF',
+                                  'अटो समायोजन OFF',
+                                ),
+                          color: _autoAdjustEnabled
+                              ? AppColors.accent
+                              : AppColors.mutedInk,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.tr(
+                              'Auto‑adjust missed tasks to today.',
+                              'छुटेका काम आजका लागि स्वतः सारिन्छ।',
+                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.white60),
+                          ),
+                        ),
+                        Switch(
+                          value: _autoAdjustEnabled,
+                          activeThumbColor: const Color(0xFF4FA3C7),
+                          onChanged: (value) {
+                            setState(() {
+                              _autoAdjustEnabled = value;
+                            });
+                            _persistSettings();
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1497,7 +1783,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                               backgroundColor:
                                   const Color(0xFF1E2A44),
                               valueColor: const AlwaysStoppedAnimation(
-                                Color(0xFF38BDF8),
+                                Color(0xFF4FA3C7),
                               ),
                             ),
                           ),
@@ -1553,7 +1839,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               if (_isLoading)
                 const Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFF38BDF8),
+                    color: Color(0xFF4FA3C7),
                   ),
                 )
               else if (_errorMessage != null)
@@ -1662,7 +1948,7 @@ class _TaskTile extends StatelessWidget {
         Checkbox(
           value: isDone,
           onChanged: onChanged,
-          activeColor: const Color(0xFF38BDF8),
+          activeColor: const Color(0xFF4FA3C7),
           checkColor: Colors.white,
         ),
         Expanded(
@@ -1838,7 +2124,7 @@ class _PlannerHero extends StatelessWidget {
             minHeight: 8,
             borderRadius: BorderRadius.circular(8),
             backgroundColor: const Color(0xFF1E2A44),
-            color: const Color(0xFF38BDF8),
+            color: const Color(0xFF4FA3C7),
           ),
           const SizedBox(height: 10),
           Text(
@@ -1923,7 +2209,7 @@ class _FilterRow extends StatelessWidget {
                     label: Text(_rangeLabel(context, label)),
                     selected: rangeFilter == label,
                     onSelected: (_) => onRangeChanged(label),
-                    selectedColor: const Color(0xFF38BDF8),
+                    selectedColor: const Color(0xFF4FA3C7),
                     backgroundColor: const Color(0xFF111B2E),
                     side: const BorderSide(color: Color(0xFF1E2A44)),
                     labelStyle: TextStyle(
@@ -1993,7 +2279,7 @@ class _WeekStrip extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF38BDF8)
+                          ? const Color(0xFF4FA3C7)
                           : const Color(0xFF0B1220),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFF1E2A44)),
@@ -2109,7 +2395,7 @@ class _StatTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFF1E2A44)),
           ),
-          child: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
+          child: Icon(icon, color: const Color(0xFF4FA3C7), size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -2214,7 +2500,7 @@ class _FocusSessionCard extends StatelessWidget {
                       ?.copyWith(
                         color: inBreak
                             ? const Color(0xFFF59E0B)
-                            : const Color(0xFF38BDF8),
+                            : const Color(0xFF4FA3C7),
                         fontWeight: FontWeight.w600,
                       ),
                 ),
@@ -2240,7 +2526,7 @@ class _FocusSessionCard extends StatelessWidget {
             backgroundColor: const Color(0xFF1E2A44),
             color: inBreak
                 ? const Color(0xFFF59E0B)
-                : const Color(0xFF38BDF8),
+                : const Color(0xFF4FA3C7),
           ),
           const SizedBox(height: 12),
           Row(
@@ -2254,7 +2540,7 @@ class _FocusSessionCard extends StatelessWidget {
                       : context.tr('Start', 'सुरु'),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF38BDF8),
+                  backgroundColor: const Color(0xFF4FA3C7),
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -2332,12 +2618,14 @@ class _FocusSessionCard extends StatelessWidget {
 class _ReminderCard extends StatelessWidget {
   final bool enabled;
   final TimeOfDay time;
+  final String previewText;
   final ValueChanged<bool> onToggle;
   final VoidCallback onPickTime;
 
   const _ReminderCard({
     required this.enabled,
     required this.time,
+    required this.previewText,
     required this.onToggle,
     required this.onPickTime,
   });
@@ -2365,9 +2653,9 @@ class _ReminderCard extends StatelessWidget {
               Switch.adaptive(
                 value: enabled,
                 onChanged: onToggle,
-                activeThumbColor: const Color(0xFF38BDF8),
+                activeThumbColor: const Color(0xFF4FA3C7),
                 activeTrackColor:
-                    const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                    const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               ),
             ],
           ),
@@ -2383,6 +2671,14 @@ class _ReminderCard extends StatelessWidget {
                 .textTheme
                 .bodySmall
                 ?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            previewText,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.white60),
           ),
           const SizedBox(height: 12),
           Align(
@@ -2542,7 +2838,7 @@ class _NoteChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF38BDF8),
+                      color: const Color(0xFF4FA3C7),
                       fontWeight: FontWeight.w600,
                     ),
               ),
@@ -2633,7 +2929,7 @@ class _TaskGroupCard extends StatelessWidget {
             minHeight: 6,
             borderRadius: BorderRadius.circular(6),
             backgroundColor: const Color(0xFF1E2A44),
-            color: const Color(0xFF38BDF8),
+            color: const Color(0xFF4FA3C7),
           ),
           const SizedBox(height: 12),
           ...tasks.asMap().entries.map(
@@ -2802,7 +3098,7 @@ InputDecoration _darkInputDecoration(String label) {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
+      borderSide: const BorderSide(color: Color(0xFF4FA3C7), width: 1.4),
     ),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -2894,7 +3190,7 @@ class _PlannerGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -2926,7 +3222,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -3015,14 +3311,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

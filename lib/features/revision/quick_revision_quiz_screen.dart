@@ -479,7 +479,7 @@ class _QuickRevisionQuizScreenState extends State<QuickRevisionQuizScreen> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.of(context).pop(false),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF38BDF8),
+                        backgroundColor: const Color(0xFF4FA3C7),
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -531,7 +531,7 @@ class _QuickRevisionQuizScreenState extends State<QuickRevisionQuizScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             )
           : _error != null
               ? Center(
@@ -615,7 +615,7 @@ class _QuickRevisionQuizScreenState extends State<QuickRevisionQuizScreen> {
             child: ElevatedButton(
               onPressed: _next,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF38BDF8),
+                backgroundColor: const Color(0xFF4FA3C7),
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -764,7 +764,7 @@ class _ProgressHeader extends StatelessWidget {
                   minHeight: 6,
                   backgroundColor: const Color(0xFF1E2A44),
                   valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF38BDF8),
+                    Color(0xFF4FA3C7),
                   ),
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -862,7 +862,7 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = selected ? const Color(0xFF38BDF8) : Colors.white24;
+    final accent = selected ? const Color(0xFF4FA3C7) : Colors.white24;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1083,7 +1083,7 @@ class _DifficultyRow extends StatelessWidget {
                   min: 10,
                   max: 60,
                   divisions: 10,
-                  activeColor: const Color(0xFF38BDF8),
+                  activeColor: const Color(0xFF4FA3C7),
                   inactiveColor: const Color(0xFF1E2A44),
                   label: '${seconds}s',
                   onChanged: (value) => onTimerChanged(value.round()),

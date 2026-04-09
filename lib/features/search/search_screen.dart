@@ -143,7 +143,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide:
-                        const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                        const BorderSide(color: Color(0xFF4FA3C7), width: 1.5),
                   ),
                 ),
               ),
@@ -167,7 +167,7 @@ class _SearchScreenState extends State<SearchScreen> {
           if (index == 3) return const SizedBox(height: 20);
           if (_isLoading) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             );
           }
           if (_errorMessage != null) {
@@ -206,7 +206,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   Text(
                     result.type,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF38BDF8),
+                          color: const Color(0xFF4FA3C7),
                           fontWeight: FontWeight.w600,
                         ),
                   ),
@@ -268,7 +268,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

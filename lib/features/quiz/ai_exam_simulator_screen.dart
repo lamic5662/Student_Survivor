@@ -606,7 +606,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                           onPressed: () =>
                               Navigator.of(context).pop(_ExamAction.done),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF38BDF8),
+                            backgroundColor: const Color(0xFF4FA3C7),
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
@@ -660,7 +660,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             )
           : _stage == _ExamStage.setup
               ? _buildSetup(context)
@@ -749,7 +749,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.timer, color: Color(0xFF38BDF8), size: 20),
+                    const Icon(Icons.timer, color: Color(0xFF4FA3C7), size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -810,7 +810,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                       onChanged: (value) {
                         setState(() => _includeWritten = value);
                       },
-                      activeThumbColor: const Color(0xFF38BDF8),
+                      activeThumbColor: const Color(0xFF4FA3C7),
                     ),
                   ],
                 ),
@@ -847,7 +847,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                 child: ElevatedButton(
                   onPressed: _startExam,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
+                    backgroundColor: const Color(0xFF4FA3C7),
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -930,7 +930,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
               child: ElevatedButton(
                 onPressed: _next,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF38BDF8),
+                  backgroundColor: const Color(0xFF4FA3C7),
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1084,7 +1084,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
                 child: ElevatedButton(
                   onPressed: _gradingWritten ? null : () => _submitWrittenAnswers(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
+                    backgroundColor: const Color(0xFF4FA3C7),
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -1111,7 +1111,7 @@ class _AiExamSimulatorScreenState extends State<AiExamSimulatorScreen> {
             child: ElevatedButton(
               onPressed: _openSummaryFromWritten,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF38BDF8),
+                backgroundColor: const Color(0xFF4FA3C7),
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
@@ -1771,7 +1771,7 @@ class _WrittenQuestionCard extends StatelessWidget {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFF38BDF8)),
+                borderSide: const BorderSide(color: Color(0xFF4FA3C7)),
               ),
             ),
           ),
@@ -1783,7 +1783,7 @@ class _WrittenQuestionCard extends StatelessWidget {
                 'स्कोर: ${grade!.score}/${grade!.maxScore}',
               ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF38BDF8),
+                    color: const Color(0xFF4FA3C7),
                     fontWeight: FontWeight.w700,
                   ),
             ),
@@ -1938,7 +1938,7 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = selected ? const Color(0xFF38BDF8) : Colors.white24;
+    final accent = selected ? const Color(0xFF4FA3C7) : Colors.white24;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),

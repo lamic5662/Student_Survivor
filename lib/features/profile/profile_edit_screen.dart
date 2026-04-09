@@ -61,7 +61,7 @@ class _ProfileEditScreenState
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
+        borderSide: const BorderSide(color: Color(0xFF4FA3C7), width: 1.4),
       ),
     );
   }
@@ -126,7 +126,7 @@ class _ProfileEditScreenState
                     TextField(
                       controller: controller,
                       style: const TextStyle(color: Colors.white),
-                      cursorColor: const Color(0xFF38BDF8),
+                      cursorColor: const Color(0xFF4FA3C7),
                       decoration: _darkInputDecoration(
                         context.tr('Search college', 'कलेज खोज्नुहोस्'),
                       ),
@@ -242,7 +242,7 @@ class _ProfileEditScreenState
         builder: (context, model, _) {
           if (model.isLoading) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             );
           }
 
@@ -297,7 +297,7 @@ class _ProfileEditScreenState
                         TextField(
                           controller: _nameController,
                           style: const TextStyle(color: Colors.white),
-                          cursorColor: const Color(0xFF38BDF8),
+                          cursorColor: const Color(0xFF4FA3C7),
                           decoration: _darkInputDecoration(
                             context.tr('Full name', 'पुरा नाम'),
                           ),
@@ -507,7 +507,7 @@ class _ProfileEditGrid extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -539,7 +539,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -584,14 +584,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

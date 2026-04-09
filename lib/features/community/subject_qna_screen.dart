@@ -214,7 +214,7 @@ class _SubjectQnaScreenState extends State<SubjectQnaScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFF38BDF8)),
+                      borderSide: const BorderSide(color: Color(0xFF4FA3C7)),
                     ),
                   ),
                 ),
@@ -224,7 +224,7 @@ class _SubjectQnaScreenState extends State<SubjectQnaScreen> {
                   child: ElevatedButton(
                     onPressed: _submitting ? null : _submitQuestion,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF38BDF8),
+                      backgroundColor: const Color(0xFF4FA3C7),
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(

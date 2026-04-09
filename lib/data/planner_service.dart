@@ -92,6 +92,15 @@ class PlannerService {
     }).eq('id', taskId);
   }
 
+  Future<void> rescheduleTask({
+    required String taskId,
+    required DateTime dueDate,
+  }) async {
+    await _client.from('study_tasks').update({
+      'due_date': dueDate.toIso8601String().substring(0, 10),
+    }).eq('id', taskId);
+  }
+
   Future<List<StudyPlanDay>> generatePlan({
     required List<Subject> subjects,
     int days = 7,
@@ -100,6 +109,10 @@ class PlannerService {
     DateTime? endDate,
     List<WeakTopic> weakTopics = const [],
     Map<String, DateTime> subjectExamDates = const {},
+    String? studyStart,
+    String? studyEnd,
+    int? focusMinutes,
+    int? breakMinutes,
   }) async {
     final planId = await _ensurePlanId();
     if (replaceExisting) {
@@ -128,8 +141,11 @@ class PlannerService {
     final systemPrompt =
         'You are a study planner. Return ONLY valid JSON.\n'
         'Schema: {"tasks":[{"title":"...","subject":"...","due_date":"YYYY-MM-DD"}]}\n'
-        'Rules: Provide 2-4 tasks per day. Use the provided dates only. '
+        'Rules: Provide 3-4 tasks per day. Use the provided dates only. '
         'Subject must match one from the list or use "General". '
+        'Include one "Revision" task per day (subject may be "General"). '
+        'If a study window is provided, include time ranges within that window in the title '
+        '(e.g., "06:00-06:40: Arrays practice"). '
         'If subject exam dates are provided, do NOT schedule tasks for a subject after its exam date. '
         'Increase task density for a subject as its exam date approaches.';
 
@@ -155,6 +171,8 @@ class PlannerService {
         'Subjects: ${subjectNames.join(', ')}\n'
         '${normalizedEnd == null ? '' : 'Exam date: ${normalizedEnd.toIso8601String().substring(0, 10)}\\n'}'
         '${subjectExamLines.isEmpty ? '' : 'Exam dates by subject: ${subjectExamLines.join('; ')}\\n'}'
+        '${studyStart != null && studyEnd != null ? 'Study window: $studyStart-$studyEnd\\n' : ''}'
+        '${focusMinutes != null && breakMinutes != null ? 'Routine: focus $focusMinutes min, break $breakMinutes min\\n' : ''}'
         '${weakLabels.isEmpty ? '' : 'Weak topics to prioritize: ${weakLabels.join(', ')}\\n'}'
         'Focus on balanced coverage and upcoming exams. '
         'When subject exam dates exist, prioritize that subject closer to its exam date.';

@@ -749,7 +749,7 @@ class _AiAssistantScreenState
                             const SizedBox(width: 4),
                             _InputIconButton(
                               icon: Icons.send,
-                              backgroundColor: const Color(0xFF38BDF8),
+                              backgroundColor: const Color(0xFF4FA3C7),
                               onPressed:
                                   model.isLoading ? null : _sendMessage,
                               child: model.isLoading
@@ -869,7 +869,7 @@ class _AiHeroCard extends StatelessWidget {
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: const Icon(Icons.auto_awesome_rounded,
-                color: Color(0xFF38BDF8)),
+                color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -963,7 +963,7 @@ class _AiSidebarCard extends StatelessWidget {
                       border: Border.all(color: const Color(0xFF1E2A44)),
                     ),
                     child: const Icon(Icons.edit_outlined,
-                        color: Color(0xFF38BDF8)),
+                        color: Color(0xFF4FA3C7)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1105,7 +1105,7 @@ class _AiSidebarCard extends StatelessWidget {
                         child: TextButton(
                           onPressed: onViewAll,
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF38BDF8),
+                            foregroundColor: const Color(0xFF4FA3C7),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 4,
@@ -1149,7 +1149,7 @@ class _AiChatRow extends StatelessWidget {
         color: isActive ? const Color(0xFF111B2E) : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isActive ? const Color(0xFF38BDF8) : const Color(0xFF1E2A44),
+          color: isActive ? const Color(0xFF4FA3C7) : const Color(0xFF1E2A44),
         ),
       ),
       child: Row(
@@ -1260,7 +1260,7 @@ class _InlineTag extends StatelessWidget {
         style: Theme.of(context)
             .textTheme
             .labelSmall
-            ?.copyWith(color: const Color(0xFF38BDF8)),
+            ?.copyWith(color: const Color(0xFF4FA3C7)),
       ),
     );
   }
@@ -1538,7 +1538,7 @@ class _AiGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -1617,7 +1617,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

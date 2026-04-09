@@ -84,7 +84,7 @@ class _AiChipBody extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: const BoxDecoration(
-              color: Color(0xFF38BDF8),
+              color: Color(0xFF4FA3C7),
               shape: BoxShape.circle,
             ),
           ),

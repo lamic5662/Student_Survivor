@@ -555,7 +555,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               ),
               child: const Icon(
                 Icons.auto_awesome,
-                color: Color(0xFF38BDF8),
+                color: Color(0xFF4FA3C7),
               ),
             ),
             const SizedBox(width: 12),
@@ -868,7 +868,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFF1E2A44)),
               ),
-              child: Icon(icon, color: const Color(0xFF38BDF8)),
+              child: Icon(icon, color: const Color(0xFF4FA3C7)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -914,14 +914,14 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -956,14 +956,14 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+            color: const Color(0xFF4FA3C7).withValues(alpha: 0.25),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1092,7 +1092,7 @@ class _SubjectGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -1128,7 +1128,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

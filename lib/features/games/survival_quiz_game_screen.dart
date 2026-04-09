@@ -1861,7 +1861,7 @@ class _MiniInfo extends StatelessWidget {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: AppColors.danger.withValues(alpha: 0.14),
+            color: AppColors.danger.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: AppColors.danger, size: 18),

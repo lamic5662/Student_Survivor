@@ -98,7 +98,7 @@ class _QuizHubScreenState
         if (model.isLoading) {
           return const Center(
             child: CircularProgressIndicator(
-              color: Color(0xFF38BDF8),
+              color: Color(0xFF4FA3C7),
             ),
           );
         }
@@ -305,7 +305,7 @@ class _QuizHubScreenState
                   Text(
                     context.tr('Learn with fun', 'आनन्दसँग सिक्नुहोस्'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: const Color(0xFF38BDF8),
+                          color: const Color(0xFF4FA3C7),
                           fontWeight: FontWeight.w600,
                         ),
                   ),
@@ -355,7 +355,7 @@ class _GameHubHero extends StatelessWidget {
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
             child: const Icon(Icons.sports_esports_rounded,
-                color: Color(0xFF38BDF8)),
+                color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -444,7 +444,7 @@ class _GameStatStrip extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          const Icon(Icons.school_rounded, color: Color(0xFF38BDF8)),
+          const Icon(Icons.school_rounded, color: Color(0xFF4FA3C7)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -638,7 +638,7 @@ class _SubjectCard extends StatelessWidget {
                 child: Text(
                   'Play',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF38BDF8),
+                        color: const Color(0xFF4FA3C7),
                         fontWeight: FontWeight.w700,
                       ),
                 ),
@@ -669,7 +669,7 @@ class _ExamSimulatorCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
-            child: const Icon(Icons.school_rounded, color: Color(0xFF38BDF8)),
+            child: const Icon(Icons.school_rounded, color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -701,7 +701,7 @@ class _ExamSimulatorCard extends StatelessWidget {
           ElevatedButton(
             onPressed: onStart,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF38BDF8),
+              backgroundColor: const Color(0xFF4FA3C7),
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(
@@ -733,7 +733,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -776,14 +776,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

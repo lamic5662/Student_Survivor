@@ -87,7 +87,7 @@ class _SyllabusScreenState extends State<SyllabusScreen> {
                             border: Border.all(color: const Color(0xFF1E2A44)),
                           ),
                           child: const Icon(Icons.description_rounded,
-                              color: Color(0xFF38BDF8)),
+                              color: Color(0xFF4FA3C7)),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -412,7 +412,7 @@ class _SyllabusGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -444,7 +444,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -489,14 +489,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

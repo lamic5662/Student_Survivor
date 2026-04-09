@@ -332,7 +332,7 @@ class _DashboardScreenState
                           minHeight: 3,
                           backgroundColor: Color(0xFF0F172A),
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                              AlwaysStoppedAnimation<Color>(Color(0xFF4FA3C7)),
                         ),
                       ),
                     ),
@@ -430,7 +430,7 @@ class _DashboardGridPainter extends CustomPainter {
     }
 
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -466,7 +466,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -507,7 +507,7 @@ class _GameSectionHeader extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [
-                Color(0xFF38BDF8),
+                Color(0xFF4FA3C7),
                 Color(0xFF4F46E5),
               ],
             ),
@@ -536,7 +536,7 @@ class _GameTag extends StatelessWidget {
 
   const _GameTag({
     required this.label,
-    this.accent = const Color(0xFF38BDF8),
+    this.accent = const Color(0xFF4FA3C7),
   });
 
   @override
@@ -581,14 +581,14 @@ class _GameActionButton extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+            color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -635,7 +635,7 @@ class _HeroCard extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
                     colors: [
-                      Color(0xFF38BDF8),
+                      Color(0xFF4FA3C7),
                       Color(0xFF4F46E5),
                     ],
                   ),
@@ -700,7 +700,7 @@ class _HeroCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: model.progress,
               backgroundColor: const Color(0xFF1E2A44),
-              color: const Color(0xFF38BDF8),
+              color: const Color(0xFF4FA3C7),
               minHeight: 8,
             ),
           ),
@@ -775,7 +775,7 @@ class _CoachCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFF1E2A44)),
             ),
-            child: const Icon(Icons.auto_awesome, color: Color(0xFF38BDF8)),
+            child: const Icon(Icons.auto_awesome, color: Color(0xFF4FA3C7)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1234,7 +1234,7 @@ class _RevisionQueueCard extends StatelessWidget {
                 ElevatedButton(
                   onPressed: onQuickStart,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
+                    backgroundColor: const Color(0xFF4FA3C7),
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -1285,7 +1285,7 @@ class _QueueIcon extends StatelessWidget {
         break;
       case RevisionItemType.question:
         icon = Icons.quiz_rounded;
-        accent = const Color(0xFF38BDF8);
+        accent = const Color(0xFF4FA3C7);
         break;
       case RevisionItemType.topic:
         icon = Icons.warning_amber_rounded;

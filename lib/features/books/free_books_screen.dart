@@ -240,6 +240,17 @@ class _SourceCard extends StatelessWidget {
                       .bodySmall
                       ?.copyWith(color: Colors.white70),
                 ),
+                const SizedBox(height: 10),
+                Text(
+                  context.tr(
+                    'Source: ${source.name}. Open‑license library. Content stays on the source site.',
+                    'स्रोत: ${source.name}। खुला लाइसेन्स पुस्तकालय। सामग्री स्रोत साइटमै छ।',
+                  ),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.white60),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -248,7 +259,7 @@ class _SourceCard extends StatelessWidget {
                     FilledButton(
                       onPressed: () => _openFiltered(context),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF38BDF8),
+                        backgroundColor: const Color(0xFF4FA3C7),
                         foregroundColor: Colors.white,
                       ),
                       child: Text(
@@ -409,7 +420,7 @@ class _FilterRow extends StatelessWidget {
           label: const Text('CS'),
           selected: filter == _BookFilter.cs,
           onSelected: (_) => onChanged(_BookFilter.cs),
-          selectedColor: const Color(0xFF38BDF8),
+          selectedColor: const Color(0xFF4FA3C7),
           backgroundColor: const Color(0xFF111B2E),
           side: const BorderSide(color: Color(0xFF1E2A44)),
           labelStyle: TextStyle(
@@ -421,7 +432,7 @@ class _FilterRow extends StatelessWidget {
           label: const Text('BCA'),
           selected: filter == _BookFilter.bca,
           onSelected: (_) => onChanged(_BookFilter.bca),
-          selectedColor: const Color(0xFF38BDF8),
+          selectedColor: const Color(0xFF4FA3C7),
           backgroundColor: const Color(0xFF111B2E),
           side: const BorderSide(color: Color(0xFF1E2A44)),
           labelStyle: TextStyle(
@@ -534,7 +545,7 @@ class _BooksGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -567,7 +578,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

@@ -465,7 +465,7 @@ class _InfoPill extends StatelessWidget {
 const _arenaSurface = Color(0xFF0B1220);
 const _arenaBorder = Color(0xFF1E2A44);
 const _arenaMuted = Color(0xFF94A3B8);
-const _arenaAccent = Color(0xFF38BDF8);
+const _arenaAccent = Color(0xFF4FA3C7);
 
 ButtonStyle _arenaPrimaryButtonStyle() {
   return FilledButton.styleFrom(

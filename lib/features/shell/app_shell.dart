@@ -67,7 +67,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildNavBar(BuildContext context) {
-    const accent = Color(0xFF38BDF8);
+    const accent = Color(0xFF4FA3C7);
     final l10n = context.l10n;
     final focus = AppState.focusLock.value;
     return Container(
@@ -94,7 +94,7 @@ class _AppShellState extends State<AppShell> {
                 gradient: LinearGradient(
                   colors: [
                     Color(0x0022D3EE),
-                    Color(0xFF38BDF8),
+                    Color(0xFF4FA3C7),
                     Color(0x004F46E5),
                   ],
                 ),

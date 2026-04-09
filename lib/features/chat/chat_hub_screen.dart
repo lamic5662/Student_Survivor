@@ -289,7 +289,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                                 }
                               });
                             },
-                            activeColor: const Color(0xFF38BDF8),
+                            activeColor: const Color(0xFF4FA3C7),
                             title: Text(
                               user.name,
                               style: const TextStyle(color: Colors.white),
@@ -338,7 +338,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                         _openRoom(room);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF38BDF8),
+                        backgroundColor: const Color(0xFF4FA3C7),
                         foregroundColor: const Color(0xFF0B1220),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -454,7 +454,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                                       color: const Color(0xFF1E2A44)),
                                 ),
                                 child: const Icon(Icons.public,
-                                    color: Color(0xFF38BDF8)),
+                                    color: Color(0xFF4FA3C7)),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -498,7 +498,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                                   ? null
                                   : () => _openRoom(_publicRoom!),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF38BDF8),
+                                backgroundColor: const Color(0xFF4FA3C7),
                                 foregroundColor: const Color(0xFF0B1220),
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
@@ -653,7 +653,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                                         color: const Color(0xFF1E2A44)),
                                   ),
                                   child: const Icon(Icons.group,
-                                      color: Color(0xFF38BDF8)),
+                                      color: Color(0xFF4FA3C7)),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -762,7 +762,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

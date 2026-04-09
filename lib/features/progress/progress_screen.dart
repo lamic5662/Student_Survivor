@@ -115,7 +115,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               if (_isLoading)
                 const Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFF38BDF8),
+                    color: Color(0xFF4FA3C7),
                   ),
                 )
               else if (_errorMessage != null)
@@ -155,7 +155,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       LinearProgressIndicator(
                         value: _overall,
                         backgroundColor: const Color(0xFF1E2A44),
-                        color: const Color(0xFF38BDF8),
+                        color: const Color(0xFF4FA3C7),
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -412,7 +412,7 @@ class _ProgressGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -444,7 +444,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),

@@ -355,7 +355,7 @@ class _SectionAction extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          foregroundColor: const Color(0xFF38BDF8),
+          foregroundColor: const Color(0xFF4FA3C7),
           textStyle: Theme.of(context)
               .textTheme
               .labelLarge
@@ -550,13 +550,13 @@ class _LinkCard extends StatelessWidget {
                     border: Border.all(color: const Color(0xFF1E2A44)),
                   ),
                   child: const Icon(Icons.open_in_new_rounded,
-                      color: Color(0xFF38BDF8)),
+                      color: Color(0xFF4FA3C7)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  children: [
                       Text(
                         title,
                         style: Theme.of(context)
@@ -575,6 +575,17 @@ class _LinkCard extends StatelessWidget {
                             .bodySmall
                             ?.copyWith(color: Colors.white70),
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        context.tr(
+                          'Source: ${_hostLabel(url)}. Opens original site.',
+                          'स्रोत: ${_hostLabel(url)}। मौलिक साइट खोलिन्छ।',
+                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.white60),
+                      ),
                     ],
                   ),
                 ),
@@ -587,6 +598,11 @@ class _LinkCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _hostLabel(String url) {
+  final host = Uri.tryParse(url)?.host ?? url;
+  return host.startsWith('www.') ? host.substring(4) : host;
 }
 
 class _Bullet extends StatelessWidget {
@@ -717,7 +733,7 @@ class _ProgrammingGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.14)
+      ..color = const Color(0xFF4FA3C7).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     final rect = Rect.fromLTWH(
@@ -750,7 +766,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -795,14 +811,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

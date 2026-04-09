@@ -333,7 +333,7 @@ class _QuizPlayScreenState extends State<QuizPlayScreen> {
       return _wrapScaffold(
         body: Center(
           child: CircularProgressIndicator(
-            color: _isGameTheme ? const Color(0xFF38BDF8) : null,
+            color: _isGameTheme ? const Color(0xFF4FA3C7) : null,
           ),
         ),
         safeArea: true,
@@ -605,7 +605,7 @@ class _QuestionCard extends StatelessWidget {
                     side: BorderSide(
                       color: isGameTheme
                           ? (selectedIndex == entry.key
-                              ? const Color(0xFF38BDF8)
+                              ? const Color(0xFF4FA3C7)
                               : const Color(0xFF1E2A44))
                           : Theme.of(context).dividerColor,
                     ),
@@ -660,7 +660,7 @@ class _GameCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -705,14 +705,14 @@ class _PrimaryActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
+              Color(0xFF4FA3C7),
               Color(0xFF4F46E5),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+              color: const Color(0xFF4FA3C7).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

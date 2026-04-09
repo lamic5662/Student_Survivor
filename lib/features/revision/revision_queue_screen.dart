@@ -177,7 +177,7 @@ class _RevisionQueueScreenState extends State<RevisionQueueScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+              child: CircularProgressIndicator(color: Color(0xFF4FA3C7)),
             )
           : _errorMessage != null
               ? Center(
@@ -300,7 +300,7 @@ class _RevisionQueueScreenState extends State<RevisionQueueScreen> {
                                       onPressed: () => _openItem(item),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                            const Color(0xFF38BDF8),
+                                            const Color(0xFF4FA3C7),
                                         foregroundColor: Colors.black,
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 12,
@@ -393,7 +393,7 @@ class _QueueCard extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             Color(0xFF22D3EE),
-            Color(0xFF38BDF8),
+            Color(0xFF4FA3C7),
             Color(0xFF4F46E5),
           ],
         ),
@@ -439,7 +439,7 @@ class _QueueIcon extends StatelessWidget {
         break;
       case RevisionItemType.question:
         icon = Icons.quiz_rounded;
-        accent = const Color(0xFF38BDF8);
+        accent = const Color(0xFF4FA3C7);
         break;
       case RevisionItemType.topic:
         icon = Icons.warning_amber_rounded;
@@ -512,7 +512,7 @@ class _QuickRevisionBanner extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF1E2A44)),
           ),
-          child: const Icon(Icons.flash_on_rounded, color: Color(0xFF38BDF8)),
+          child: const Icon(Icons.flash_on_rounded, color: Color(0xFF4FA3C7)),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -544,7 +544,7 @@ class _QuickRevisionBanner extends StatelessWidget {
         ElevatedButton(
           onPressed: onStart,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF38BDF8),
+            backgroundColor: const Color(0xFF4FA3C7),
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             shape: RoundedRectangleBorder(
