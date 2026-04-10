@@ -21,6 +21,7 @@ class AppLocalizations {
   String get subjects => _t('subjects');
   String get play => _t('play');
   String get ai => _t('ai');
+  String get teacher => _t('teacher');
   String get profile => _t('profile');
   String get accessPortal => _t('accessPortal');
   String get login => _t('login');
@@ -187,6 +188,7 @@ const Map<String, Map<String, String>> _localizedValues = {
     'subjects': 'Subjects',
     'play': 'Play',
     'ai': 'AI',
+    'teacher': 'Teacher',
     'profile': 'Profile',
     'dashboard': 'Dashboard',
     'accessPortal': 'Access Portal',
@@ -273,6 +275,7 @@ const Map<String, Map<String, String>> _localizedValues = {
     'subjects': 'विषयहरू',
     'play': 'खेल',
     'ai': 'एआई',
+    'teacher': 'शिक्षक',
     'profile': 'प्रोफाइल',
     'dashboard': 'ड्यासबोर्ड',
     'accessPortal': 'प्रवेश पोर्टल',

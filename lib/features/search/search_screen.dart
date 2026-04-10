@@ -5,7 +5,11 @@ import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/data/search_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
+import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/models/app_models.dart';
+import 'package:student_survivor/features/subjects/chapter_detail_screen.dart';
+import 'package:student_survivor/features/subjects/subject_detail_screen.dart';
+import 'package:student_survivor/features/subjects/subject_study_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -17,10 +21,13 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   late final SearchService _searchService;
+  late final SubjectService _subjectService;
   Timer? _debounce;
   bool _isLoading = false;
+  bool _isResolving = false;
   String? _errorMessage;
   List<SearchResult> _results = const [];
+  _SearchIndex? _searchIndex;
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = true;
 
@@ -28,6 +35,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _searchService = SearchService(SupabaseConfig.client);
+    _subjectService = SubjectService(SupabaseConfig.client);
     _scrollController.addListener(_handleScroll);
   }
 
@@ -81,6 +89,123 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       }
     });
+  }
+
+  Future<_SearchIndex> _loadSearchIndex() async {
+    if (_searchIndex != null) return _searchIndex!;
+    final subjects =
+        await _subjectService.fetchAllSubjects(includeContent: true);
+    _searchIndex = _SearchIndex.fromSubjects(subjects);
+    return _searchIndex!;
+  }
+
+  Future<void> _openResult(SearchResult result) async {
+    if (_isResolving) return;
+    setState(() {
+      _isResolving = true;
+    });
+    try {
+      final index = await _loadSearchIndex();
+      if (!mounted) return;
+      switch (result.rawType) {
+        case 'subject':
+          final subject = index.subjectById[result.id];
+          if (subject == null) {
+            _showNotFound();
+            return;
+          }
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  SubjectDetailScreen(subject: subject, useGameZoneTheme: true),
+            ),
+          );
+          break;
+        case 'chapter':
+          final chapter = index.chapterById[result.id];
+          final subject = index.subjectByChapter[result.id];
+          if (chapter == null || subject == null) {
+            _showNotFound();
+            return;
+          }
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChapterDetailScreen(
+                subject: subject,
+                chapter: chapter,
+                useGameZoneTheme: false,
+              ),
+            ),
+          );
+          break;
+        case 'note':
+          final chapter = index.chapterByNote[result.id];
+          final subject = index.subjectByNote[result.id];
+          if (chapter == null || subject == null) {
+            _showNotFound();
+            return;
+          }
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChapterDetailScreen(
+                subject: subject,
+                chapter: chapter,
+                useGameZoneTheme: false,
+              ),
+            ),
+          );
+          break;
+        case 'question':
+          final subject = index.subjectByQuestion[result.id];
+          if (subject == null) {
+            _showNotFound();
+            return;
+          }
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => SubjectStudyScreen(
+                subject: subject,
+                useGameZoneTheme: true,
+                initialTabIndex: 1,
+              ),
+            ),
+          );
+          break;
+        default:
+          _showNotFound();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Unable to open: $error',
+              'खोल्न सकिएन: $error',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolving = false;
+        });
+      }
+    }
+  }
+
+  void _showNotFound() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr(
+            'Content not found for this result.',
+            'यो परिणामका लागि सामग्री भेटिएन।',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -191,39 +316,96 @@ class _SearchScreenState extends State<SearchScreen> {
           final result = _results[index - 4];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: _GameCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    result.title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    result.type,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF4FA3C7),
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    result.snippet,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: Colors.white70),
-                  ),
-                ],
+            child: GestureDetector(
+              onTap: () => _openResult(result),
+              child: _GameCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      result.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      result.type,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF4FA3C7),
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      result.snippet,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
+    );
+  }
+}
+
+class _SearchIndex {
+  final Map<String, Subject> subjectById;
+  final Map<String, Chapter> chapterById;
+  final Map<String, Subject> subjectByChapter;
+  final Map<String, Chapter> chapterByNote;
+  final Map<String, Subject> subjectByNote;
+  final Map<String, Subject> subjectByQuestion;
+
+  _SearchIndex({
+    required this.subjectById,
+    required this.chapterById,
+    required this.subjectByChapter,
+    required this.chapterByNote,
+    required this.subjectByNote,
+    required this.subjectByQuestion,
+  });
+
+  factory _SearchIndex.fromSubjects(List<Subject> subjects) {
+    final subjectById = <String, Subject>{};
+    final chapterById = <String, Chapter>{};
+    final subjectByChapter = <String, Subject>{};
+    final chapterByNote = <String, Chapter>{};
+    final subjectByNote = <String, Subject>{};
+    final subjectByQuestion = <String, Subject>{};
+
+    for (final subject in subjects) {
+      subjectById[subject.id] = subject;
+      for (final chapter in subject.chapters) {
+        chapterById[chapter.id] = chapter;
+        subjectByChapter[chapter.id] = subject;
+        for (final note in chapter.notes) {
+          chapterByNote[note.id] = chapter;
+          subjectByNote[note.id] = subject;
+        }
+        for (final question in chapter.importantQuestions) {
+          subjectByQuestion[question.id] = subject;
+        }
+        for (final question in chapter.pastQuestions) {
+          subjectByQuestion[question.id] = subject;
+        }
+      }
+    }
+
+    return _SearchIndex(
+      subjectById: subjectById,
+      chapterById: chapterById,
+      subjectByChapter: subjectByChapter,
+      chapterByNote: chapterByNote,
+      subjectByNote: subjectByNote,
+      subjectByQuestion: subjectByQuestion,
     );
   }
 }

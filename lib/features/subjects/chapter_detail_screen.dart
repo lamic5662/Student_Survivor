@@ -974,6 +974,20 @@ class _NotesTabState extends State<_NotesTab> {
                 final noteHighlight = noteText.trim().isEmpty
                     ? (mainWords: <String>{}, difficultWords: <String>{})
                     : _buildHighlightSets(noteText);
+                final cardTextColor = AppColors.ink;
+                final cardMutedColor = AppColors.mutedInk;
+                final cardButtonColor = AppColors.secondary;
+                Widget lightInfoCard({required Widget child}) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: child,
+                  );
+                }
                 return ListView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -999,169 +1013,180 @@ class _NotesTabState extends State<_NotesTab> {
                             color: _useGameTheme ? Colors.white : null,
                           ),
                     ),
-                    const SizedBox(height: 16),
-                    if (safeUrl.isNotEmpty) ...[
-                      if (_isImageUrl(safeUrl)) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            safeUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) {
-                              if (progress == null) return child;
-                              return Container(
-                                height: 180,
-                                alignment: Alignment.center,
-                                color: _useGameTheme
-                                    ? const Color(0xFF0B1220)
-                                    : AppColors.surface,
-                                child: const SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              height: 180,
-                              alignment: Alignment.center,
-                              color: _useGameTheme
-                                  ? const Color(0xFF0B1220)
-                                  : AppColors.surface,
-                              child: Text(
-                                'Image unavailable',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: _useGameTheme
-                                          ? Colors.white70
-                                          : null,
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _buildCard(
-                        color: AppColors.secondary.withValues(alpha: 0.06),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.attach_file_rounded,
-                                  color:
-                                      _useGameTheme ? Colors.white : null,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Attachment available',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: _useGameTheme
-                                              ? Colors.white
-                                              : null,
+                    const SizedBox(height: 12),
+                    AppCard(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (safeUrl.isNotEmpty) ...[
+                            if (_isImageUrl(safeUrl)) ...[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.network(
+                                  safeUrl,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder:
+                                      (context, child, progress) {
+                                    if (progress == null) return child;
+                                    return Container(
+                                      height: 180,
+                                      alignment: Alignment.center,
+                                      color: AppColors.paper,
+                                      child: const SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
                                         ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              children: [
-                                TextButton(
-                                  onPressed: () => _openAttachment(
-                                    title: title,
-                                    url: safeUrl,
-                                    contextText: _buildNoteContext(
-                                      title: title,
-                                      shortAnswer: shortAnswer,
-                                      detailedAnswer: detailedAnswer,
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder:
+                                      (context, error, stackTrace) =>
+                                          Container(
+                                    height: 180,
+                                    alignment: Alignment.center,
+                                    color: AppColors.paper,
+                                    child: Text(
+                                      'Image unavailable',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: cardMutedColor,
+                                          ),
                                     ),
                                   ),
-                                  child: const Text('Open'),
                                 ),
-                                TextButton(
-                                  onPressed: () => _copyToClipboard(safeUrl),
-                                  child: const Text('Copy link'),
-                                ),
-                                TextButton(
-                                  onPressed: isGenerating
-                                      ? null
-                                      : handleGenerate,
-                                  style: _useGameTheme
-                                      ? TextButton.styleFrom(
-                                          foregroundColor: Colors.white,
-                                        )
-                                      : null,
-                                  child: isGenerating
-                                      ? const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        )
-                                      : const Text('Generate Q'),
-                                ),
-                              ],
-                            ),
-                            if (generateError != null) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                generateError!,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppColors.danger),
                               ),
+                              const SizedBox(height: 12),
                             ],
+                            lightInfoCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.attach_file_rounded,
+                                        color: cardTextColor,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Attachment available',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                                color: cardTextColor,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => _openAttachment(
+                                          title: title,
+                                          url: safeUrl,
+                                          contextText: _buildNoteContext(
+                                            title: title,
+                                            shortAnswer: shortAnswer,
+                                            detailedAnswer: detailedAnswer,
+                                          ),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: cardButtonColor,
+                                        ),
+                                        child: const Text('Open'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            _copyToClipboard(safeUrl),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: cardButtonColor,
+                                        ),
+                                        child: const Text('Copy link'),
+                                      ),
+                                      TextButton(
+                                        onPressed: isGenerating
+                                            ? null
+                                            : handleGenerate,
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: cardButtonColor,
+                                        ),
+                                        child: isGenerating
+                                            ? const SizedBox(
+                                                height: 16,
+                                                width: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : const Text('Generate Q'),
+                                      ),
+                                    ],
+                                  ),
+                                  if (generateError != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      generateError!,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.danger,
+                                          ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                           ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (noteText.isNotEmpty) ...[
-                      Text(
-                        'Notes',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: _useGameTheme ? Colors.white : null,
+                          if (noteText.isNotEmpty) ...[
+                            Text(
+                              'Notes',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: cardTextColor,
+                                  ),
                             ),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._buildFormattedTappableNoteBody(
-                        noteText,
-                        contextText: noteText,
-                        mainWords: noteHighlight.mainWords,
-                        difficultWords: noteHighlight.difficultWords,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: _useGameTheme ? Colors.white70 : null,
+                            const SizedBox(height: 8),
+                            ..._buildFormattedTappableNoteBody(
+                              noteText,
+                              contextText: noteText,
+                              mainWords: noteHighlight.mainWords,
+                              difficultWords: noteHighlight.difficultWords,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: cardMutedColor),
                             ),
+                          ] else if ((fileUrl ?? '').isEmpty) ...[
+                            Text(
+                              'No note content available yet.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: cardMutedColor),
+                            ),
+                          ],
+                        ],
                       ),
-                    ] else if ((fileUrl ?? '').isEmpty) ...[
-                      Text(
-                        'No note content available yet.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: _mutedTextColor),
-                      ),
-                    ],
+                    ),
                   ],
                 );
               },
@@ -2362,6 +2387,14 @@ class _NotesTabState extends State<_NotesTab> {
                 96,
           )
         : 20.0;
+    final useLightAiCards = !_useGameTheme;
+    final aiCardTitleColor = useLightAiCards ? AppColors.ink : null;
+    final aiCardMutedColor = useLightAiCards ? AppColors.mutedInk : null;
+    final aiIconBgColor = useLightAiCards
+        ? AppColors.secondary.withValues(alpha: 0.10)
+        : _useGameTheme
+            ? const Color(0xFF111B2E)
+            : AppColors.secondary.withValues(alpha: 0.10);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.metrics.axis != Axis.vertical) {
@@ -2443,24 +2476,155 @@ class _NotesTabState extends State<_NotesTab> {
             ),
           ],
           const SizedBox(height: 20),
-          _buildCard(
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              initiallyExpanded: false,
-              title: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _useGameTheme
-                          ? const Color(0xFF111B2E)
-                          : AppColors.secondary.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
+          if (useLightAiCards)
+            AppCard(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                initiallyExpanded: false,
+                title: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: aiIconBgColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded,
+                          color: AppColors.secondary),
                     ),
-                    child: const Icon(Icons.auto_awesome_rounded,
-                        color: AppColors.secondary),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'AI Notes',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  color: aiCardTitleColor,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          const AiStatusChip(compact: true),
+                        ],
+                      ),
+                    ),
+                    if (_isGenerating)
+                      const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      FilledButton.tonal(
+                        onPressed: _generateNote,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text(_draft == null ? 'Generate' : 'Regenerate'),
+                      ),
+                  ],
+                ),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  if (_draft == null)
+                    Text(
+                      'Generate a quick AI note for this chapter.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: aiCardMutedColor),
+                    )
+                  else ...[
+                    _noteCard(
+                      title: _draft!.title,
+                      shortAnswer: _draft!.shortAnswer,
+                      detailedAnswer: _draft!.detailedAnswer,
+                      collapsible: true,
+                      formatAsAi: true,
+                      badgeLabel: 'AI Draft',
+                      badgeColor: AppColors.secondary,
+                      badgeIcon: Icons.auto_awesome_rounded,
+                      voiceKey: 'draft_${widget.chapter.id}',
+                      voiceText: _buildNoteContext(
+                        title: _draft!.title,
+                        shortAnswer: _draft!.shortAnswer,
+                        detailedAnswer: _draft!.detailedAnswer,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: _isSaving ? null : _saveDraft,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF4FA3C7),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Save to My Notes'),
+                        ),
+                        const SizedBox(height: 6),
+                        TextButton(
+                          onPressed: _isSaving
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _draft = null;
+                                  });
+                                },
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.mutedInk,
+                          ),
+                          child: const Text('Discard'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _errorMessage!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            )
+          else
+            _buildCard(
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                initiallyExpanded: false,
+                title: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: aiIconBgColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded,
+                          color: AppColors.secondary),
+                    ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -2470,7 +2634,7 @@ class _NotesTabState extends State<_NotesTab> {
                           'AI Notes',
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: _useGameTheme ? Colors.white : null,
+                                    color: aiCardTitleColor,
                                   ),
                         ),
                         const SizedBox(height: 6),
@@ -2485,7 +2649,7 @@ class _NotesTabState extends State<_NotesTab> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   else
-                    FilledButton.tonal(
+                      FilledButton.tonal(
                       onPressed: _generateNote,
                       style: _useGameTheme
                           ? FilledButton.styleFrom(
@@ -2503,7 +2667,7 @@ class _NotesTabState extends State<_NotesTab> {
                   Text(
                     'Generate a quick AI note for this chapter.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _useGameTheme ? Colors.white70 : null,
+                          color: aiCardMutedColor,
                         ),
                   )
                 else ...[

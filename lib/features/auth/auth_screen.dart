@@ -21,6 +21,7 @@ class _AuthScreenState
     implements AuthView {
   static const _lastEmailKey = 'auth_last_email';
   static const _lastPhoneKey = 'auth_last_phone';
+  static const _aiDisclaimerKey = 'ai_disclaimer_pending';
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -52,6 +53,8 @@ class _AuthScreenState
     () async {
       final save = await _promptSaveLoginIfNeeded();
       TextInput.finishAutofillContext(shouldSave: save);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_aiDisclaimerKey, true);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const AppShell()),

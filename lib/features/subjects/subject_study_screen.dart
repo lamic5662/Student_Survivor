@@ -6,6 +6,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:student_survivor/core/localization/app_localizations.dart';
 import 'package:student_survivor/core/theme/app_theme.dart';
 import 'package:student_survivor/core/widgets/ai_status_chip.dart';
+import 'package:student_survivor/core/widgets/app_card.dart';
 import 'package:student_survivor/core/widgets/game_zone_scaffold.dart';
 import 'package:student_survivor/core/widgets/math_text.dart';
 import 'package:student_survivor/data/ai_notes_service.dart';
@@ -424,7 +425,7 @@ class _SubjectStudyScreenState extends State<SubjectStudyScreen>
                 FilledButton(
                   onPressed: _isGeneratingQuiz ? null : _generateSubjectQuiz,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4FA3C7),
+                    backgroundColor: AppColors.secondary,
                     foregroundColor: Colors.white,
                   ),
                   child: Text(
@@ -1079,11 +1080,25 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
           maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
-      final safeUrl = fileUrl ?? '';
-      return ListView(
-        controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        children: [
+            final safeUrl = fileUrl ?? '';
+            final cardTextColor = AppColors.ink;
+            final cardMutedColor = AppColors.mutedInk;
+            final cardButtonColor = AppColors.secondary;
+            Widget lightInfoCard({required Widget child}) {
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.paper,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.outline),
+                ),
+                child: child,
+              );
+            }
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
                 Container(
                   height: 4,
                   width: 40,
@@ -1103,116 +1118,134 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                         color: Colors.white,
                       ),
                 ),
-                const SizedBox(height: 16),
-                if (safeUrl.isNotEmpty) ...[
-                  if (_isImageUrl(safeUrl)) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        safeUrl,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            height: 180,
-                            alignment: Alignment.center,
-                            color: const Color(0xFF0B1220),
-                            child: const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 180,
-                          alignment: Alignment.center,
-                          color: const Color(0xFF0B1220),
-                          child: Text(
-                            context.tr(
-                              'Image unavailable',
-                              'तस्बिर उपलब्ध छैन',
-                            ),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.white70),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  _GameCard(
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.attach_file_rounded,
-                          color: Color(0xFF4FA3C7),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            context.tr('Attachment available', 'संलग्न उपलब्ध'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                const SizedBox(height: 12),
+                AppCard(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (safeUrl.isNotEmpty) ...[
+                        if (_isImageUrl(safeUrl)) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              safeUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 180,
+                                  alignment: Alignment.center,
+                                  color: AppColors.paper,
+                                  child: const SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                height: 180,
+                                alignment: Alignment.center,
+                                color: AppColors.paper,
+                                child: Text(
+                                  context.tr(
+                                    'Image unavailable',
+                                    'तस्बिर उपलब्ध छैन',
+                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: cardMutedColor),
                                 ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        lightInfoCard(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.attach_file_rounded,
+                                color: cardTextColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  context.tr(
+                                    'Attachment available',
+                                    'संलग्न उपलब्ध',
+                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: cardTextColor,
+                                      ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _openAttachment(
+                                  title: title,
+                                  url: safeUrl,
+                                ),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: cardButtonColor,
+                                ),
+                                child: Text(context.tr('Open', 'खोल्नुहोस्')),
+                              ),
+                            ],
                           ),
                         ),
-                        TextButton(
-                          onPressed: () => _openAttachment(
-                            title: title,
-                            url: safeUrl,
+                        const SizedBox(height: 16),
+                      ],
+                      if (detailedAnswer.isNotEmpty ||
+                          shortAnswer.isNotEmpty) ...[
+                        Text(
+                          context.tr('Notes', 'नोट्स'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: cardTextColor,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        ..._buildFormattedTappableNoteBody(
+                          detailedAnswer.isNotEmpty
+                              ? detailedAnswer
+                              : shortAnswer,
+                          contextText: contextText,
+                          mainWords: highlight.mainWords,
+                          difficultWords: highlight.difficultWords,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: cardMutedColor),
+                        ),
+                      ] else if (safeUrl.isEmpty) ...[
+                        Text(
+                          context.tr(
+                            'No note content available yet.',
+                            'अहिलेसम्म नोट सामग्री छैन।',
                           ),
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF4FA3C7),
-                          ),
-                          child: Text(context.tr('Open', 'खोल्नुहोस्')),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: cardMutedColor),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                ],
-                if (detailedAnswer.isNotEmpty ||
-                    shortAnswer.isNotEmpty) ...[
-                  Text(
-                    context.tr('Notes', 'नोट्स'),
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  ..._buildFormattedTappableNoteBody(
-                    detailedAnswer.isNotEmpty ? detailedAnswer : shortAnswer,
-                    contextText: contextText,
-                    mainWords: highlight.mainWords,
-                    difficultWords: highlight.difficultWords,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: Colors.white70),
-                  ),
-                ] else if (safeUrl.isEmpty) ...[
-                  Text(
-                    context.tr(
-                      'No note content available yet.',
-                      'अहिलेसम्म नोट सामग्री छैन।',
-                    ),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: Colors.white70),
-                  ),
-                ],
+                ),
               ],
             );
           },
@@ -2336,6 +2369,8 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
         officialNotes.add((note: note, chapterTitle: chapter.title));
       }
     }
+    final aiCardTitleColor = Colors.white;
+    final aiCardMutedColor = Colors.white70;
     return RefreshIndicator(
       onRefresh: _loadUserNotes,
       child: ListView(
@@ -2366,7 +2401,7 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                           context.tr('AI Chapter Notes', 'AI अध्याय नोट्स'),
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: Colors.white,
+                                    color: aiCardTitleColor,
                                     fontWeight: FontWeight.w700,
                                   ),
                         ),
@@ -2402,7 +2437,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                       'No chapters found for this subject.',
                       'यस विषयका कुनै अध्याय भेटिएन।',
                     ),
-                    style: const TextStyle(color: Colors.white70),
+                    style:
+                        Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: aiCardMutedColor,
+                            ),
                   )
                 else
                   ..._chapters.map(
@@ -2449,7 +2487,10 @@ class _SubjectNotesTabState extends State<_SubjectNotesTab> {
                                     'No AI note yet for this chapter.',
                                     'यस अध्यायका लागि AI नोट छैन।',
                                   ),
-                                  style: const TextStyle(color: Colors.white70),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: aiCardMutedColor),
                                 )
                               else
                                 _noteCard(

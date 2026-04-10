@@ -410,11 +410,15 @@ class SyllabusItem {
 }
 
 class SearchResult {
+  final String id;
+  final String rawType;
   final String title;
   final String type;
   final String snippet;
 
   const SearchResult({
+    required this.id,
+    required this.rawType,
     required this.title,
     required this.type,
     required this.snippet,

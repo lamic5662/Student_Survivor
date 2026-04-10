@@ -183,8 +183,8 @@ class _DashboardScreenState
               }
               final recommendedNotes = model.recommendedNotes;
               final itemCount = recommendedNotes.isEmpty
-                  ? 23
-                  : 22 + recommendedNotes.length;
+                  ? 25
+                  : 24 + recommendedNotes.length;
               return Stack(
                 children: [
                   ListView.builder(
@@ -206,17 +206,23 @@ class _DashboardScreenState
                         case 1:
                           return const SizedBox(height: 20);
                         case 2:
-                          return RepaintBoundary(
-                            child: _CoachCard(onOpen: presenter.onCoach),
+                          return const RepaintBoundary(
+                            child: _AiDisclaimerTicker(),
                           );
                         case 3:
                           return const SizedBox(height: 16);
                         case 4:
+                          return RepaintBoundary(
+                            child: _CoachCard(onOpen: presenter.onCoach),
+                          );
+                        case 5:
+                          return const SizedBox(height: 16);
+                        case 6:
                           return _GameSectionHeader(
                               title: l10n.quickActions);
-                        case 5:
+                        case 7:
                           return const SizedBox(height: 12);
-                        case 6:
+                        case 8:
                           return RepaintBoundary(
                             child: _QuickActions(
                               onPlanner: presenter.onPlanner,
@@ -228,38 +234,38 @@ class _DashboardScreenState
                                   presenter.onProgrammingWorld,
                             ),
                           );
-                        case 7:
+                        case 9:
                           return const SizedBox(height: 24);
-                        case 8:
+                        case 10:
                           return _GameSectionHeader(
                               title: l10n.progressSnapshot);
-                        case 9:
+                        case 11:
                           return const SizedBox(height: 12);
-                        case 10:
+                        case 12:
                           return RepaintBoundary(
                             child: _SnapshotRow(
                               xp: model.xp,
                               gamesPlayed: model.gamesPlayed,
                             ),
                           );
-                        case 11:
-                          return const SizedBox(height: 24);
-                        case 12:
-                          return _GameSectionHeader(title: l10n.weakTopics);
                         case 13:
-                          return const SizedBox(height: 12);
+                          return const SizedBox(height: 24);
                         case 14:
+                          return _GameSectionHeader(title: l10n.weakTopics);
+                        case 15:
+                          return const SizedBox(height: 12);
+                        case 16:
                           return RepaintBoundary(
                             child: _WeakTopics(topics: model.weakTopics),
                           );
-                        case 15:
+                        case 17:
                           return const SizedBox(height: 24);
-                        case 16:
+                        case 18:
                           return _GameSectionHeader(
                               title: l10n.revisionQueue);
-                        case 17:
+                        case 19:
                           return const SizedBox(height: 12);
-                        case 18:
+                        case 20:
                           return RepaintBoundary(
                             child: _RevisionQueueCard(
                               items: model.revisionQueue,
@@ -268,12 +274,12 @@ class _DashboardScreenState
                                   _openQuickRevision(model.revisionQueue),
                             ),
                           );
-                        case 19:
+                        case 21:
                           return const SizedBox(height: 24);
-                        case 20:
+                        case 22:
                           return _GameSectionHeader(
                               title: l10n.recommendedNotes);
-                        case 21:
+                        case 23:
                           return const SizedBox(height: 12);
                       }
 
@@ -286,7 +292,7 @@ class _DashboardScreenState
                               ?.copyWith(color: Colors.white70),
                         );
                       }
-                      final note = recommendedNotes[index - 22];
+                      final note = recommendedNotes[index - 24];
                       return RepaintBoundary(
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 12),
@@ -561,6 +567,133 @@ class _GameTag extends StatelessWidget {
               color: accent,
               fontWeight: FontWeight.w600,
             ),
+      ),
+    );
+  }
+}
+
+class _AiDisclaimerTicker extends StatefulWidget {
+  const _AiDisclaimerTicker();
+
+  @override
+  State<_AiDisclaimerTicker> createState() => _AiDisclaimerTickerState();
+}
+
+class _AiDisclaimerTickerState extends State<_AiDisclaimerTicker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 18),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = context.tr(
+      'AI responses may be inaccurate. Use AI only as a reference and verify with official notes or teachers.',
+      'AI ले कहिलेकाहीँ गलत जवाफ दिन सक्छ। AI लाई केवल सन्दर्भको रूपमा प्रयोग गर्नुहोस् र आधिकारिक नोट वा शिक्षकबाट पुष्टि गर्नुहोस्।',
+    );
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white70,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        );
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: textStyle),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    const gap = 48.0;
+    final travel = painter.width + gap;
+
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1203),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFF59E0B)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.campaign_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  context.tr('NEWS', 'समाचार'),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: const Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                minWidth: 0,
+                maxWidth: double.infinity,
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    final dx = -(_controller.value * travel);
+                    return Transform.translate(
+                      offset: Offset(dx, 0),
+                      child: child,
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(text, style: textStyle),
+                      const SizedBox(width: gap),
+                      Text(text, style: textStyle),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _GameTag(
+            label: context.tr('NEW', 'नयाँ'),
+            accent: const Color(0xFFF59E0B),
+          ),
+        ],
       ),
     );
   }

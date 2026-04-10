@@ -52,6 +52,8 @@ class SearchService {
     return hits
         .map(
           (hit) => SearchResult(
+            id: hit.id,
+            rawType: hit.type,
             title: hit.title,
             type: _labelForType(hit.type),
             snippet: hit.snippet,

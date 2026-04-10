@@ -341,6 +341,11 @@ class ProgressService {
     final user = _client.auth.currentUser;
     if (user == null) return 0;
     try {
+      final teacherFuture = _client
+          .from('user_activity_log')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('activity_type', 'ai_teacher_session');
       final conversations = await _client
           .from('ai_conversations')
           .select('id')
@@ -349,14 +354,17 @@ class ProgressService {
           .map((row) => row['id']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toList();
-      if (conversationIds.isEmpty) return 0;
-
-      final messages = await _client
-          .from('ai_messages')
-          .select('id')
-          .eq('role', 'user')
-          .inFilter('conversation_id', conversationIds);
-      final count = (messages as List<dynamic>).length;
+      var messageCount = 0;
+      if (conversationIds.isNotEmpty) {
+        final messages = await _client
+            .from('ai_messages')
+            .select('id')
+            .eq('role', 'user')
+            .inFilter('conversation_id', conversationIds);
+        messageCount = (messages as List<dynamic>).length;
+      }
+      final teacherRows = await teacherFuture;
+      final count = messageCount + (teacherRows as List<dynamic>).length;
       return _normalizeCount(count, 12);
     } catch (_) {
       return 0;
