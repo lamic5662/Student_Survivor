@@ -104,6 +104,8 @@ class ProfileEditPresenter extends Presenter<ProfileEditView> {
         semester: semester,
         subjects: fullSubjects,
         isAdmin: AppState.profile.value.isAdmin,
+        isBlocked: AppState.profile.value.isBlocked,
+        blockedReason: AppState.profile.value.blockedReason,
       );
 
       AppState.updateProfile(updatedProfile);

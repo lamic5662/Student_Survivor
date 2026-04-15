@@ -61,6 +61,10 @@ class _AdminScreenState extends State<AdminScreen> {
   List<Quiz> _qaQuizzes = const [];
   Quiz? _qaSelectedQuiz;
   List<College> _colleges = const [];
+  List<Chapter> _managedChapters = const [];
+  AdminSemesterRecord? _editingSemester;
+  AdminSubjectRecord? _editingSubject;
+  AdminChapterRecord? _editingChapter;
   College? _editingCollege;
   bool _isCollegeLoading = false;
   bool _noteChapterWise = true;
@@ -176,25 +180,48 @@ class _AdminScreenState extends State<AdminScreen> {
     try {
       final semesters = await _subjectService.fetchSemesters();
       final firstSemester = semesters.isNotEmpty ? semesters.first : null;
+      final subjectSemester =
+          _matchSemester(semesters, _subjectSemester) ?? firstSemester;
+      final syllabusSemester =
+          _matchSemester(semesters, _syllabusSemester) ?? firstSemester;
+      final noteSemester =
+          _matchSemester(semesters, _noteSemester) ?? firstSemester;
+      final qaSemester = _matchSemester(semesters, _qaSemester) ?? firstSemester;
+      final chapterSubject = _matchSubject(
+            subjectSemester?.subjects ?? const <Subject>[],
+            _chapterSubject,
+          ) ??
+          ((subjectSemester?.subjects.isNotEmpty ?? false)
+              ? subjectSemester!.subjects.first
+              : null);
+      final noteSubject = _matchSubject(
+            noteSemester?.subjects ?? const <Subject>[],
+            _noteSubject,
+          ) ??
+          ((noteSemester?.subjects.isNotEmpty ?? false)
+              ? noteSemester!.subjects.first
+              : null);
+      final qaSubject = _matchSubject(
+            qaSemester?.subjects ?? const <Subject>[],
+            _qaSubject,
+          ) ??
+          ((qaSemester?.subjects.isNotEmpty ?? false)
+              ? qaSemester!.subjects.first
+              : null);
       setState(() {
         _semesters = semesters;
-        _subjectSemester = firstSemester;
-        _syllabusSemester = firstSemester;
-        _chapterSubject = _subjectSemester?.subjects.isNotEmpty == true
-            ? _subjectSemester!.subjects.first
-            : null;
-        _noteSemester = firstSemester;
-        _noteSubject = firstSemester?.subjects.isNotEmpty == true
-            ? firstSemester!.subjects.first
-            : null;
-        _qaSemester = firstSemester;
-        _qaSubject = firstSemester?.subjects.isNotEmpty == true
-            ? firstSemester!.subjects.first
-            : null;
+        _subjectSemester = subjectSemester;
+        _syllabusSemester = syllabusSemester;
+        _chapterSubject = chapterSubject;
+        _noteSemester = noteSemester;
+        _noteSubject = noteSubject;
+        _qaSemester = qaSemester;
+        _qaSubject = qaSubject;
         _qaChapter = null;
         _qaSelectedQuiz = null;
         _isLoading = false;
       });
+      await _loadManagedChapters();
       await _loadNoteChapters();
       await _loadQaChapters();
       await _loadPendingCommunityQuestions();
@@ -314,12 +341,30 @@ class _AdminScreenState extends State<AdminScreen> {
       return;
     }
     final chapters = await _adminService.fetchChaptersForSubject(subject.id);
+    final selectedChapter = _noteChapter;
     setState(() {
       _noteChapters = chapters;
-      _noteChapter = chapters.isNotEmpty ? chapters.first : null;
+      _noteChapter =
+          _matchChapter(chapters, selectedChapter) ??
+          (chapters.isNotEmpty ? chapters.first : null);
     });
     await _loadAdminNotes();
     await _loadPendingSubmissions();
+  }
+
+  Future<void> _loadManagedChapters() async {
+    final subject = _chapterSubject;
+    if (subject == null) {
+      setState(() {
+        _managedChapters = const [];
+      });
+      return;
+    }
+    final chapters = await _adminService.fetchChaptersForSubject(subject.id);
+    if (!mounted) return;
+    setState(() {
+      _managedChapters = chapters;
+    });
   }
 
   Future<String?> _resolveNoteChapterId() async {
@@ -742,9 +787,12 @@ class _AdminScreenState extends State<AdminScreen> {
       return;
     }
     final chapters = await _adminService.fetchChaptersForSubject(subject.id);
+    final selectedChapter = _qaChapter;
     setState(() {
       _qaChapters = chapters;
-      _qaChapter = chapters.isNotEmpty ? chapters.first : null;
+      _qaChapter =
+          _matchChapter(chapters, selectedChapter) ??
+          (chapters.isNotEmpty ? chapters.first : null);
     });
     await _loadQaQuizzes();
   }
@@ -759,9 +807,12 @@ class _AdminScreenState extends State<AdminScreen> {
       return;
     }
     final quizzes = await _adminService.fetchQuizzesForChapter(chapter.id);
+    final selectedQuiz = _qaSelectedQuiz;
     setState(() {
       _qaQuizzes = quizzes;
-      _qaSelectedQuiz = quizzes.isNotEmpty ? quizzes.first : null;
+      _qaSelectedQuiz =
+          _matchQuiz(quizzes, selectedQuiz) ??
+          (quizzes.isNotEmpty ? quizzes.first : null);
     });
   }
 
@@ -778,72 +829,47 @@ class _AdminScreenState extends State<AdminScreen> {
       UserProfile(
         name: profile.name,
         email: profile.email,
+        collegeName: profile.collegeName,
         semester: profile.semester,
         subjects: subjects,
         isAdmin: profile.isAdmin,
+        isBlocked: profile.isBlocked,
+        blockedReason: profile.blockedReason,
       ),
     );
   }
 
-  Future<void> _addSemester() async {
-    final name = _semesterName.text.trim();
-    final code = _semesterCode.text.trim();
-    final sortOrder = int.tryParse(_semesterSort.text.trim()) ?? 0;
-    if (name.isEmpty || code.isEmpty) {
-      _show('Name and code required.');
-      return;
-    }
-    await _adminService.addSemester(
-      name: name,
-      code: code,
-      sortOrder: sortOrder,
-    );
-    _semesterName.clear();
-    _semesterCode.clear();
-    await _load();
-    await _refreshProfileContent();
-    _show('Semester added.');
+  void _clearSemesterForm() {
+    setState(() {
+      _editingSemester = null;
+      _semesterName.clear();
+      _semesterCode.clear();
+      _semesterSort.text = '1';
+    });
   }
 
-  Future<void> _addSubject() async {
-    final semester = _subjectSemester;
-    if (semester == null) {
-      _show('Select a semester.');
-      return;
-    }
-    final name = _subjectName.text.trim();
-    final code = _subjectCode.text.trim();
-    if (name.isEmpty || code.isEmpty) {
-      _show('Subject name and code required.');
-      return;
-    }
-    await _adminService.addSubject(
-      semesterId: semester.id,
-      name: name,
-      code: code,
-      description: _subjectDesc.text.trim(),
-      accentColor: _subjectColor.text.trim(),
-      sortOrder: int.tryParse(_subjectSort.text.trim()) ?? 0,
-    );
-    _subjectName.clear();
-    _subjectCode.clear();
-    _subjectDesc.clear();
-    await _load();
-    await _refreshProfileContent();
-    _show('Subject added.');
+  void _clearSubjectForm() {
+    setState(() {
+      _editingSubject = null;
+      _subjectName.clear();
+      _subjectCode.clear();
+      _subjectDesc.clear();
+      _subjectColor.text = '#2563EB';
+      _subjectSort.text = '1';
+    });
   }
 
-  Future<void> _addChapter() async {
-    final subject = _chapterSubject;
-    if (subject == null) {
-      _show('Select a subject.');
-      return;
-    }
-    final title = _chapterTitle.text.trim();
-    if (title.isEmpty) {
-      _show('Chapter title required.');
-      return;
-    }
+  void _clearChapterForm() {
+    setState(() {
+      _editingChapter = null;
+      _chapterTitle.clear();
+      _chapterSummary.clear();
+      _chapterSubtopics.clear();
+      _chapterSort.text = '1';
+    });
+  }
+
+  List<Map<String, dynamic>> _parseChapterSubtopics() {
     final subtopics = <Map<String, dynamic>>[];
     var sortOrder = 1;
     final lines = _chapterSubtopics.text.split('\n');
@@ -863,19 +889,311 @@ class _AdminScreenState extends State<AdminScreen> {
       });
       sortOrder += 1;
     }
-    await _adminService.addChapter(
-      subjectId: subject.id,
-      title: title,
-      summary: _chapterSummary.text.trim(),
-      sortOrder: int.tryParse(_chapterSort.text.trim()) ?? 0,
-      subtopics: subtopics,
+    return subtopics;
+  }
+
+  Semester? _findSemesterForSubject(String subjectId) {
+    for (final semester in _semesters) {
+      for (final subject in semester.subjects) {
+        if (subject.id == subjectId) {
+          return semester;
+        }
+      }
+    }
+    return null;
+  }
+
+  Semester? _findSemesterById(String semesterId) {
+    for (final semester in _semesters) {
+      if (semester.id == semesterId) {
+        return semester;
+      }
+    }
+    return null;
+  }
+
+  Subject? _findSubjectAcrossSemesters(String subjectId) {
+    for (final semester in _semesters) {
+      for (final subject in semester.subjects) {
+        if (subject.id == subjectId) {
+          return subject;
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _confirmDelete({
+    required String title,
+    required String message,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
-    _chapterTitle.clear();
-    _chapterSummary.clear();
-    _chapterSubtopics.clear();
-    await _load();
-    await _refreshProfileContent();
-    _show('Chapter added.');
+    return confirmed == true;
+  }
+
+  Future<void> _editSemester(Semester semester) async {
+    try {
+      final record = await _adminService.fetchSemesterRecord(semester.id);
+      if (!mounted) return;
+      setState(() {
+        _editingSemester = record;
+        _semesterName.text = record.name;
+        _semesterCode.text = record.code;
+        _semesterSort.text = record.sortOrder.toString();
+      });
+    } catch (error) {
+      _show('Failed to load semester: $error');
+    }
+  }
+
+  Future<void> _saveSemester() async {
+    final name = _semesterName.text.trim();
+    final code = _semesterCode.text.trim();
+    final sortOrder = int.tryParse(_semesterSort.text.trim()) ?? 0;
+    if (name.isEmpty || code.isEmpty) {
+      _show('Name and code required.');
+      return;
+    }
+    try {
+      final editing = _editingSemester;
+      if (editing == null) {
+        await _adminService.addSemester(
+          name: name,
+          code: code,
+          sortOrder: sortOrder,
+        );
+        _show('Semester added.');
+      } else {
+        await _adminService.updateSemester(
+          semesterId: editing.id,
+          name: name,
+          code: code,
+          sortOrder: sortOrder,
+        );
+        _show('Semester updated.');
+      }
+      _clearSemesterForm();
+      await _load();
+      await _refreshProfileContent();
+    } catch (error) {
+      _show('Failed to save semester: $error');
+    }
+  }
+
+  Future<void> _deleteSemester(Semester semester) async {
+    final confirmed = await _confirmDelete(
+      title: 'Delete semester?',
+      message:
+          'Delete ${semester.name} and all its subjects, chapters, notes, quizzes, and questions?',
+    );
+    if (!confirmed) return;
+    try {
+      await _adminService.deleteSemester(semester.id);
+      if (_editingSemester?.id == semester.id) {
+        _clearSemesterForm();
+      }
+      await _load();
+      await _refreshProfileContent();
+      _show('Semester deleted.');
+    } catch (error) {
+      _show('Failed to delete semester: $error');
+    }
+  }
+
+  Future<void> _editSubject(Subject subject) async {
+    try {
+      final record = await _adminService.fetchSubjectRecord(subject.id);
+      final semester =
+          _findSemesterById(record.semesterId) ??
+          _matchSemester(_semesters, _subjectSemester);
+      if (!mounted) return;
+      setState(() {
+        _editingSubject = record;
+        _subjectSemester = semester;
+        _subjectName.text = record.name;
+        _subjectCode.text = record.code;
+        _subjectDesc.text = record.description;
+        _subjectColor.text = record.accentColor;
+        _subjectSort.text = record.sortOrder.toString();
+      });
+    } catch (error) {
+      _show('Failed to load subject: $error');
+    }
+  }
+
+  Future<void> _saveSubject() async {
+    final semester = _subjectSemester;
+    if (semester == null) {
+      _show('Select a semester.');
+      return;
+    }
+    final name = _subjectName.text.trim();
+    final code = _subjectCode.text.trim();
+    if (name.isEmpty || code.isEmpty) {
+      _show('Subject name and code required.');
+      return;
+    }
+    try {
+      final editing = _editingSubject;
+      if (editing == null) {
+        await _adminService.addSubject(
+          semesterId: semester.id,
+          name: name,
+          code: code,
+          description: _subjectDesc.text.trim(),
+          accentColor: _subjectColor.text.trim(),
+          sortOrder: int.tryParse(_subjectSort.text.trim()) ?? 0,
+        );
+        _show('Subject added.');
+      } else {
+        await _adminService.updateSubject(
+          subjectId: editing.id,
+          semesterId: semester.id,
+          name: name,
+          code: code,
+          description: _subjectDesc.text.trim(),
+          accentColor: _subjectColor.text.trim(),
+          sortOrder: int.tryParse(_subjectSort.text.trim()) ?? 0,
+        );
+        _show('Subject updated.');
+      }
+      _clearSubjectForm();
+      await _load();
+      await _refreshProfileContent();
+    } catch (error) {
+      _show('Failed to save subject: $error');
+    }
+  }
+
+  Future<void> _deleteSubject(Subject subject) async {
+    final confirmed = await _confirmDelete(
+      title: 'Delete subject?',
+      message:
+          'Delete ${subject.name} and all its chapters, notes, past papers, quizzes, and questions?',
+    );
+    if (!confirmed) return;
+    try {
+      await _adminService.deleteSubject(subject.id);
+      if (_editingSubject?.id == subject.id) {
+        _clearSubjectForm();
+      }
+      await _load();
+      await _refreshProfileContent();
+      _show('Subject deleted.');
+    } catch (error) {
+      _show('Failed to delete subject: $error');
+    }
+  }
+
+  Future<void> _editChapter(Chapter chapter) async {
+    try {
+      final record = await _adminService.fetchChapterRecord(chapter.id);
+      final subject = _findSubjectAcrossSemesters(record.subjectId);
+      final semester = subject == null ? null : _findSemesterForSubject(subject.id);
+      if (!mounted) return;
+      setState(() {
+        _editingChapter = record;
+        if (semester != null) {
+          _subjectSemester = semester;
+        }
+        if (subject != null) {
+          _chapterSubject = subject;
+          _noteSubject = subject;
+        }
+        _chapterTitle.text = record.title;
+        _chapterSummary.text = record.summary;
+        _chapterSort.text = record.sortOrder.toString();
+        _chapterSubtopics.text = record.subtopics
+            .map((topic) {
+              final summary = topic.summary.trim();
+              return summary.isEmpty
+                  ? topic.title
+                  : '${topic.title} | $summary';
+            })
+            .join('\n');
+      });
+      await _loadManagedChapters();
+    } catch (error) {
+      _show('Failed to load chapter: $error');
+    }
+  }
+
+  Future<void> _saveChapter() async {
+    final subject = _chapterSubject;
+    if (subject == null) {
+      _show('Select a subject.');
+      return;
+    }
+    final title = _chapterTitle.text.trim();
+    if (title.isEmpty) {
+      _show('Chapter title required.');
+      return;
+    }
+    final subtopics = _parseChapterSubtopics();
+    try {
+      final editing = _editingChapter;
+      if (editing == null) {
+        await _adminService.addChapter(
+          subjectId: subject.id,
+          title: title,
+          summary: _chapterSummary.text.trim(),
+          sortOrder: int.tryParse(_chapterSort.text.trim()) ?? 0,
+          subtopics: subtopics,
+        );
+        _show('Chapter added.');
+      } else {
+        await _adminService.updateChapter(
+          chapterId: editing.id,
+          subjectId: subject.id,
+          title: title,
+          summary: _chapterSummary.text.trim(),
+          sortOrder: int.tryParse(_chapterSort.text.trim()) ?? 0,
+          subtopics: subtopics,
+        );
+        _show('Chapter updated.');
+      }
+      _clearChapterForm();
+      await _load();
+      await _refreshProfileContent();
+    } catch (error) {
+      _show('Failed to save chapter: $error');
+    }
+  }
+
+  Future<void> _deleteChapter(Chapter chapter) async {
+    final confirmed = await _confirmDelete(
+      title: 'Delete chapter?',
+      message:
+          'Delete ${chapter.title} and all its notes, questions, quizzes, and subtopics?',
+    );
+    if (!confirmed) return;
+    try {
+      await _adminService.deleteChapter(chapter.id);
+      if (_editingChapter?.id == chapter.id) {
+        _clearChapterForm();
+      }
+      await _load();
+      await _refreshProfileContent();
+      _show('Chapter deleted.');
+    } catch (error) {
+      _show('Failed to delete chapter: $error');
+    }
   }
 
   Future<void> _bulkUploadSyllabus() async {
@@ -2080,7 +2398,7 @@ class _AdminScreenState extends State<AdminScreen> {
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
-              'Add Semester',
+              'Manage Semesters',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
@@ -2109,10 +2427,56 @@ class _AdminScreenState extends State<AdminScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _addSemester,
-                child: const Text('Save Semester'),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveSemester,
+                      child: Text(
+                        _editingSemester == null
+                            ? 'Save Semester'
+                            : 'Update Semester',
+                      ),
+                    ),
+                  ),
+                  if (_editingSemester != null) ...[
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _clearSemesterForm,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ],
               ),
+              const SizedBox(height: 12),
+              if (_semesters.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text('No semesters added yet.'),
+                )
+              else
+                ..._semesters.map(
+                  (semester) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(semester.name),
+                    subtitle: Text('${semester.subjects.length} subject(s)'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => _editSemester(semester),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () => _deleteSemester(semester),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -2206,7 +2570,7 @@ class _AdminScreenState extends State<AdminScreen> {
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
-              'Add Subject',
+              'Manage Subjects',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
@@ -2228,7 +2592,12 @@ class _AdminScreenState extends State<AdminScreen> {
                 onChanged: (value) {
                   setState(() {
                     _subjectSemester = value;
+                    final subjects = value?.subjects ?? const <Subject>[];
+                    _chapterSubject =
+                        _matchSubject(subjects, _chapterSubject) ??
+                        (subjects.isNotEmpty ? subjects.first : null);
                   });
+                  _loadManagedChapters();
                 },
               ),
               const SizedBox(height: 12),
@@ -2268,10 +2637,56 @@ class _AdminScreenState extends State<AdminScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _addSubject,
-                child: const Text('Save Subject'),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveSubject,
+                      child: Text(
+                        _editingSubject == null
+                            ? 'Save Subject'
+                            : 'Update Subject',
+                      ),
+                    ),
+                  ),
+                  if (_editingSubject != null) ...[
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _clearSubjectForm,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ],
               ),
+              const SizedBox(height: 12),
+              if (chapterSubjects.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text('No subjects found for this semester.'),
+                )
+              else
+                ...chapterSubjects.map(
+                  (subject) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${subject.code} — ${subject.name}'),
+                    subtitle: Text('${subject.chapters.length} chapter(s)'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => _editSubject(subject),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () => _deleteSubject(subject),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -2280,7 +2695,7 @@ class _AdminScreenState extends State<AdminScreen> {
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: Text(
-              'Add Chapter',
+              'Manage Chapters',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
@@ -2304,6 +2719,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     _chapterSubject = value;
                     _noteSubject = value;
                   });
+                  _loadManagedChapters();
                   _loadNoteChapters();
                 },
               ),
@@ -2340,10 +2756,63 @@ class _AdminScreenState extends State<AdminScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _addChapter,
-                child: const Text('Save Chapter'),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveChapter,
+                      child: Text(
+                        _editingChapter == null
+                            ? 'Save Chapter'
+                            : 'Update Chapter',
+                      ),
+                    ),
+                  ),
+                  if (_editingChapter != null) ...[
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _clearChapterForm,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ],
               ),
+              const SizedBox(height: 12),
+              if (_chapterSubject == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text('Select a subject to manage chapters.'),
+                )
+              else if (_managedChapters.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text('No chapters found for this subject.'),
+                )
+              else
+                ..._managedChapters.map(
+                  (chapter) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(chapter.title),
+                    subtitle: const Text(
+                      'Edit title, summary, and subtopics.',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => _editChapter(chapter),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () => _deleteChapter(chapter),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -64,6 +64,8 @@ class _AdminGateState extends State<AdminGate> {
           semester: profile.semester,
           subjects: subjects,
           isAdmin: profile.isAdmin,
+          isBlocked: profile.isBlocked,
+          blockedReason: profile.blockedReason,
         ),
       );
       if (!mounted) return;

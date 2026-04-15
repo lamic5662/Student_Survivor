@@ -17,6 +17,8 @@ class UserProfile {
   final Semester semester;
   final List<Subject> subjects;
   final bool? _isAdmin;
+  final bool? _isBlocked;
+  final String? _blockedReason;
 
   const UserProfile({
     required this.name,
@@ -25,11 +27,17 @@ class UserProfile {
     required this.semester,
     required this.subjects,
     bool? isAdmin,
+    bool? isBlocked,
+    String? blockedReason,
   })  : _collegeName = collegeName,
-        _isAdmin = isAdmin;
+        _isAdmin = isAdmin,
+        _isBlocked = isBlocked,
+        _blockedReason = blockedReason;
 
   bool get isAdmin => _isAdmin ?? false;
+  bool get isBlocked => _isBlocked ?? false;
   String get collegeName => _collegeName ?? '';
+  String get blockedReason => _blockedReason ?? '';
 }
 
 class Semester {

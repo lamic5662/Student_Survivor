@@ -6,9 +6,12 @@ import 'package:student_survivor/data/admin_service.dart';
 import 'package:student_survivor/data/app_state.dart';
 import 'package:student_survivor/data/subject_service.dart';
 import 'package:student_survivor/data/supabase_config.dart';
+import 'package:student_survivor/features/admin/admin_activity_screen.dart';
 import 'package:student_survivor/features/admin/admin_notes_screen.dart';
 import 'package:student_survivor/features/admin/admin_questions_screen.dart';
+import 'package:student_survivor/features/admin/admin_reports_screen.dart';
 import 'package:student_survivor/features/admin/admin_syllabus_screen.dart';
+import 'package:student_survivor/features/admin/admin_users_screen.dart';
 import 'package:student_survivor/features/syllabus/syllabus_webview_screen.dart';
 import 'package:student_survivor/models/app_models.dart';
 
@@ -30,6 +33,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String? _clearingSyllabusId;
   int _pendingSubmissionCount = 0;
   bool _isPendingCountLoading = false;
+  int _userCount = 0;
+  int _blockedUserCount = 0;
+  int _pendingReportCount = 0;
+  bool _isModerationSummaryLoading = false;
   List<Subject> _adminSubjects = const [];
   bool _isAdminContentLoading = false;
 
@@ -40,6 +47,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _adminService = AdminService(client);
     _subjectService = SubjectService(client);
     _loadPendingCount();
+    _loadModerationSummary();
     _loadAdminContent();
   }
 
@@ -79,6 +87,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _openUsers(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+    );
+  }
+
+  void _openActivity(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdminActivityScreen()),
+    );
+  }
+
+  void _openReports(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdminReportsScreen()),
+    );
+  }
+
   Future<void> _refreshProfileContent() async {
     final profile = AppState.profile.value;
     if (profile.semester.id.isNotEmpty) {
@@ -90,12 +116,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         UserProfile(
           name: profile.name,
           email: profile.email,
+          collegeName: profile.collegeName,
           semester: profile.semester,
           subjects: subjects,
           isAdmin: profile.isAdmin,
+          isBlocked: profile.isBlocked,
+          blockedReason: profile.blockedReason,
         ),
       );
     }
+    await _loadModerationSummary();
     await _loadAdminContent();
   }
 
@@ -135,6 +165,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (!mounted) return;
       setState(() {
         _isPendingCountLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadModerationSummary() async {
+    if (_isModerationSummaryLoading) return;
+    setState(() {
+      _isModerationSummaryLoading = true;
+    });
+    try {
+      final results = await Future.wait([
+        _adminService.fetchUserCount(),
+        _adminService.fetchBlockedUserCount(),
+        _adminService.fetchPendingReportCount(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _userCount = results[0];
+        _blockedUserCount = results[1];
+        _pendingReportCount = results[2];
+        _isModerationSummaryLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isModerationSummaryLoading = false;
       });
     }
   }
@@ -270,6 +326,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             tooltip: 'Refresh',
             onPressed: () {
               _loadPendingCount();
+              _loadModerationSummary();
               _loadAdminContent();
             },
             icon: _isPendingCountLoading
@@ -384,6 +441,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             icon: Icons.pending_actions,
                             color: AppColors.warning,
                           ),
+                          _StatTile(
+                            label: 'Users',
+                            value:
+                                _isModerationSummaryLoading ? 0 : _userCount,
+                            icon: Icons.people_alt,
+                            color: AppColors.secondary,
+                          ),
+                          _StatTile(
+                            label: 'Blocked',
+                            value: _isModerationSummaryLoading
+                                ? 0
+                                : _blockedUserCount,
+                            icon: Icons.block,
+                            color: AppColors.warning,
+                          ),
+                          _StatTile(
+                            label: 'Reports',
+                            value: _isModerationSummaryLoading
+                                ? 0
+                                : _pendingReportCount,
+                            icon: Icons.flag,
+                            color: AppColors.accent,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -426,6 +506,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             color: AppColors.warning,
                             actionLabel: 'Open Questions',
                             onAction: () => _openQuestions(context),
+                          ),
+                          _ActionCard(
+                            title: 'Users',
+                            description:
+                                'View accounts, block abusive users, and remove duplicate profiles.',
+                            icon: Icons.people_alt,
+                            color: AppColors.secondary,
+                            actionLabel: 'Open Users',
+                            onAction: () => _openUsers(context),
+                          ),
+                          _ActionCard(
+                            title: 'Activity',
+                            description:
+                                'Monitor recent student actions and admin moderation history.',
+                            icon: Icons.monitor_heart_outlined,
+                            color: AppColors.accent,
+                            actionLabel: 'Open Activity',
+                            onAction: () => _openActivity(context),
+                          ),
+                          _ActionCard(
+                            title: 'Reports & Moderation',
+                            description:
+                                'Handle reports, approve student notes, and review community posts.',
+                            icon: Icons.report_gmailerrorred,
+                            color: AppColors.warning,
+                            actionLabel: 'Open Reports',
+                            onAction: () => _openReports(context),
                           ),
                         ],
                       ),

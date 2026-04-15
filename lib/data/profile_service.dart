@@ -48,7 +48,7 @@ class ProfileService {
     final data = await _client
         .from('profiles')
         .select(
-          'id, full_name, email, college_name, is_admin, semester:semesters(id,name,code)',
+          'id, full_name, email, college_name, is_admin, is_blocked, blocked_reason, semester:semesters(id,name,code)',
         )
         .eq('id', user.id)
         .maybeSingle();
@@ -71,6 +71,8 @@ class ProfileService {
       semester: semesterModel,
       subjects: const [],
       isAdmin: data['is_admin'] as bool? ?? false,
+      isBlocked: data['is_blocked'] as bool? ?? false,
+      blockedReason: data['blocked_reason']?.toString() ?? '',
     );
   }
 }

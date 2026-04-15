@@ -20,6 +20,7 @@ class AppState {
       semester: _emptySemester,
       subjects: [],
       isAdmin: false,
+      isBlocked: false,
     ),
   );
 
@@ -47,6 +48,7 @@ class AppState {
       semester: _emptySemester,
       subjects: const [],
       isAdmin: false,
+      isBlocked: false,
     );
   }
 
@@ -58,6 +60,7 @@ class AppState {
       semester: _emptySemester,
       subjects: const [],
       isAdmin: false,
+      isBlocked: false,
     );
   }
 

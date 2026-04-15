@@ -108,6 +108,21 @@ class AuthPresenter extends Presenter<AuthView> {
 
       final profile = await _profileService.fetchProfile();
       if (profile != null) {
+        if (profile.isBlocked) {
+          try {
+            await SupabaseConfig.client.auth.signOut(
+              scope: SignOutScope.local,
+            );
+          } catch (_) {}
+          AppState.reset();
+          final reason = profile.blockedReason.trim();
+          view?.showMessage(
+            reason.isEmpty
+                ? 'Your account has been blocked by admin.'
+                : 'Your account has been blocked by admin: $reason',
+          );
+          return;
+        }
         final subjects = await _subjectService.fetchSubjectsForSemester(
           profile.semester.id,
           includeContent: true,
@@ -120,6 +135,8 @@ class AuthPresenter extends Presenter<AuthView> {
             semester: profile.semester,
             subjects: subjects,
             isAdmin: profile.isAdmin,
+            isBlocked: profile.isBlocked,
+            blockedReason: profile.blockedReason,
           ),
         );
       }

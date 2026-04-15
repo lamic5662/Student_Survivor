@@ -39,6 +39,58 @@ class BulkUploadResult {
   });
 }
 
+class AdminSemesterRecord {
+  final String id;
+  final String name;
+  final String code;
+  final int sortOrder;
+
+  const AdminSemesterRecord({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.sortOrder,
+  });
+}
+
+class AdminSubjectRecord {
+  final String id;
+  final String semesterId;
+  final String name;
+  final String code;
+  final String description;
+  final String accentColor;
+  final int sortOrder;
+
+  const AdminSubjectRecord({
+    required this.id,
+    required this.semesterId,
+    required this.name,
+    required this.code,
+    required this.description,
+    required this.accentColor,
+    required this.sortOrder,
+  });
+}
+
+class AdminChapterRecord {
+  final String id;
+  final String subjectId;
+  final String title;
+  final String summary;
+  final int sortOrder;
+  final List<ChapterTopic> subtopics;
+
+  const AdminChapterRecord({
+    required this.id,
+    required this.subjectId,
+    required this.title,
+    required this.summary,
+    required this.sortOrder,
+    required this.subtopics,
+  });
+}
+
 class AdminService {
   final SupabaseClient _client;
   final AiRouterService _aiRouter;
@@ -55,6 +107,37 @@ class AdminService {
       'code': code,
       'sort_order': sortOrder,
     });
+  }
+
+  Future<AdminSemesterRecord> fetchSemesterRecord(String semesterId) async {
+    final row = await _client
+        .from('semesters')
+        .select('id,name,code,sort_order')
+        .eq('id', semesterId)
+        .single();
+    return AdminSemesterRecord(
+      id: row['id']?.toString() ?? '',
+      name: row['name']?.toString() ?? '',
+      code: row['code']?.toString() ?? '',
+      sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Future<void> updateSemester({
+    required String semesterId,
+    required String name,
+    required String code,
+    required int sortOrder,
+  }) async {
+    await _client.from('semesters').update({
+      'name': name,
+      'code': code,
+      'sort_order': sortOrder,
+    }).eq('id', semesterId);
+  }
+
+  Future<void> deleteSemester(String semesterId) async {
+    await _client.from('semesters').delete().eq('id', semesterId);
   }
 
   Future<List<College>> fetchColleges({bool includeInactive = true}) async {
@@ -103,6 +186,498 @@ class AdminService {
     await _client.from('colleges').delete().eq('id', collegeId);
   }
 
+  Future<List<AdminManagedUser>> fetchUsers({
+    String query = '',
+    bool? blockedOnly,
+    int limit = 25,
+    int offset = 0,
+  }) async {
+    final trimmed = query.trim().toLowerCase();
+    List<AdminManagedUser> users;
+    try {
+      dynamic queryBuilder = _client.from('profiles').select(
+        'id,full_name,email,phone,college_name,semester_id,is_admin,is_blocked,blocked_reason,blocked_at',
+      );
+      if (blockedOnly == true) {
+        queryBuilder = queryBuilder.eq('is_blocked', true);
+      }
+      if (trimmed.isNotEmpty) {
+        final escaped = _escapeIlike(trimmed);
+        queryBuilder = queryBuilder.or(
+          'full_name.ilike.%$escaped%,'
+          'email.ilike.%$escaped%,'
+          'phone.ilike.%$escaped%,'
+          'college_name.ilike.%$escaped%',
+        );
+      }
+      final data = await queryBuilder
+          .order('updated_at', ascending: false)
+          .range(offset, offset + limit - 1);
+      final maps = (data as List<dynamic>)
+          .map((row) => row as Map<String, dynamic>)
+          .toList();
+      final semesterLookup = await _fetchSemesterLookup(
+        maps
+            .map((row) => row['semester_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+      users = maps
+          .map((row) => _adminManagedUserFromMap(row, semesterLookup))
+          .toList();
+    } on PostgrestException catch (error) {
+      final fallbackData = await _loadUsersFallback(
+        error,
+        query: trimmed,
+        blockedOnly: blockedOnly,
+        limit: limit,
+        offset: offset,
+      );
+      users = fallbackData;
+    }
+    return users;
+  }
+
+  Future<List<AdminManagedUser>> _loadUsersFallback(
+    PostgrestException originalError,
+    {
+    required String query,
+    required bool? blockedOnly,
+    required int limit,
+    required int offset,
+  }
+  ) async {
+    try {
+      final rows = await _client
+          .from('profiles')
+          .select(
+            'id,full_name,email,phone,college_name,is_admin,semester_id',
+          )
+          .order('updated_at', ascending: false);
+      final maps = (rows as List<dynamic>)
+          .map((row) => row as Map<String, dynamic>)
+          .toList();
+      final semesterLookup = await _fetchSemesterLookup(
+        maps
+            .map((row) => row['semester_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+
+      var users = maps.map((map) {
+        return _adminManagedUserFromMap(map, semesterLookup);
+      }).toList();
+
+      if (blockedOnly == true) {
+        users = const [];
+      }
+      if (query.isNotEmpty) {
+        users = users.where((user) {
+          return user.name.toLowerCase().contains(query) ||
+              user.email.toLowerCase().contains(query) ||
+              user.phone.toLowerCase().contains(query) ||
+              user.collegeName.toLowerCase().contains(query) ||
+              user.semesterName.toLowerCase().contains(query);
+        }).toList();
+      }
+      final start = offset.clamp(0, users.length);
+      final end = (start + limit).clamp(0, users.length);
+      return users.sublist(start, end);
+    } on PostgrestException {
+      throw Exception(
+        'Admin user schema is not ready. Apply the latest Supabase migrations, including 0050_admin_moderation.sql. Original error: ${originalError.message}',
+      );
+    }
+  }
+
+  Future<void> setUserBlocked({
+    required String userId,
+    required bool blocked,
+    String? reason,
+  }) async {
+    final payload = <String, dynamic>{
+      'is_blocked': blocked,
+      'blocked_reason': blocked ? reason?.trim() : null,
+      'blocked_at':
+          blocked ? DateTime.now().toUtc().toIso8601String() : null,
+      'blocked_by': blocked ? _client.auth.currentUser?.id : null,
+    };
+    await _client.from('profiles').update(payload).eq('id', userId);
+    await _logAdminAction(
+      actionType: blocked ? 'user_blocked' : 'user_unblocked',
+      targetType: 'profile',
+      targetId: userId,
+      targetUserId: userId,
+      details: {
+        if (blocked) 'reason': reason?.trim() ?? '',
+      },
+    );
+  }
+
+  Future<void> deleteUser(String userId) async {
+    await _client.rpc('admin_delete_user', params: {'p_user_id': userId});
+  }
+
+  Future<int> fetchUserCount() async {
+    final rows = await _client.from('profiles').select('id');
+    return (rows as List<dynamic>).length;
+  }
+
+  Future<int> fetchFilteredUserCount({
+    String query = '',
+    bool? blockedOnly,
+  }) async {
+    final trimmed = query.trim().toLowerCase();
+    try {
+      dynamic queryBuilder = _client.from('profiles').select('id');
+      if (blockedOnly == true) {
+        queryBuilder = queryBuilder.eq('is_blocked', true);
+      }
+      if (trimmed.isNotEmpty) {
+        final escaped = _escapeIlike(trimmed);
+        queryBuilder = queryBuilder.or(
+          'full_name.ilike.%$escaped%,'
+          'email.ilike.%$escaped%,'
+          'phone.ilike.%$escaped%,'
+          'college_name.ilike.%$escaped%',
+        );
+      }
+      final response = await queryBuilder.count(CountOption.exact);
+      return response.count ?? 0;
+    } on PostgrestException {
+      final rows = await _client
+          .from('profiles')
+          .select(
+            'id,full_name,email,phone,college_name,is_admin,semester_id',
+          )
+          .order('updated_at', ascending: false);
+      final maps = (rows as List<dynamic>)
+          .map((row) => row as Map<String, dynamic>)
+          .toList();
+      final semesterLookup = await _fetchSemesterLookup(
+        maps
+            .map((row) => row['semester_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+      var users = maps.map((map) {
+        return _adminManagedUserFromMap(map, semesterLookup);
+      }).toList();
+      if (blockedOnly == true) {
+        users = const [];
+      }
+      if (trimmed.isNotEmpty) {
+        users = users.where((user) {
+          return user.name.toLowerCase().contains(trimmed) ||
+              user.email.toLowerCase().contains(trimmed) ||
+              user.phone.toLowerCase().contains(trimmed) ||
+              user.collegeName.toLowerCase().contains(trimmed) ||
+              user.semesterName.toLowerCase().contains(trimmed);
+        }).toList();
+      }
+      return users.length;
+    }
+  }
+
+  Future<int> fetchBlockedUserCount() async {
+    final rows = await _client
+        .from('profiles')
+        .select('id')
+        .eq('is_blocked', true);
+    return (rows as List<dynamic>).length;
+  }
+
+  Future<int> fetchRecentActivityCount({
+    String search = '',
+    String? activityType,
+  }) async {
+    final trimmed = search.trim();
+    try {
+      dynamic query = _client.from('admin_activity_feed').select('id');
+      if (activityType != null && activityType.isNotEmpty) {
+        query = query.eq('activity_type', activityType);
+      }
+      if (trimmed.isNotEmpty) {
+        query = query.ilike('search_text', '%${_escapeIlike(trimmed)}%');
+      }
+      final response = await query.count(CountOption.exact);
+      return response.count;
+    } on PostgrestException {
+      final entries = await fetchRecentActivities(
+        limit: 500,
+        offset: 0,
+      );
+      return _filterActivityEntries(
+        entries,
+        search: trimmed,
+        activityType: activityType,
+      ).length;
+    }
+  }
+
+  Future<List<AdminActivityEntry>> fetchRecentActivities({
+    int limit = 80,
+    int offset = 0,
+    String search = '',
+    String? activityType,
+  }) async {
+    final trimmed = search.trim();
+    try {
+      dynamic query = _client.from('admin_activity_feed').select(
+        'id,user_id,user_name,user_email,activity_type,source,points,subject_name,chapter_title,metadata,created_at',
+      );
+      if (activityType != null && activityType.isNotEmpty) {
+        query = query.eq('activity_type', activityType);
+      }
+      if (trimmed.isNotEmpty) {
+        query = query.ilike('search_text', '%${_escapeIlike(trimmed)}%');
+      }
+      final rows = await query
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return (rows as List<dynamic>)
+          .map((row) => _adminActivityEntryFromFeedMap(row as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException {
+      final activityRows = await _client
+          .from('user_activity_log')
+          .select('id,user_id,activity_type,source,points,subject_id,chapter_id,metadata,created_at')
+          .order('created_at', ascending: false)
+          .range(0, 499);
+
+      final rows = (activityRows as List<dynamic>)
+          .map((row) => row as Map<String, dynamic>)
+          .toList();
+      final profileLookup = await _fetchProfileLookup(
+        rows
+            .map((row) => row['user_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+      final subjectLookup = await _fetchSubjectLookup(
+        rows
+            .map((row) => row['subject_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+      final chapterLookup = await _fetchChapterLookup(
+        rows
+            .map((row) => row['chapter_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+
+      final entries = rows
+          .map(
+            (row) => _adminActivityEntryFromMap(
+              row,
+              profileLookup: profileLookup,
+              subjectLookup: subjectLookup,
+              chapterLookup: chapterLookup,
+            ),
+          )
+          .toList();
+      final filtered = _filterActivityEntries(
+        entries,
+        search: trimmed,
+        activityType: activityType,
+      );
+      final start = offset.clamp(0, filtered.length);
+      final end = (start + limit).clamp(0, filtered.length);
+      return filtered.sublist(start, end);
+    }
+  }
+
+  Future<int> fetchAdminAuditCount({
+    String search = '',
+    String? actionType,
+  }) async {
+    final trimmed = search.trim();
+    try {
+      dynamic query = _client.from('admin_audit_feed').select('id');
+      if (actionType != null && actionType.isNotEmpty) {
+        query = query.eq('action_type', actionType);
+      }
+      if (trimmed.isNotEmpty) {
+        query = query.ilike('search_text', '%${_escapeIlike(trimmed)}%');
+      }
+      final response = await query.count(CountOption.exact);
+      return response.count;
+    } on PostgrestException {
+      final entries = await fetchAdminAuditEntries(
+        limit: 500,
+        offset: 0,
+      );
+      return _filterAuditEntries(
+        entries,
+        search: trimmed,
+        actionType: actionType,
+      ).length;
+    }
+  }
+
+  Future<List<AdminAuditEntry>> fetchAdminAuditEntries({
+    int limit = 60,
+    int offset = 0,
+    String search = '',
+    String? actionType,
+  }) async {
+    final trimmed = search.trim();
+    try {
+      dynamic query = _client.from('admin_audit_feed').select(
+        'id,actor_id,actor_name,actor_email,action_type,target_type,target_id,target_user_id,details,created_at',
+      );
+      if (actionType != null && actionType.isNotEmpty) {
+        query = query.eq('action_type', actionType);
+      }
+      if (trimmed.isNotEmpty) {
+        query = query.ilike('search_text', '%${_escapeIlike(trimmed)}%');
+      }
+      final rows = await query
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return (rows as List<dynamic>)
+          .map((row) => _adminAuditEntryFromFeedMap(row as Map<String, dynamic>))
+          .toList();
+    } on PostgrestException {
+      final rows = await _client
+          .from('admin_audit_log')
+          .select('id,actor_id,action_type,target_type,target_id,target_user_id,details,created_at')
+          .order('created_at', ascending: false)
+          .range(0, 499);
+
+      final maps = (rows as List<dynamic>)
+          .map((row) => row as Map<String, dynamic>)
+          .toList();
+      final profileLookup = await _fetchProfileLookup(
+        maps
+            .map((row) => row['actor_id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet(),
+      );
+
+      final entries = maps
+          .map(
+            (row) => _adminAuditEntryFromMap(
+              row,
+              profileLookup: profileLookup,
+            ),
+          )
+          .toList();
+      final filtered = _filterAuditEntries(
+        entries,
+        search: trimmed,
+        actionType: actionType,
+      );
+      final start = offset.clamp(0, filtered.length);
+      final end = (start + limit).clamp(0, filtered.length);
+      return filtered.sublist(start, end);
+    }
+  }
+
+  Future<List<AdminContentReport>> fetchReports({
+    String? status = 'pending',
+  }) async {
+    final baseQuery = _client.from('content_reports').select(
+      'id,reporter_id,target_type,target_id,target_owner_id,target_title,target_preview,reason,details,status,reviewed_by,review_note,created_at,reviewed_at',
+    );
+    final rows = (status == null || status == 'all')
+        ? await baseQuery.order('created_at', ascending: false)
+        : await baseQuery
+            .eq('status', status)
+            .order('created_at', ascending: false);
+
+    final maps = (rows as List<dynamic>)
+        .map((row) => row as Map<String, dynamic>)
+        .toList();
+    final userIds = <String>{
+      ...maps
+          .map((row) => row['reporter_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+      ...maps
+          .map((row) => row['reviewed_by']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+    };
+    final profileLookup = await _fetchProfileLookup(userIds);
+
+    return maps
+        .map(
+          (row) => _adminContentReportFromMap(
+            row,
+            profileLookup: profileLookup,
+          ),
+        )
+        .toList();
+  }
+
+  Future<int> fetchPendingReportCount() async {
+    final rows = await _client
+        .from('content_reports')
+        .select('id')
+        .eq('status', 'pending');
+    return (rows as List<dynamic>).length;
+  }
+
+  Future<void> updateReportStatus({
+    required String reportId,
+    required String status,
+    String? reviewNote,
+  }) async {
+    final reviewerId = _client.auth.currentUser?.id;
+    await _client.from('content_reports').update({
+      'status': status,
+      'reviewed_by': reviewerId,
+      'review_note': reviewNote?.trim(),
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', reportId);
+    await _logAdminAction(
+      actionType: 'report_$status',
+      targetType: 'content_report',
+      targetId: reportId,
+      details: {
+        'review_note': reviewNote?.trim() ?? '',
+      },
+    );
+  }
+
+  Future<void> deleteUserNote(String noteId) async {
+    await _client.from('user_notes').delete().eq('id', noteId);
+    await _logAdminAction(
+      actionType: 'user_note_deleted',
+      targetType: 'user_note',
+      targetId: noteId,
+    );
+  }
+
+  Future<void> deleteCommunityQuestion(String questionId) async {
+    await _client.from('community_questions').delete().eq('id', questionId);
+    await _logAdminAction(
+      actionType: 'community_question_deleted',
+      targetType: 'community_question',
+      targetId: questionId,
+    );
+  }
+
+  Future<void> deleteCommunityAnswer(String answerId) async {
+    await _client.from('community_answers').delete().eq('id', answerId);
+    await _logAdminAction(
+      actionType: 'community_answer_deleted',
+      targetType: 'community_answer',
+      targetId: answerId,
+    );
+  }
+
+  Future<void> deleteChatMessage(String messageId) async {
+    await _client.from('chat_messages').delete().eq('id', messageId);
+    await _logAdminAction(
+      actionType: 'chat_message_deleted',
+      targetType: 'chat_message',
+      targetId: messageId,
+    );
+  }
+
   Future<void> addSubject({
     required String semesterId,
     required String name,
@@ -119,6 +694,48 @@ class AdminService {
       'accent_color': accentColor,
       'sort_order': sortOrder,
     });
+  }
+
+  Future<AdminSubjectRecord> fetchSubjectRecord(String subjectId) async {
+    final row = await _client
+        .from('subjects')
+        .select(
+          'id,semester_id,name,code,description,accent_color,sort_order',
+        )
+        .eq('id', subjectId)
+        .single();
+    return AdminSubjectRecord(
+      id: row['id']?.toString() ?? '',
+      semesterId: row['semester_id']?.toString() ?? '',
+      name: row['name']?.toString() ?? '',
+      code: row['code']?.toString() ?? '',
+      description: row['description']?.toString() ?? '',
+      accentColor: row['accent_color']?.toString() ?? '#2563EB',
+      sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Future<void> updateSubject({
+    required String subjectId,
+    required String semesterId,
+    required String name,
+    required String code,
+    String? description,
+    String? accentColor,
+    int sortOrder = 0,
+  }) async {
+    await _client.from('subjects').update({
+      'semester_id': semesterId,
+      'name': name,
+      'code': code,
+      'description': description,
+      'accent_color': accentColor,
+      'sort_order': sortOrder,
+    }).eq('id', subjectId);
+  }
+
+  Future<void> deleteSubject(String subjectId) async {
+    await _client.from('subjects').delete().eq('id', subjectId);
   }
 
   Future<void> addChapter({
@@ -162,6 +779,70 @@ class AdminService {
         'question_count': 10,
       });
     }
+  }
+
+  Future<AdminChapterRecord> fetchChapterRecord(String chapterId) async {
+    final row = await _client
+        .from('chapters')
+        .select('id,subject_id,title,summary,sort_order')
+        .eq('id', chapterId)
+        .single();
+    final subtopicRows = await _client
+        .from('chapter_subtopics')
+        .select('id,title,summary,sort_order')
+        .eq('chapter_id', chapterId)
+        .order('sort_order');
+    return AdminChapterRecord(
+      id: row['id']?.toString() ?? '',
+      subjectId: row['subject_id']?.toString() ?? '',
+      title: row['title']?.toString() ?? '',
+      summary: row['summary']?.toString() ?? '',
+      sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+      subtopics: (subtopicRows as List<dynamic>)
+          .map(
+            (item) => ChapterTopic(
+              id: item['id']?.toString() ?? '',
+              title: item['title']?.toString() ?? '',
+              summary: item['summary']?.toString() ?? '',
+              sortOrder: (item['sort_order'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> updateChapter({
+    required String chapterId,
+    required String subjectId,
+    required String title,
+    String? summary,
+    int sortOrder = 0,
+    List<Map<String, dynamic>> subtopics = const [],
+  }) async {
+    await _client.from('chapters').update({
+      'subject_id': subjectId,
+      'title': title,
+      'summary': summary,
+      'sort_order': sortOrder,
+    }).eq('id', chapterId);
+    await _client.from('chapter_subtopics').delete().eq('chapter_id', chapterId);
+    if (subtopics.isNotEmpty) {
+      final payload = subtopics
+          .map(
+            (topic) => {
+              'chapter_id': chapterId,
+              'title': topic['title'],
+              'summary': topic['summary'],
+              'sort_order': topic['sort_order'] ?? 0,
+            },
+          )
+          .toList();
+      await _client.from('chapter_subtopics').insert(payload);
+    }
+  }
+
+  Future<void> deleteChapter(String chapterId) async {
+    await _client.from('chapters').delete().eq('id', chapterId);
   }
 
   Future<void> addNote({
@@ -266,6 +947,11 @@ class AdminService {
 
   Future<void> deleteNote(String noteId) async {
     await _client.from('notes').delete().eq('id', noteId);
+    await _logAdminAction(
+      actionType: 'note_deleted',
+      targetType: 'note',
+      targetId: noteId,
+    );
   }
 
   Future<int> fetchPendingNoteSubmissionCount() async {
@@ -320,6 +1006,16 @@ class AdminService {
       'reviewed_at': DateTime.now().toUtc().toIso8601String(),
       'reviewed_by': adminId,
     }).eq('id', submission.id);
+    await _logAdminAction(
+      actionType: 'note_submission_approved',
+      targetType: 'note_submission',
+      targetId: submission.id,
+      targetUserId: submission.userId,
+      details: {
+        'chapter_id': submission.chapterId,
+        'title': submission.title,
+      },
+    );
   }
 
   Future<void> rejectNoteSubmission(
@@ -333,10 +1029,24 @@ class AdminService {
       'reviewed_at': DateTime.now().toUtc().toIso8601String(),
       'reviewed_by': adminId,
     }).eq('id', submission.id);
+    await _logAdminAction(
+      actionType: 'note_submission_rejected',
+      targetType: 'note_submission',
+      targetId: submission.id,
+      targetUserId: submission.userId,
+      details: {
+        'feedback': feedback?.trim() ?? '',
+      },
+    );
   }
 
   Future<void> deleteNoteSubmission(String submissionId) async {
     await _client.from('note_submissions').delete().eq('id', submissionId);
+    await _logAdminAction(
+      actionType: 'note_submission_deleted',
+      targetType: 'note_submission',
+      targetId: submissionId,
+    );
   }
 
   Future<List<AdminCommunityQuestion>> fetchPendingCommunityQuestions() async {
@@ -361,6 +1071,15 @@ class AdminService {
       'reviewed_at': DateTime.now().toUtc().toIso8601String(),
       'reviewed_by': adminId,
     }).eq('id', question.id);
+    await _logAdminAction(
+      actionType: 'community_question_approved',
+      targetType: 'community_question',
+      targetId: question.id,
+      targetUserId: question.userId,
+      details: {
+        'subject_id': question.subjectId,
+      },
+    );
   }
 
   Future<void> rejectCommunityQuestion(
@@ -374,10 +1093,24 @@ class AdminService {
       'reviewed_at': DateTime.now().toUtc().toIso8601String(),
       'reviewed_by': adminId,
     }).eq('id', question.id);
+    await _logAdminAction(
+      actionType: 'community_question_rejected',
+      targetType: 'community_question',
+      targetId: question.id,
+      targetUserId: question.userId,
+      details: {
+        'reason': adminReason?.trim() ?? '',
+      },
+    );
   }
 
   Future<void> deleteQuestion(String questionId) async {
     await _client.from('questions').delete().eq('id', questionId);
+    await _logAdminAction(
+      actionType: 'question_deleted',
+      targetType: 'question',
+      targetId: questionId,
+    );
   }
 
   Future<void> clearSubjectSyllabus(String subjectId) async {
@@ -1106,6 +1839,89 @@ class AdminService {
     if (value.length <= max) return value;
     return value.substring(0, max);
   }
+
+  Future<Map<String, _AdminProfileStub>> _fetchProfileLookup(
+    Set<String> ids,
+  ) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('profiles')
+        .select('id,full_name,email,college_name')
+        .inFilter('id', ids.toList());
+    final map = <String, _AdminProfileStub>{};
+    for (final row in rows as List<dynamic>) {
+      final item = _adminProfileStubFromMap(row as Map<String, dynamic>);
+      map[item.id] = item;
+    }
+    return map;
+  }
+
+  Future<Map<String, String>> _fetchSubjectLookup(Set<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('subjects')
+        .select('id,name')
+        .inFilter('id', ids.toList());
+    return {
+      for (final row in rows as List<dynamic>)
+        row['id']?.toString() ?? '': row['name']?.toString() ?? 'Subject',
+    }..remove('');
+  }
+
+  Future<Map<String, String>> _fetchChapterLookup(Set<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('chapters')
+        .select('id,title')
+        .inFilter('id', ids.toList());
+    return {
+      for (final row in rows as List<dynamic>)
+        row['id']?.toString() ?? '': row['title']?.toString() ?? 'Chapter',
+    }..remove('');
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchSemesterLookup(
+    Set<String> ids,
+  ) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('semesters')
+        .select('id,name,code')
+        .inFilter('id', ids.toList());
+    return {
+      for (final row in rows as List<dynamic>)
+        row['id']?.toString() ?? '': row as Map<String, dynamic>,
+    }..remove('');
+  }
+
+  Future<void> _logAdminAction({
+    required String actionType,
+    String? targetType,
+    String? targetId,
+    String? targetUserId,
+    Map<String, dynamic>? details,
+  }) async {
+    try {
+      await _client.rpc(
+        'log_admin_action',
+        params: {
+          'p_action_type': actionType,
+          'p_target_type': targetType,
+          'p_target_id': targetId,
+          'p_target_user_id': targetUserId,
+          'p_details': details ?? <String, dynamic>{},
+        },
+      );
+    } catch (_) {}
+  }
+
+  String _escapeIlike(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_')
+        .replaceAll(',', r'\,');
+  }
 }
 
 class _QuestionLine {
@@ -1137,6 +1953,144 @@ class AdminNote {
     required this.detailedAnswer,
     required this.tags,
     this.fileUrl,
+  });
+}
+
+class AdminManagedUser {
+  final String id;
+  final String name;
+  final String email;
+  final String phone;
+  final String collegeName;
+  final String semesterId;
+  final String semesterName;
+  final bool isAdmin;
+  final bool isBlocked;
+  final String blockedReason;
+  final DateTime? blockedAt;
+
+  const AdminManagedUser({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.collegeName,
+    required this.semesterId,
+    required this.semesterName,
+    required this.isAdmin,
+    required this.isBlocked,
+    required this.blockedReason,
+    this.blockedAt,
+  });
+}
+
+class AdminActivityEntry {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final String activityType;
+  final String source;
+  final int points;
+  final String subjectName;
+  final String chapterTitle;
+  final Map<String, dynamic> metadata;
+  final DateTime? createdAt;
+
+  const AdminActivityEntry({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    required this.activityType,
+    required this.source,
+    required this.points,
+    required this.subjectName,
+    required this.chapterTitle,
+    required this.metadata,
+    this.createdAt,
+  });
+}
+
+class AdminAuditEntry {
+  final String id;
+  final String actorId;
+  final String actorName;
+  final String actorEmail;
+  final String actionType;
+  final String targetType;
+  final String targetId;
+  final String targetUserId;
+  final Map<String, dynamic> details;
+  final DateTime? createdAt;
+
+  const AdminAuditEntry({
+    required this.id,
+    required this.actorId,
+    required this.actorName,
+    required this.actorEmail,
+    required this.actionType,
+    required this.targetType,
+    required this.targetId,
+    required this.targetUserId,
+    required this.details,
+    this.createdAt,
+  });
+}
+
+class AdminContentReport {
+  final String id;
+  final String reporterId;
+  final String reporterName;
+  final String reporterEmail;
+  final String reporterCollegeName;
+  final String targetType;
+  final String targetId;
+  final String targetOwnerId;
+  final String targetTitle;
+  final String targetPreview;
+  final String reason;
+  final String details;
+  final String status;
+  final String reviewedBy;
+  final String reviewerName;
+  final String reviewNote;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+
+  const AdminContentReport({
+    required this.id,
+    required this.reporterId,
+    required this.reporterName,
+    required this.reporterEmail,
+    required this.reporterCollegeName,
+    required this.targetType,
+    required this.targetId,
+    required this.targetOwnerId,
+    required this.targetTitle,
+    required this.targetPreview,
+    required this.reason,
+    required this.details,
+    required this.status,
+    required this.reviewedBy,
+    required this.reviewerName,
+    required this.reviewNote,
+    this.createdAt,
+    this.reviewedAt,
+  });
+}
+
+class _AdminProfileStub {
+  final String id;
+  final String fullName;
+  final String email;
+  final String collegeName;
+
+  const _AdminProfileStub({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.collegeName,
   });
 }
 
@@ -1212,6 +2166,37 @@ AdminNote _adminNoteFromMap(Map<String, dynamic> map) {
   );
 }
 
+_AdminProfileStub _adminProfileStubFromMap(Map<String, dynamic> map) {
+  return _AdminProfileStub(
+    id: map['id']?.toString() ?? '',
+    fullName: map['full_name']?.toString() ?? 'Student',
+    email: map['email']?.toString() ?? '',
+    collegeName: map['college_name']?.toString() ?? '',
+  );
+}
+
+AdminManagedUser _adminManagedUserFromMap(
+  Map<String, dynamic> map, [
+  Map<String, Map<String, dynamic>> semesterLookup = const {},
+]) {
+  final semesterId = map['semester_id']?.toString() ?? '';
+  final semesterMap = semesterLookup[semesterId];
+  final blockedAtRaw = map['blocked_at']?.toString();
+  return AdminManagedUser(
+    id: map['id']?.toString() ?? '',
+    name: map['full_name']?.toString() ?? 'Student',
+    email: map['email']?.toString() ?? '',
+    phone: map['phone']?.toString() ?? '',
+    collegeName: map['college_name']?.toString() ?? '',
+    semesterId: semesterId,
+    semesterName: semesterMap?['name']?.toString() ?? '',
+    isAdmin: map['is_admin'] as bool? ?? false,
+    isBlocked: map['is_blocked'] as bool? ?? false,
+    blockedReason: map['blocked_reason']?.toString() ?? '',
+    blockedAt: blockedAtRaw == null ? null : DateTime.tryParse(blockedAtRaw),
+  );
+}
+
 AdminNoteSubmission _adminSubmissionFromMap(Map<String, dynamic> map) {
   final tags = (map['tags'] as List<dynamic>? ?? [])
       .map((tag) => tag.toString())
@@ -1260,6 +2245,191 @@ AdminCommunityQuestion _adminCommunityQuestionFromMap(
     createdAt:
         createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
   );
+}
+
+AdminActivityEntry _adminActivityEntryFromMap(
+  Map<String, dynamic> map, {
+  required Map<String, _AdminProfileStub> profileLookup,
+  required Map<String, String> subjectLookup,
+  required Map<String, String> chapterLookup,
+}) {
+  final userId = map['user_id']?.toString() ?? '';
+  final subjectId = map['subject_id']?.toString() ?? '';
+  final chapterId = map['chapter_id']?.toString() ?? '';
+  final profile = profileLookup[userId];
+  final metadata = map['metadata'];
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminActivityEntry(
+    id: map['id']?.toString() ?? '',
+    userId: userId,
+    userName: profile?.fullName ?? 'Student',
+    userEmail: profile?.email ?? '',
+    activityType: map['activity_type']?.toString() ?? '',
+    source: map['source']?.toString() ?? '',
+    points: (map['points'] as num?)?.toInt() ?? 0,
+    subjectName: subjectLookup[subjectId] ?? '',
+    chapterTitle: chapterLookup[chapterId] ?? '',
+    metadata: metadata is Map<String, dynamic>
+        ? metadata
+        : Map<String, dynamic>.from(metadata as Map? ?? const {}),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+  );
+}
+
+AdminActivityEntry _adminActivityEntryFromFeedMap(Map<String, dynamic> map) {
+  final metadata = map['metadata'];
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminActivityEntry(
+    id: map['id']?.toString() ?? '',
+    userId: map['user_id']?.toString() ?? '',
+    userName: map['user_name']?.toString() ?? 'Student',
+    userEmail: map['user_email']?.toString() ?? '',
+    activityType: map['activity_type']?.toString() ?? '',
+    source: map['source']?.toString() ?? '',
+    points: (map['points'] as num?)?.toInt() ?? 0,
+    subjectName: map['subject_name']?.toString() ?? '',
+    chapterTitle: map['chapter_title']?.toString() ?? '',
+    metadata: metadata is Map<String, dynamic>
+        ? metadata
+        : Map<String, dynamic>.from(metadata as Map? ?? const {}),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+  );
+}
+
+AdminAuditEntry _adminAuditEntryFromMap(
+  Map<String, dynamic> map, {
+  required Map<String, _AdminProfileStub> profileLookup,
+}) {
+  final actorId = map['actor_id']?.toString() ?? '';
+  final actor = profileLookup[actorId];
+  final details = map['details'];
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminAuditEntry(
+    id: map['id']?.toString() ?? '',
+    actorId: actorId,
+    actorName: actor?.fullName ?? 'Admin',
+    actorEmail: actor?.email ?? '',
+    actionType: map['action_type']?.toString() ?? '',
+    targetType: map['target_type']?.toString() ?? '',
+    targetId: map['target_id']?.toString() ?? '',
+    targetUserId: map['target_user_id']?.toString() ?? '',
+    details: details is Map<String, dynamic>
+        ? details
+        : Map<String, dynamic>.from(details as Map? ?? const {}),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+  );
+}
+
+AdminAuditEntry _adminAuditEntryFromFeedMap(Map<String, dynamic> map) {
+  final details = map['details'];
+  final createdAtRaw = map['created_at']?.toString();
+  return AdminAuditEntry(
+    id: map['id']?.toString() ?? '',
+    actorId: map['actor_id']?.toString() ?? '',
+    actorName: map['actor_name']?.toString() ?? 'Admin',
+    actorEmail: map['actor_email']?.toString() ?? '',
+    actionType: map['action_type']?.toString() ?? '',
+    targetType: map['target_type']?.toString() ?? '',
+    targetId: map['target_id']?.toString() ?? '',
+    targetUserId: map['target_user_id']?.toString() ?? '',
+    details: details is Map<String, dynamic>
+        ? details
+        : Map<String, dynamic>.from(details as Map? ?? const {}),
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+  );
+}
+
+AdminContentReport _adminContentReportFromMap(
+  Map<String, dynamic> map, {
+  required Map<String, _AdminProfileStub> profileLookup,
+}) {
+  final reporterId = map['reporter_id']?.toString() ?? '';
+  final reviewedBy = map['reviewed_by']?.toString() ?? '';
+  final reporter = profileLookup[reporterId];
+  final reviewer = profileLookup[reviewedBy];
+  final createdAtRaw = map['created_at']?.toString();
+  final reviewedAtRaw = map['reviewed_at']?.toString();
+  return AdminContentReport(
+    id: map['id']?.toString() ?? '',
+    reporterId: reporterId,
+    reporterName: reporter?.fullName ?? 'Student',
+    reporterEmail: reporter?.email ?? '',
+    reporterCollegeName: reporter?.collegeName ?? '',
+    targetType: map['target_type']?.toString() ?? '',
+    targetId: map['target_id']?.toString() ?? '',
+    targetOwnerId: map['target_owner_id']?.toString() ?? '',
+    targetTitle: map['target_title']?.toString() ?? '',
+    targetPreview: map['target_preview']?.toString() ?? '',
+    reason: map['reason']?.toString() ?? '',
+    details: map['details']?.toString() ?? '',
+    status: map['status']?.toString() ?? 'pending',
+    reviewedBy: reviewedBy,
+    reviewerName: reviewer?.fullName ?? '',
+    reviewNote: map['review_note']?.toString() ?? '',
+    createdAt:
+        createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+    reviewedAt:
+        reviewedAtRaw == null ? null : DateTime.tryParse(reviewedAtRaw),
+  );
+}
+
+List<AdminActivityEntry> _filterActivityEntries(
+  List<AdminActivityEntry> entries, {
+  String search = '',
+  String? activityType,
+}) {
+  final trimmed = search.trim().toLowerCase();
+  return entries.where((entry) {
+    if (activityType != null &&
+        activityType.isNotEmpty &&
+        entry.activityType != activityType) {
+      return false;
+    }
+    if (trimmed.isEmpty) {
+      return true;
+    }
+    final haystack = [
+      entry.userName,
+      entry.userEmail,
+      entry.activityType,
+      entry.source,
+      entry.subjectName,
+      entry.chapterTitle,
+      ...entry.metadata.entries.map((item) => '${item.key} ${item.value}'),
+    ].join(' ').toLowerCase();
+    return haystack.contains(trimmed);
+  }).toList();
+}
+
+List<AdminAuditEntry> _filterAuditEntries(
+  List<AdminAuditEntry> entries, {
+  String search = '',
+  String? actionType,
+}) {
+  final trimmed = search.trim().toLowerCase();
+  return entries.where((entry) {
+    if (actionType != null &&
+        actionType.isNotEmpty &&
+        entry.actionType != actionType) {
+      return false;
+    }
+    if (trimmed.isEmpty) {
+      return true;
+    }
+    final haystack = [
+      entry.actorName,
+      entry.actorEmail,
+      entry.actionType,
+      entry.targetType,
+      entry.targetId,
+      ...entry.details.entries.map((item) => '${item.key} ${item.value}'),
+    ].join(' ').toLowerCase();
+    return haystack.contains(trimmed);
+  }).toList();
 }
 
 class _MatchCandidate {
